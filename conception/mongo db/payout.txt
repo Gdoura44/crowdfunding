@@ -1,0 +1,130 @@
+{
+  "_id": ObjectId,
+  "projectId": { "type": "ObjectId", "ref": "Project", "required": true, "index": true },
+
+  // creatorId added for direct audit reference
+  // Copied from Project.creatorId at Payout creation time
+  // Retained even if creator is later deleted (pointing to anonymized User doc)
+  "creatorId": { "type": "ObjectId", "ref": "User", "required": true, "index": true },
+
+  // amount = fundingGoal at time of project closure (NOT currentFunding)
+  // Ensures creator receives exactly the goal amount regardless of overfunding
+  // Overfunding refunds are processed BEFORE Payout creation
+  "amount": { "type": "number", "required": true },
+
+  "status": {
+    "type": "string",
+    "enum": ["PENDING", "READY", "COMPLETED", "CANCELLED", "FAILED"],
+    "default": "PENDING"
+  },
+
+  // bankDetails: encrypted at rest (AES-256-CBC). Null until creator submits details.
+  "bankDetails": { "type": "string", "default": null },
+
+  // Added to document failure reasons
+  "failureReason": { "type": "string" },
+  // Populated when status → FAILED
+  // Examples: "Invalid bank details", "Bank account closed", "Provider error"
+
+  // notes: used by admin to document cancellation reasons, manual interventions, etc.
+  "notes": { "type": "string" },
+
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "bankDetailsProvidedAt": "Date",   // set when status → READY
+  "completedAt": "Date"              // set when status → COMPLETED
+}
+
+// Indexes
+db.payouts.createIndex({ projectId: 1 }, { unique: true });
+// Unique: one payout per project. A second payout for the same project is a bug.
+db.payouts.createIndex({ creatorId: 1, status: 1 });
+db.payouts.createIndex({ status: 1 });
+
+// ============================================================================
+// BANK DETAILS FORMAT (before encryption)
+// ============================================================================
+// The bankDetails field must be a JSON string with the following structure:
+// {
+//   "accountHolderName": "string",   // required, 3-100 characters
+//   "iban": "string",                // required, valid IBAN format
+//   "bankName": "string",            // required, 3-100 characters
+//   "swiftCode": "string"            // optional, exactly 8 or 11 characters if provided
+// }
+//
+// Validation (service layer, before encryption):
+// 1. Parse JSON.
+// 2. Check presence and length of required fields.
+// 3. Validate IBAN using a standard library (e.g., iban.js).
+// 4. If swiftCode provided, check length is 8 or 11.
+// 5. On any failure, throw ValidationError with a clear message.
+// ============================================================================
+
+// ============================================================================
+// PAYOUT STATUS TRANSITION RULES
+// ============================================================================
+//
+//
+// **Precondition for payout creation:**
+// The system MUST verify that no unresolved FailedRefundEvent exists for this project
+// with reason = "OVERFUNDING". If such an event exists, the project remains ACTIVE
+// (goal reached but closure pending overfunding refund resolution). The payout is
+// NOT created until the overfunding refund succeeds or is manually resolved.
+//
+// **Status Flow:**
+// 1. PENDING (created when project closes successfully)
+//    → Creator receives PAYOUT_BANK_DETAILS_REQUEST notification
+//    → Waiting for creator to submit bank details
+//
+// 2. PENDING → READY (creator submits bank details)
+//    → bankDetailsProvidedAt set to current timestamp
+//    → Admin receives notification to approve payout
+//
+// 3. READY → COMPLETED (admin approves and payment succeeds)
+//    → completedAt set to current timestamp
+//    → Creator receives PAYOUT_COMPLETED notification
+//    → Immutable state (no further transitions)
+//
+// 4. READY → FAILED (payment attempt fails)
+//    → failureReason populated (e.g., "Invalid IBAN format")
+//    → FailedPayoutEvent created
+//    → Creator receives PAYOUT_FAILED notification
+//    → Admin receives notification for review
+//
+// 5. FAILED → READY (admin resolves issue and retries)
+//    → Admin verifies/corrects bank details
+//    → Admin clicks "Retry Failed Payout" (UC_RetryPayout)
+//    → failureReason cleared or updated
+//    → FailedPayoutEvent.resolved = true
+//
+// 6. ANY → CANCELLED (admin cancels payout)
+//    → notes field documents cancellation reason
+//    → Creator receives PAYOUT_CANCELLED notification
+//    → bankDetails cleared for privacy
+//    → Immutable state (no further transitions)
+//
+// **Edge Cases:**
+//
+// **Creator Deleted Before Payout Completion:**
+// - If status = PENDING or READY: user deletion is **blocked** by the restriction in user.txt.
+//   The payout must be cancelled or completed before deletion.
+// - If status = FAILED: deletion is allowed (no active payout). Bank details are cleared,
+//   and admin may cancel the payout post‑deletion for audit cleanliness.
+// - If status = COMPLETED: payout persists for audit trail (minimum 7 years).
+// - If status = CANCELLED: already final, no action needed.
+// - If status = COMPLETED:
+//     • Payout persists for audit trail (minimum 7 years)
+//     • bankDetails retained for audit (already completed, no privacy risk)
+// - If status = CANCELLED:
+//     • Already final, no action needed
+//
+// - **Invalid Bank Details:**
+//   • status → FAILED, failureReason = "Invalid bank details"
+//   • Creator notified to update details (if not deleted)
+//   • Admin can manually correct via notes field and retry
+//
+// - **Multiple Failure Attempts:**
+//   • No retry limit enforced at schema level
+//   • Admin decides when to cancel vs. retry
+//   • Each retry updates FailedPayoutEvent.retryCount
+//
+// ============================================================================

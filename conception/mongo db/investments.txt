@@ -1,0 +1,252 @@
+{
+  "_id": ObjectId,
+  "investorId": { "type": "ObjectId", "ref": "User", "index": true, "required": true },
+  "projectId": { "type": "ObjectId", "ref": "Project", "index": true, "required": true },
+  "amount": { "type": "number", "required": true, "min": 1 },
+  "status": {
+    "type": "string",
+    "enum": ["INITIATED", "CANCELLING", "CANCELLED", "SUCCESS", "FAILED", "REFUNDED"],
+    "default": "INITIATED",
+    "index": true
+  },
+
+  "paymentAttempts": { "type": "number", "default": 0, "min": 0 },
+  // Number of payment attempts made for this investment.
+  // Each attempt creates a new Transaction document linked to this Investment.
+  // Incremented atomically when a new Transaction is created.
+  //
+  // Flow:
+  // 1. User initiates investment → Investment created with paymentAttempts = 0.
+  // 2. Call payment provider API. If provider returns a payment ID:
+  //    - Create Transaction (attemptNumber = paymentAttempts + 1)
+  //    - Increment Investment.paymentAttempts by 1
+  // 3. If payment later fails (webhook failure or timeout), the Investment remains
+  //    in FAILED or INITIATED state. User may retry.
+  // 4. Retry uses the SAME Investment document (no new Investment).
+  //    - Create a new Transaction with attemptNumber = paymentAttempts + 1
+  //    - Increment Investment.paymentAttempts again.
+
+  "cancelReason": { 
+    "type": "string",
+    "enum": ["USER_REQUESTED", "PROJECT_DEACTIVATED", "PAYMENT_TIMEOUT", "FRAUDULENT", "USER_DEACTIVATED", "ACCOUNT_DELETION"]
+  },
+  "cancelledAt": "Date",
+
+  // Added to track when CANCELLING state started
+  "cancellingStartedAt": { "type": "Date" },
+  // Set when status transitions to CANCELLING
+  // Used by cron to detect stuck cancellations (>30 min)
+
+  // scheduledForDeactivation: set to true during bulk async project deactivation
+  // to prevent race conditions with concurrent state changes on this investment.
+  "scheduledForDeactivation": { "type": "boolean", "default": false },
+  // MUST be cleared after deactivation completes or fails.
+  // Cron job detects and clears stale flags (>5 min old) via cleanup-stuck-states endpoint
+
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "updatedAt": { "type": "Date", "default": "Date.now" },
+
+  "cancellationGracePeriodMinutes": { "type": "number", "default": 5 }
+  // Time window (in minutes) after Transaction.createdAt during which
+  // a SUCCESS investment can still be cancelled via the provider's
+  // cancellation API. After this window, cancellation is rejected.
+}
+
+// Indexes
+db.investments.createIndex({ investorId: 1, status: 1 });
+db.investments.createIndex({ projectId: 1 });
+db.investments.createIndex({ status: 1, updatedAt: 1 });
+
+// Added for stuck CANCELLING detection by cron
+db.investments.createIndex({ status: 1, cancellingStartedAt: 1 });
+
+// Added for stale scheduledForDeactivation cleanup
+db.investments.createIndex({ scheduledForDeactivation: 1, updatedAt: 1 });
+
+// ============================================================================
+// VALIDATION RULES (enforced at service layer / Mongoose pre-save)
+// ============================================================================
+//
+// **Rule 1: cancellingStartedAt must be set when status = CANCELLING**
+//   - When status changes to 'CANCELLING', cancellingStartedAt MUST be set to the 
+//     current timestamp.
+//   - When status changes away from 'CANCELLING', cancellingStartedAt MUST
+//     be cleared (set to null).
+//
+// cancellationGracePeriodMinutes: read by expire-projects cron to determine
+// when a SUCCESS investment can no longer be cancelled.
+// Value is per-investment (not project-level) to allow flexibility.
+//
+// Implementation (Mongoose pre-save hook):
+//
+//   InvestmentSchema.pre('save', function(next) {
+//     if (this.status === 'CANCELLING' && !this.cancellingStartedAt) {
+//       return next(new Error('cancellingStartedAt required when status = CANCELLING'));
+//     }
+//     if (this.status !== 'CANCELLING' && this.cancellingStartedAt) {
+//       this.cancellingStartedAt = null;
+//     }
+//     next();
+//   });
+//
+// **Rule 2: scheduledForDeactivation cleanup**
+//   - scheduledForDeactivation flag must be cleared after deactivation completes or fails.
+//   - Cron job (cleanup-stuck-states) clears stale flags older than 5 minutes.
+//   - This flag is set to true during admin project deactivation
+//    (see code_admin_deactivate_project.txt)
+//     and cleared by the reconciliation cron (cleanup-stuck-states) after
+//     processing or on timeout.
+//
+// **Rule 3: Retry from FAILED to INITIATED**
+// - When an Investment.status = FAILED, it may be set back to INITIATED
+//   only as part of a user‑initiated retry.
+// - This transition MUST be accompanied by the creation of a new Transaction
+//   and increment of paymentAttempts within the same atomic operation.
+// - The cron's expiration logic relies on the latest transaction's createdAt,
+//   not the Investment.createdAt, to avoid incorrectly expiring a retry.
+//   **Effect of cancellation when project.status = FUNDED:**
+// - Cancellation is allowed only if the investment is still within its grace period.
+// - After cancellation, the system must:
+//    1. Mark investment as CANCELLED, transaction as CANCELLED.
+//    2. Recalculate total successful funding (sum of amounts of all SUCCESS investments).
+//    3. If new total < fundingGoal:
+//        - Change project.status from FUNDED to ACTIVE
+//        - Delete any pending payout (none should exist, but defensive check)
+//        - Notify creator that goal is no longer met
+//        - Allow new investments
+//    4. If new total >= fundingGoal:
+//        - Keep project.status = FUNDED (still waiting for other grace periods)
+// ============================================================================
+
+// ============================================================================
+// STATUS TRANSITIONS (including retry)
+// ============================================================================
+// Allowed transitions:
+//   INITIATED → SUCCESS, FAILED, CANCELLING
+//   CANCELLING → CANCELLED, FAILED (stuck)
+//   SUCCESS → REFUNDED, (cancelled only within grace period)
+//   FAILED → INITIATED   // NEW: user retries a failed payment
+//   (other transitions not allowed)
+//
+// Retry flow (using same Investment):
+//   1. Investment.status = FAILED, paymentAttempts = N (e.g., 1)
+//   2. User initiates retry → status set to INITIATED
+//   3. Backend creates new Transaction with attemptNumber = N+1
+//   4. paymentAttempts incremented to N+1
+//   5. Cron uses latest transaction's createdAt for expiry
+// ============================================================================
+
+// ============================================================================
+// CANCELLATION VALIDATION RULES
+// ============================================================================
+// A user may request cancellation of an investment if:
+//
+// 1. Investment.status = "INITIATED" (payment not yet completed).
+//    → Cancellation is always allowed (provider may still accept).
+//
+// 2. Investment.status = "SUCCESS" AND
+//    Transaction.createdAt > (now() - cancellationGracePeriodMinutes * 60 * 1000)
+//    → Cancellation allowed within the grace period (provider may accept).
+//
+// 3. Investment.status = "SUCCESS" AND grace period expired:
+//    → Cancellation is REJECTED. User must request a refund via support
+//      (which follows the existing refund flow, including FailedRefundEvent).
+//
+// 4. Any other status (CANCELLING, CANCELLED, FAILED, REFUNDED):
+//    → Cancellation not allowed.
+// ============================================================================
+
+// ============================================================================
+// MULTIPLE INVESTMENTS POLICY
+// ============================================================================
+// NOTE: Multiple investments by the same investor in the same project are ALLOWED.
+// No unique index on (investorId, projectId) — this is intentional.
+// An investor may contribute multiple separate amounts to the same project.
+// ============================================================================
+
+// ============================================================================
+// OVERFUNDING ATOMICITY RULE (FULL REFUND MODEL)
+// ============================================================================
+//
+// To prevent race conditions when multiple investments arrive simultaneously
+// (even though frontend prevents overfunding, this is a defensive backend check):
+//
+// 1. Use MongoDB findOneAndUpdate with { returnDocument: 'before' } to atomically
+//    fetch the previous currentFunding value.
+// 2. If previousFunding + amount > fundingGoal → overfunding detected.
+// 3. Do NOT increment currentFunding. Instead, synchronously refund the
+//    ENTIRE investment amount via the payment provider.
+// 4. On refund success:
+//    - Mark Transaction.refundStatus = SUCCEEDED, status = REFUNDED
+//    - Mark Investment.status = REFUNDED
+//    - Create OVERFUND_REFUNDED notification
+//    - currentFunding remains unchanged
+//    - No payout is created (project not closed)
+// 5. On refund failure:
+//    - Mark Transaction.status = SUCCEEDED, refundStatus = FAILED
+//    - Mark Investment.status = SUCCESS (money taken but not refunded)
+//    - Create FailedRefundEvent with reason = OVERFUNDING
+//    - currentFunding unchanged (project stays below goal)
+//    - Project closure is BLOCKED until admin resolves the failed refund
+//
+// Example (pseudocode) – atomic conditional update:
+// const result = await Project.updateOne(
+//   { _id: projectId, $expr: { $lte: [ { $add: ["$currentFunding", amount] },
+//     "$fundingGoal" ] } },
+//   { $inc: { currentFunding: amount } }
+// );
+// if (result.modifiedCount === 0) {
+//   // Overfunding detected – full refund
+//   await refundFullAmount(transactionId);
+//   // Do NOT increment currentFunding
+//   // Mark transaction/investment accordingly (REFUNDED or SUCCESS+FailedRefundEvent)
+// } else {
+//   // Normal funding – currentFunding already incremented
+//   // Mark transaction SUCCEEDED, investment SUCCESS, check for goal reached
+// }
+// + **Effective funding for goal detection and cancellation:**
+//   - Only investments with Transaction.refundStatus IN ["NOT_ATTEMPTED", "SUCCEEDED"]
+//    are considered part of the project's effective total.
+//  - When an overfunding refund fails (Transaction.refundStatus = FAILED, reason = OVERFUNDING),
+//    that investment is EXCLUDED from effective total calculations.
+//  - The project.currentFunding field remains the authoritative historical record of
+//    successfully added funds (which does not include failed‑refund overfunding).
+//   - Any logic that checks “goal reached” or “total successful funding” for cancellation
+//    MUST query the Transaction collection and apply the above filter.
+//
+
+// ============================================================================
+// DELETION POLICY REFERENCE
+// ============================================================================
+// FAILED investments do NOT block user account deletion (no funds transferred).
+// See user.txt for deletion restrictions and audit requirements.
+// ============================================================================
+
+// ============================================================================
+// STUCK STATE DETECTION & RECOVERY
+// ============================================================================
+//
+// **Stuck CANCELLING Investments:**
+// Cron runs every 15 minutes: GET /internal/cleanup-stuck-states
+// Query: { status: "CANCELLING", cancellingStartedAt: { $lt: Date.now() - 30*60*1000 } }
+// Action:
+//   1. Create FailedCancellationEvent with reason="STUCK_CANCELLING"
+//   2. Update investment.status to "FAILED" (requires manual admin review)
+//   3. Notify admin via notification
+//
+// **Stale scheduledForDeactivation Flags:**
+// Cron runs every 15 minutes: GET /internal/cleanup-stuck-states
+// Query: { scheduledForDeactivation: true, updatedAt: { $lt: Date.now() - 5*60*1000 } }
+// Action:
+//   1. Log warning for each stale flag
+//   2. If flag age > 15 minutes: Send admin notification (indicates workflow failure)
+//   3. Clear scheduledForDeactivation flag (set to false)
+//   4. Create audit log entry for manual review
+//
+// **Recovery Path:**
+// Admin reviews FailedCancellationEvent and manually:
+//   - Retry cancellation via UC_RetryCancellation, OR
+//   - Mark investment as CANCELLED if provider confirms, OR
+//   - Mark investment as SUCCESS if cancellation window expired
+//   - Mark investment as FAILED (requires manual provider reconciliation)
+// ============================================================================

@@ -1,0 +1,54 @@
+@startuml
+actor "User" as user
+participant "Frontend (React)" as FE
+participant "Backend API (Node.js)" as API
+database "MongoDB" as DB
+participant "BullMQ Queue" as Queue
+participant "RiskAnalysisWorkflow (n8n)" as n8n
+participant "Gemini API" as Gemini
+
+user -> FE: Fill project details & save draft
+FE -> API: POST /api/projects (create DRAFT)
+
+API -> API: Validate input (title, description, category, fundingGoal > 0, deadline > now())
+API -> API: Validate deadline > now()
+
+alt deadline <= now()
+  API -> FE: 400 "Deadline must be in the future"
+else deadline < now() + 7 days
+  API -> FE: 400 "Project deadline must be at least 7 days from now"
+else fundingGoal <= 0
+  API -> FE: 400 "Funding goal must be positive"
+else
+  API -> DB: Insert Project (status=DRAFT, aiStatus=PENDING, creatorId)
+  API -> DB: Insert AuditLog { actorId: user.id, actorRole: USER, action: "CREATE_PROJECT", targetType: "Project", targetId: newProjectId }
+  API -> FE: 201 Created (projectId)
+  FE -> user: Draft saved (editable)
+
+  user -> FE: Submit project for AI analysis
+  FE -> API: POST /api/projects/{id}/submit-for-ai
+  API -> DB: Update Project status=AWAITING_AI, aiStatus=PENDING
+  API -> DB: Insert AuditLog { actorId: user.id, actorRole: USER, action: "SUBMIT_PROJECT", targetType: "Project", targetId: projectId }
+
+  note right of API
+    Asynchronous trigger – do not wait for completion
+  end note
+  API -> Queue: Add job "risk-analysis" with { projectId, title, description, category, fundingGoal, deadline }
+  API -> FE: 200 OK (submitted)
+  FE -> user: Project submitted, analysis pending
+
+  ' Background processing (BullMQ consumer → n8n)
+  Queue -> n8n: (consumer) processes risk-analysis job
+  n8n -> API: POST /internal/run-risk-analysis { projectId, title, description, category, fundingGoal, deadline }
+  API -> Gemini: POST /v1beta/models/{flash-model}:generateContent (prompt)
+  Gemini -> API: JSON { riskScore, riskLevel, successProbability }
+  API -> DB: Update Project (status=UNDER_REVIEW, aiStatus=COMPLETED, aiAnalysis=..., analyzedAt=now)
+  API -> n8n: 200 OK { ok:true, project:{...} }
+  n8n -> n8n: Log success
+
+  alt failure (n8n retries exhausted / Gemini error)
+    API -> DB: Update Project set aiStatus = "FAILED" (status remains AWAITING_AI)
+    API -> DB: Insert FailedWorkflowEvent { projectId, workflowType="risk-analysis", error, payload }
+  end
+end
+@enduml

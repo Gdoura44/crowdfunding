@@ -1,0 +1,36 @@
+@startuml
+actor "User (Creator)" as user
+participant "Frontend" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+participant "BullMQ Queue" as Queue
+
+user -> FE: Open rejected project, click "Edit & Resubmit"
+FE -> API: GET /api/projects/{id}/edit
+API -> DB: Find project by id and creatorId (user.id)
+DB -> API: project
+alt project.status == "REJECTED" AND user is creator
+  API -> FE: project data (editable)
+  FE -> user: Show edit form
+
+  user -> FE: Modify fields, click "Resubmit"
+  FE -> API: PUT /api/projects/{id}/resubmit { updated fields }
+
+  API -> API: Validate input (deadline > now(), goal > 0)
+  API -> DB: Update project fields
+  note right of DB
+    - status = AWAITING_AI
+    - aiStatus = PENDING
+    - Clear rejectionReason, rejectedBy, rejectedAt
+    - Reset aiAnalysisRetries = 0   ' ===== MEDIUM =====
+    - Store updated fields
+  end note
+
+  API -> DB: Insert AuditLog { actorId: user.id, actorRole: USER, action: "RESUBMIT_PROJECT", targetType: "Project", targetId: project.id }
+  API -> Queue: Add job "risk-analysis" with projectId (via BullMQ)
+  API -> FE: 200 OK
+  FE -> user: "Project resubmitted for review"
+else
+  API -> FE: 403 "Project cannot be resubmitted" or 404
+end
+@enduml

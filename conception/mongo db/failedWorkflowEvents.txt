@@ -1,0 +1,78 @@
+{
+  "_id": ObjectId,
+
+  // projectId is now optional (required: false)
+  // Populated only when workflow is project-scoped (e.g., "risk-analysis")
+  // Null for non-project workflows (e.g., "notification" failures that are user-scoped)
+  "projectId": { "type": "ObjectId", "ref": "Project", "required": false, "default": null },
+
+  "workflowType": { "type": "string", "required": true },
+  // workflowType examples: "risk-analysis", "notification"
+
+  "payload": { "type": "Object", "required": true },
+  // The original input data sent to the workflow — used for manual retry
+
+  "error": { "type": "string", "required": true },
+  "retryCount": { "type": "number", "default": 0 },
+  
+  // Added for audit trail
+  "resolvedBy": { "type": "ObjectId", "ref": "User" },
+  "resolvedAt": { "type": "Date" },
+  
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "resolved": { "type": "boolean", "default": false }
+}
+
+// Indexes
+db.failedWorkflowEvents.createIndex({ resolved: 1, createdAt: -1 });
+db.failedWorkflowEvents.createIndex({ projectId: 1 });   // sparse for non-null projectIds
+db.failedWorkflowEvents.createIndex({ workflowType: 1, resolved: 1 });
+
+// ============================================================================
+// WORKFLOW FAILURE HANDLING
+// ============================================================================
+//
+// **Workflow Types:**
+//
+// 1. **risk-analysis** (project-scoped):
+//    - projectId: populated with Project._id
+//    - payload: { projectId, title, description, category, fundingGoal, deadline }
+//    - Triggered when: Project submitted for AI analysis
+//    - Retry mechanism: Admin clicks UC_RetryAnalysis
+//    - Resolution: Updates Project.aiStatus to COMPLETED or exhausts retries (→ DRAFT)
+//
+// 2. **notification** (user-scoped):
+//    - projectId: null
+//    - payload MUST include:
+//        • userId (ObjectId)
+//        • notificationId (ObjectId) ← required for retry lookup
+//        • emailTemplate (string)
+//        • recipientEmail (string)
+//    - Triggered when: Email sending fails after in-app notification created
+//    - Retry: Admin clicks "Retry Failed Notification" (UC_ManageNotifications)
+//    - The notification document is fetched via payload.notificationId (indexed by _id)
+//
+// **Retry Flow:**
+// 1. Admin views failed events in dashboard
+// 2. Admin clicks retry (UC_RetryAnalysis for risk-analysis)
+// 3. Backend:
+//    - Increments retryCount
+//    - Re-pushes job to BullMQ with original payload
+//    - If max retries exceeded (3): marks resolved=true, notifies admin
+// 4. n8n workflow consumes job and processes
+// 5. On success: Backend marks resolved=true, sets resolvedBy + resolvedAt
+// 6. On failure: Error logged, retryCount incremented, remains resolved=false
+//
+// **Auto-Resolution:**
+//  - After 3 failed retries, workflow is auto-marked resolved=true
+//  - When auto‑resolved, the system MUST set:
+//      • resolvedBy = ObjectId("000000000000000000000001")  (system cron user)
+//      • resolvedAt = current timestamp
+//  - For risk-analysis: Project.status remains AWAITING_AI, aiStatus = FAILED.
+//    Admin notified to manually retry (UC_RetryAnalysis). No automatic status change to DRAFT.
+//  - For notification: Email marked as undeliverable, user notified via in-app only
+//
+//  **Mechanism:** A dedicated cron job runs every hour to find FailedWorkflowEvent records
+//    where retryCount >= 3 AND resolved = false. It sets resolved=true, resolvedBy=system cron //    user,
+//    resolvedAt=now(). This prevents infinite retry accumulation.
+// ============================================================================

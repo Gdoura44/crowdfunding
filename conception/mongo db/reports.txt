@@ -1,0 +1,134 @@
+{
+  "_id": ObjectId,
+  "reporterId": { "type": "ObjectId", "ref": "User", "index": true, "required": true },
+  "projectId": { "type": "ObjectId", "ref": "Project", "index": true, "required": true },
+  "type": {
+    "type": "string",
+    "required": true,
+    "enum": ["FRAUD", "INAPPROPRIATE_CONTENT", "SPAM", "OTHER"]
+  },
+  "description": "string",
+  "status": {
+    "type": "string",
+    "enum": ["PENDING", "RESOLVED", "DISMISSED"],
+    "default": "PENDING"
+  },
+  "resolvedBy": { "type": "ObjectId", "ref": "User" },
+
+  // resolution is required when status → RESOLVED or DISMISSED.
+  // Enforced at the service layer.
+  "resolution": "string",
+
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "resolvedAt": "Date"
+}
+
+// Indexes
+db.reports.createIndex({ reporterId: 1 });
+db.reports.createIndex({ projectId: 1 });
+db.reports.createIndex({ status: 1, createdAt: -1 });
+
+// Optional index for duplicate check optimization (if high report volume)
+db.reports.createIndex({ reporterId: 1, projectId: 1, type: 1 });
+
+// ============================================================================
+// BUSINESS RULES (Enforced at Service Layer)
+// ============================================================================
+//
+// **1. Self-Reporting Prevention:**
+// reporterId MUST NOT equal project.creatorId
+// A creator cannot submit a report on their own project.
+// Validation performed before insert:
+//   - Fetch Project by projectId
+//   - Assert: reporterId !== project.creatorId
+//   - If violated: throw "You cannot report your own project"
+//
+// **2. Duplicate Report Prevention:**
+// A user can submit only ONE report per project per report type,
+// unless their previous report was DISMISSED.
+//
+// Duplicate check query before insert:
+//   db.reports.findOne({
+//     reporterId: <userId>,
+//     projectId: <projectId>,
+//     type: <reportType>,
+//     status: { $in: ["PENDING", "RESOLVED"] }
+//   })
+//
+// If found: throw "You have already reported this project for {type}"
+//
+// **Why allow duplicates after DISMISSED?**
+// - User's initial report may have been dismissed due to insufficient evidence
+// - New evidence or repeated violations justify a new report
+// - Only one ACTIVE report (PENDING/RESOLVED) per user per type is allowed
+//
+// **3. Resolution Requirement:**
+// When admin changes status to RESOLVED or DISMISSED:
+//   - resolution field MUST be populated (non-empty string)
+//   - resolvedBy = admin's userId
+//   - resolvedAt = current timestamp
+//   - Validation Rule: When status is set to RESOLVED or DISMISSED, resolvedBy MUST NOT be null.
+// If resolution is missing: throw "Resolution reason is required"
+//
+// **4. Post-Resolution Immutability:**
+// Once status = RESOLVED or DISMISSED:
+//   - Report cannot be edited (except by direct admin override)
+//   - Prevents tampering with audit trail
+//   - If new issues arise, user must submit a new report
+//
+// ============================================================================
+
+// ============================================================================
+// NOTIFICATION FLOW
+// ============================================================================
+//
+// **Report Submission (by user):**
+// - NEW_REPORT notification sent to all admins
+//   • relatedEntityType: "REPORT"
+//   • relatedEntityId: reportId
+//
+// **Report Resolution (by admin):**
+// - REPORT_RESOLVED notification sent to:
+//     1. Reporter (reporterId)
+//     2. Project creator (project.creatorId) - if status=RESOLVED and action taken
+//   • relatedEntityType: "REPORT"
+//   • relatedEntityId: reportId
+
+// ============================================================================
+// VALIDATION RULES (enforced at service layer / Mongoose pre-save)
+// ============================================================================
+//
+// **Rule 1: Resolution requires resolvedBy and resolution**
+//   When status is changed to 'RESOLVED' or 'DISMISSED':
+//     - resolution MUST be a non-empty string
+//     - resolvedBy MUST be a valid ObjectId (admin user)
+//     - resolvedAt SHOULD be set (auto-set if missing)
+//
+// Implementation (service layer or pre-save hook):
+//
+// Correct validation rule:
+//  function validateReportResolution(report) {
+//  if (['RESOLVED', 'DISMISSED'].includes(report.status)) {
+//    if (!report.resolution || report.resolution.trim() === '') {
+//      throw new ValidationError('resolution required for RESOLVED/DISMISSED');
+//    }
+//    if (!report.resolvedBy) {
+//      throw new ValidationError('resolvedBy required for RESOLVED/DISMISSED');
+//    }
+//    if (!report.resolvedAt) {
+//      report.resolvedAt = new Date();
+//    }
+//  }
+//  If transitioning AWAY from RESOLVED/DISMISSED, preserve fields for audit
+//  Do NOT clear resolvedBy/resolvedAt (keep historical data)
+//  Only clear resolution if status is PENDING (for clarity)
+//  if (report.status === 'PENDING') {
+//    report.resolution = null; // Clear for new resolution
+//    //Keep resolvedBy and resolvedAt for audit trail
+//  }
+// }
+//
+// **Rule 2: Self-reporting prevention (already documented)**
+// **Rule 3: Duplicate report prevention (already documented)**
+//
+// ============================================================================

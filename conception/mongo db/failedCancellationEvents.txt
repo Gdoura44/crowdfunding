@@ -1,0 +1,88 @@
+{
+  "_id": ObjectId,
+  "investmentId": { "type": "ObjectId", "ref": "Investment", "required": true },
+  "error": { "type": "string", "required": true },
+  "retryCount": { "type": "number", "default": 0 },
+  "reason": {
+    "type": "string",
+    "required": true,
+    "enum": [
+      "CANCELLATION_FAILED",    // Provider rejected the cancellation request
+      "POST_UPDATE_FAILED",     // Provider accepted but DB update failed
+      "STUCK_CANCELLING",      // Investment was in CANCELLING for > 30 min
+      "PROJECT_DEACTIVATED"
+    ]
+  },
+  
+  // Added for audit trail
+  "resolvedBy": { "type": "ObjectId", "ref": "User" },
+  "resolvedAt": { "type": "Date" },
+  
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "resolved": { "type": "boolean", "default": false }
+}
+
+// Indexes
+db.failedCancellationEvents.createIndex({ investmentId: 1 });
+db.failedCancellationEvents.createIndex({ resolved: 1, createdAt: -1 });
+
+// ============================================================================
+// CANCELLATION FAILURE SCENARIOS
+// ============================================================================
+//
+// **1. CANCELLATION_FAILED:**
+// - Provider API rejects cancellation request
+// - Reasons: payment already processed, cancellation window expired, provider error
+// - Investment.status remains CANCELLING
+// - Admin action required: Verify with provider, then either:
+//     • Mark investment as CANCELLED if provider confirms
+//     • Mark investment as SUCCESS if payment cannot be reversed
+//
+// **2. POST_UPDATE_FAILED:**
+// - Provider confirmed cancellation, but DB update transaction failed
+// - Investment.status stuck in CANCELLING
+// - Transaction.status may still be PENDING or SUCCEEDED
+// - Admin action: Verify provider status, manually update Investment + Transaction
+//
+// **3. STUCK_CANCELLING:**
+// - Detected by cron job (cleanup-stuck-states endpoint)
+// - Investment.status = CANCELLING for >30 minutes
+// - Likely causes: webhook never arrived, network timeout, process crash
+// - Query: { status: "CANCELLING", cancellingStartedAt: { $lt: Date.now() - 30*60*1000 } }
+// - Action:
+//     1. Create FailedCancellationEvent with reason="STUCK_CANCELLING"
+//     2. Update Investment.status to "FAILED"
+//     3. Notify admin for manual provider verification
+//
+// ============================================================================
+
+// ============================================================================
+// RETRY MECHANISM (UC_RetryCancellation)
+// ============================================================================
+//
+// **Admin Retry Flow:**
+// 1. Admin views FailedCancellationEvent in dashboard
+// 2. Admin investigates reason (checks provider dashboard if needed)
+// 3. Admin clicks "Retry Cancellation"
+// 4. Backend:
+//    - Verifies Investment.status (must be CANCELLING or FAILED)
+//    - Calls provider cancellation API
+//    - On success:
+//        • Investment.status → CANCELLED
+//        • Transaction.status → CANCELLED
+//        • FailedCancellationEvent.resolved = true
+//        • resolvedBy = admin._id, resolvedAt = now
+//        • User receives PAYMENT_CANCELLED notification
+//    - On failure:
+//        • retryCount++
+//        • error field updated with new error message
+//        • If retryCount > 3: Admin receives escalation notification
+//
+// **Manual Resolution (No Retry):**
+// - If provider confirms payment succeeded (cannot cancel):
+//     • Admin manually updates Investment.status → SUCCESS
+//     • Admin marks FailedCancellationEvent.resolved = true
+//     • Admin adds notes explaining manual resolution
+//     • User receives PAYMENT_SUCCESS notification
+//
+// ============================================================================

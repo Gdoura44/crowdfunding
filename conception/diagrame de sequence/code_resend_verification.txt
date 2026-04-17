@@ -1,0 +1,36 @@
+@startuml
+actor User as user
+participant "Frontend" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+participant "BullMQ Queue" as Queue
+
+user -> FE: Click "Resend verification email"
+FE -> API: POST /api/users/resend-verification { email }
+
+' ===== Rate limiting check (e.g., Redis or in-memory) =====
+API -> API: Check rate limit for this email/IP (max 3 per hour)
+alt rate limit exceeded
+  API --> FE: 429 "Too many requests. Please try again later."
+  FE --> user: Show rate limit message
+else
+  API -> DB: Find user by email, with isActive = false
+  DB --> API: user
+
+  alt user exists and not active
+    API -> API: Generate new verification token
+    API -> DB: Update user.verifyTokenHash, verifyTokenExpiry (e.g., +24h)
+    API -> Queue: Add job "send-email" with { userId, type: "verification", token }
+    API --> FE: 200 OK
+    FE --> user: "Verification email sent"
+  else user not found or already active
+    API --> FE: 200 OK (same message to avoid enumeration)
+    FE --> user: "If account exists and not verified, email sent"
+  end
+end
+
+note right of API
+  **Rate limiting:** Prevents abuse of the resend endpoint.
+  **Notifications:** Email is sent via BullMQ queue.
+end note
+@enduml

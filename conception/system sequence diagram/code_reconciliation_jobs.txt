@@ -1,0 +1,117 @@
+@startuml
+actor "System" as system
+participant "Scheduler (cron)" as Cron
+participant "Backend API" as API
+database "MongoDB" as DB
+participant "PaymentGateway" as PG
+
+system -> Cron: Trigger every 15 minutes
+Cron -> API: GET /internal/cleanup-stuck-states (internal endpoint)
+
+' === Stuck CANCELLING investments ===
+API -> DB: Find investments with status = "CANCELLING" AND cancellingStartedAt < now() - 30 minutes
+DB --> API: stuckCancelling
+
+loop each investment in stuckCancelling
+  API -> DB: Start transaction
+  API -> DB: Insert FailedCancellationEvent {
+    investmentId: investment._id,
+    reason: "STUCK_CANCELLING",
+    error: "Stuck in CANCELLING for more than 30 minutes",
+    retryCount: 0,
+    resolved: false
+  }
+  API -> DB: Update Investment set status = "FAILED", cancellingStartedAt = null
+  ' ===== ALSO update the latest transaction =====
+  API -> DB: Find latest Transaction for this investment
+  DB --> API: transaction
+  alt transaction.status == "PENDING"
+    API -> DB: Update Transaction set status = "FAILED"
+  end
+  API -> DB: Insert AuditLog { ... }
+  API -> DB: Insert Notification (in-app) for admin (type CANCELLATION_FAILED)
+  API -> DB: Commit transaction
+end
+' === Stale PENDING or erroneous FAILED payments (check with provider) ===
+API -> DB: Find transactions with (status = "PENDING" OR (status = "FAILED" AND createdAt > now() - 24 hours))
+          AND createdAt < now() - 30 minutes
+DB --> API: stalePayments
+
+loop each transaction in stalePayments
+  API -> API: provider = transaction.provider
+  API -> PG: getPaymentStatus(provider, transaction.providerPaymentId)
+  alt payment succeeded
+    API -> DB: Start transaction
+    API -> DB: Update transaction.status = "SUCCEEDED"
+    API -> DB: Update investment.status = "SUCCESS"
+    API -> DB: Update Project.currentFunding atomically (with goal check)
+    API -> DB: Commit transaction
+  else payment failed or expired
+    API -> DB: Start transaction
+    API -> DB: Update transaction.status = "FAILED"
+    API -> DB: Update investment.status = "FAILED"
+    API -> DB: Commit transaction
+  end
+end
+
+' === Stuck refunds (refundStatus = PENDING too long) ===
+API -> DB: Find transactions with refundStatus = "PENDING" AND lastRefundAttemptAt < now() - 30 minutes
+DB --> API: stuckRefunds
+
+loop each transaction in stuckRefunds
+  API -> API: provider = transaction.provider
+  API -> PG: getRefundStatus(provider, transaction.providerPaymentId)
+  alt refund succeeded
+    API -> DB: Update transaction.refundStatus = "SUCCEEDED", transaction.status = "REFUNDED", refundedAt = now()
+    API -> DB: Update investment.status = "REFUNDED"
+  else refund failed or still processing
+    ' Do nothing; admin will handle via FailedRefundEvent
+  end
+end
+
+' === Stale scheduledForDeactivation flags ===
+API -> DB: Find investments with scheduledForDeactivation = true\nAND updatedAt < now() - 5 minutes
+DB --> API: staleFlags
+
+loop each investment in staleFlags
+  API -> DB: Update investment set scheduledForDeactivation = false
+  alt flag age > 15 minutes
+    API -> DB: Insert Notification (in-app) for admins\n(type SYSTEM_WARNING, message "Stale deactivation flag cleared for investment {id}")
+    API -> DB: Insert AuditLog {\n actorId: ObjectId("system_cron"),
+  actorRole: "ADMIN", action: "CLEAR_STALE_FLAG",\n  targetType: "Investment",\n  targetId: investment.id,\n  details: { reason: "Flag older than 15 minutes" }\n}
+  end
+end
+
+note right of API
+  **Reconciliation Job (cleanup-stuck-states):**
+  - Runs every 15 minutes.
+
+  - **Stuck CANCELLING investments:** Detects investments with status = CANCELLING > 30 min.
+    Creates a FailedCancellationEvent (reason = STUCK_CANCELLING), sets investment.status = FAILED,
+    and notifies admin. **No provider query or auto-resolution** – admin must manually retry via dead‑letter dashboard.
+
+  - **Stale PENDING transactions:** Queries provider for payment status and updates accordingly.
+
+  - **Stuck refund PENDING transactions:** Queries provider for refund status and updates accordingly.
+
+  - **Stale scheduledForDeactivation flags:** Clears flags older than 5 min, notifies admin if >15 min.
+
+  - **Audit logs:** All actions logged with system_cron actor.
+  - The FailedCancellationEvent is **never automatically resolved**.
+
+**Precedence rule (race elimination):**
+  - Reconciliation cron is the **only** component that updates Transaction.status from PENDING (by querying provider).
+  - Expire‑investments cron only touches investments without any Transaction (abandoned payment links).
+  - Therefore, a Transaction with status = PENDING will never be auto‑expired.
+  - If a provider payment succeeds after a long delay, reconciliation will update it correctly.
+  - The illegal FAILED → SUCCESS transition cannot occur because reconciliation never writes to Investment.status for a transaction that was previously FAILED (it only reads provider status and updates PENDING → SUCCEEDED/FAILED).
+  - For stuck CANCELLING, both Investment and Transaction are set to FAILED for consistency.
+
+**Priority with expire-investments cron:**
+- Both crons may process overlapping stale PENDING transactions.
+- To avoid race conditions, the reconciliation cron SHOULD take precedence because it queries the provider for the true state.
+- expire-investments only marks transactions as FAILED when no provider response exists.
+- In case of conflict, the provider status (from reconciliation) is authoritative.
+- Implement idempotent updates: if an investment is already SUCCESS, do not overwrite with FAILED.
+end note
+@enduml

@@ -1,0 +1,62 @@
+@startuml
+actor Admin as admin
+participant "Frontend" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+participant "PaymentGateway" as PG
+
+admin -> FE: View failed cancellations
+FE -> API: GET /api/admin/failed-cancellations
+API -> DB: Find FailedCancellationEvents where resolved = false
+DB --> API: list
+API --> FE: list
+FE --> admin: Show list
+
+admin -> FE: Select event, click "Retry"
+FE -> API: POST /api/admin/retry-cancellation { eventId }
+
+API -> DB: Find FailedCancellationEvent
+DB --> API: event
+API -> DB: Find linked Investment
+DB --> API: investment
+API -> DB: Find linked Transaction
+DB --> API: transaction
+
+alt investment.status == "CANCELLING" AND transaction.status == "PENDING"
+  API -> API: provider = transaction.provider
+  API -> PG: cancelPayment(provider, transaction.providerPaymentId)
+  alt cancellation successful
+    ' Handle possible DB update failure =====
+    API -> DB: Start transaction
+    API -> DB: Update investment.status = "CANCELLED", cancelReason = "USER_REQUESTED", cancelledAt = now(), cancellingStartedAt = null
+    API -> DB: Update transaction.status = "CANCELLED", cancelledAt = now()
+    alt DB update success
+      API -> DB: Update event.resolved = true
+      API -> DB: Insert Notification (in-app) for investor (type PAYMENT_CANCELLED, relatedEntityId = investment.id)
+      API -> DB: Insert AuditLog { actorId: admin.id, actorRole: ADMIN, action: "RETRY_CANCELLATION_SUCCESS", targetType: "FailedCancellationEvent", targetId: event.id, details: { provider } }
+      API -> DB: Commit transaction
+      API --> FE: 200 OK
+      FE --> admin: "Cancellation succeeded"
+    else DB update fails
+      API -> DB: Abort transaction
+      ' ===== POST_UPDATE_FAILED scenario =====
+      API -> DB: Insert new FailedCancellationEvent { investmentId, error: "DB update failed after provider cancellation", reason = "POST_UPDATE_FAILED", retryCount = 0 }
+      API -> DB: Update original event.resolved = true (to avoid duplicate retry)
+      API --> FE: 500 "Cancellation succeeded but database update failed. Manual intervention required."
+    end
+  else failure
+    API -> DB: Increment event.retryCount by 1
+    API -> DB: Update event.error = new error
+    API -> DB: Insert AuditLog { actorId: admin.id, actorRole: ADMIN, action: "RETRY_CANCELLATION_FAILED", targetType: "FailedCancellationEvent", targetId: event.id, details: { error: event.error, provider } }
+    API --> FE: 500 "Retry failed"
+  end
+else
+  API -> DB: Update event.resolved = true
+  API --> FE: 200 "Already resolved"
+end
+
+note right of API
+  Retry uses the same provider as the original transaction (stored in FailedCancellationEvent or retrieved from Transaction).
+  If provider cancellation succeeds but DB update fails, a new FailedCancellationEvent with reason POST_UPDATE_FAILED is created.
+end note
+@enduml

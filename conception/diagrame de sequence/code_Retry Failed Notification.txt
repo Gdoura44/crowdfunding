@@ -1,0 +1,47 @@
+@startuml
+actor Admin as admin
+participant "Frontend" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+participant "BullMQ Queue" as Queue
+
+admin -> FE: View failed notifications (dead‑letter)
+FE -> API: GET /api/admin/failed-notifications
+API -> DB: Find FailedWorkflowEvents where workflowType="notification" AND resolved=false
+DB --> API: events
+API --> FE: list
+FE --> admin: Show failed email events
+
+admin -> FE: Select event, click "Retry"
+FE -> API: POST /api/admin/retry-notification { eventId }
+
+API -> DB: Find FailedWorkflowEvent by id
+DB --> API: event
+
+alt event.resolved == false
+  API -> DB: Find original notification by payload.notificationId
+  DB --> API: notification (if exists)
+  
+  alt notification exists AND notification.userId still active
+    API -> Queue: Add job "send-email" with { userId, notificationId, emailTemplate, recipientEmail }
+    API -> DB: Start transaction
+    API -> DB: Update event.resolved = true, resolvedBy = admin.id, resolvedAt = now()
+    API -> DB: Insert AuditLog { actorId: admin.id, actorRole: ADMIN, action: "RETRY_NOTIFICATION_SUCCESS", targetType: "FailedWorkflowEvent", targetId: event.id }
+    API -> DB: Commit transaction
+    API --> FE: 200 OK
+    FE --> admin: "Notification re‑queued for sending"
+  else
+    API -> DB: Update event.resolved = true (no retry possible)
+    API --> FE: 200 "User or notification no longer available, marked resolved"
+  end
+else
+  API --> FE: 400 "Already resolved"
+end
+
+note right of API
+  - Failed notifications are stored in `FailedWorkflowEvent` with `workflowType="notification"`
+  - Payload contains `userId`, `notificationId`, `emailTemplate`, `recipientEmail`
+  - Retry pushes a new BullMQ job; original event is marked resolved (no retry count increment)
+  - If the user is deleted or notification missing, admin can mark as resolved without retry
+end note
+@enduml

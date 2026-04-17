@@ -1,0 +1,40 @@
+@startuml
+participant "Frontend (Axios)" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+
+FE -> API: Request with expired token
+API --> FE: 401 Unauthorized
+
+FE -> FE: Extract refreshToken from cookie
+FE -> API: POST /api/refresh-token  (cookie automatically sent)
+
+API -> API: Hash the received refreshToken (bcrypt)
+API -> DB: Find user where refreshTokens.tokenHash == hashedToken
+DB --> API: user and matching token entry
+
+alt valid refresh token (exists and not expired)
+  API -> API: Generate new accessToken and new refreshToken
+  API -> API: Hash new refreshToken → newTokenHash
+  API -> DB: Start transaction
+  API -> DB: Remove the old token entry from refreshTokens array (by tokenHash)
+  API -> DB: Push new refresh token entry with { tokenHash: newTokenHash, expiresAt: now()+7d, device: same as old }
+  API -> DB: Commit transaction
+  API --> FE: Set-Cookie: accessToken=...; HttpOnly; Secure; SameSite=Strict
+  API --> FE: Set-Cookie: refreshToken=...; HttpOnly; Secure; SameSite=Strict
+  FE -> FE: Update tokens in cookies (automatic)
+  FE -> API: Retry original request
+  API --> FE: Success
+else invalid refresh token
+  API --> FE: 403 Forbidden
+  FE --> FE: Redirect to login
+end
+
+note right of API
+  - Refresh token is hashed before storage.
+  - Old token removed, new token added.
+  -Maximum 5 refresh tokens per user. During addition, if size > 5, the token with the earliest 
+    expiresAt (or createdAt) is removed atomically within the same transaction.
+  -A daily cron job (not shown) removes all expired refresh tokens.
+end note
+@enduml

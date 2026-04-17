@@ -1,0 +1,239 @@
+@startuml
+' ============================================================================
+' A4 PRINT OPTIMISATION - LOGIC UNCHANGED, CONSISTENCY FIXED (OVERFUNDING = FULL REFUND)
+' ============================================================================
+title Crowdfunding Platform - Architecture Overview
+scale max 2000 width
+skinparam linetype ortho
+skinparam nodesep 100
+skinparam ranksep 120
+skinparam dpi 197
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 11
+skinparam component {
+  BackgroundColor #E8F0F8
+  BorderColor #2C3E50
+  FontColor #2C3E50
+}
+skinparam node {
+  BackgroundColor #FFFFFF
+  BorderColor #2C3E50
+}
+skinparam cloud {
+  BackgroundColor #F0F0F0
+  BorderColor #2C3E50
+}
+skinparam arrow {
+  Color #2C3E50
+  FontSize 10
+}
+skinparam note {
+  BackgroundColor #FFFFE0
+  BorderColor #B8860B
+  FontSize 10
+  MaxWidth 280
+}
+skinparam participantPadding 60
+skinparam boxPadding 40
+
+' ============================================================================
+' 1. CLIENT LAYER
+' ============================================================================
+node "Client" {
+  component "React.js\n(Frontend)" as Frontend
+  note right of Frontend
+    • HTTP‑only cookies for auth
+    • Automatic token refresh
+    • Public: view/search projects
+  end note
+}
+
+' ============================================================================
+' 2. BACKEND LAYER
+' ============================================================================
+node "Server" {
+  component "Backend API\n(REST)" as Backend
+  component "JWT Auth" as Auth
+  component "Admin Service" as Admin
+  component "Recommendation Service" as Rec
+  component "Notification Service" as NotifSvc
+  component "BullMQ Queue\n(Redis)" as Queue
+  component "Rate Limiter" as RateLimiter
+}
+
+' ============================================================================
+' 3. WORKFLOW AUTOMATION (n8n)
+' ============================================================================
+node "n8n" {
+  component "RiskAnalysisWorkflow" as RiskWorkflow
+  component "NotificationWorkflow" as NotifWorkflow
+  note right of RiskWorkflow
+    • Consumes from BullMQ (not HTTP webhook)
+    • Calls gemini for risk scoring
+    • Calls backend internal endpoints
+  end note
+}
+
+' ============================================================================
+' 4. SCHEDULED JOBS (Cron)
+' ============================================================================
+node "Scheduler (cron)" as Cron {
+  component "Expire Investments" as CronInvest
+  component "Expire Projects" as CronProj
+  component "Cleanup Stuck States" as CronCleanup
+}
+
+' ============================================================================
+' 5. DATABASE LAYER
+' ============================================================================
+database "MongoDB" as DB {
+  collections "Users" as Users
+  collections "Projects" as Projects
+  collections "Investments" as Investments
+  collections "Transactions" as Transactions
+  collections "Reports" as Reports
+  collections "Notifications" as Notifications
+  collections "FailedWorkflowEvents" as FailedEvents
+  collections "FailedCancellationEvents" as FailedCancels
+  collections "FailedRefundEvents" as FailedRefundEvents
+  collections "FailedPayoutEvents" as FailedPayoutEvents
+  collections "AuditLog" as AuditLog
+  collections "Payouts" as Payouts
+}
+
+' ============================================================================
+' 6. EXTERNAL SERVICES
+' ============================================================================
+cloud "Payment Gateway\n(Flouci / Konnect / D17)" as PaymentGateway
+cloud "Gemini API (Google)" as Gemini
+cloud "Email Service" as Email
+
+' ============================================================================
+' 7. INTERACTIONS (corrected: overfunding = full refund, no currentFunding increment)
+' ============================================================================
+
+Frontend --> Backend : HTTP / REST (cookies)
+Backend --> Auth : verify token (from cookie)
+Backend --> DB : read/write data
+
+' --- Payment flow (full refund on overfunding) ---
+Backend --> PaymentGateway : create payment link\n(provider from transaction)
+PaymentGateway --> Backend : returns providerPaymentId
+Backend --> DB : create Transaction (status=PENDING, refundStatus=NOT_ATTEMPTED)
+PaymentGateway --> Backend : webhook (payment success/failure)
+Backend --> DB : atomic check: previousFunding + amount <= fundingGoal?
+alt overfunding (conditional update fails – i.e., adding amount would exceed fundingGoal)
+  Backend --> PaymentGateway : synchronous full refund of amount
+  Backend --> DB : on refund success → mark Transaction:\n  refundStatus=SUCCEEDED, refundedAt=now(), status=REFUNDED\n  mark Investment REFUNDED,\n  create OVERFUND_REFUNDED notification\n  currentFunding unchanged → no payout
+  Backend --> DB : on refund failure → mark Transaction status=SUCCEEDED, refundStatus=FAILED,\n  Investment SUCCESS,\n  create FailedRefundEvent (OVERFUNDING),\n  no payout, project closure blocked
+else normal (conditional update succeeds)
+  Backend --> DB : atomic increment Project.currentFunding (+amount) using $inc with $lte condition
+' --- Recommendations ---
+Backend --> Rec : internal call
+Rec --> DB : query projects & user profiles
+
+' --- Notifications ---
+Backend --> NotifSvc : sendNotification(...)
+NotifSvc --> DB : store in‑app notification
+NotifSvc --> Queue : push email job (if needed)
+Queue --> NotifWorkflow : consumer (via n8n)
+NotifWorkflow --> Email : send email
+
+' --- AI risk analysis ---
+Backend --> Queue : push risk analysis job
+Queue --> RiskWorkflow : consumer (via n8n)
+RiskWorkflow --> Backend : POST /internal/run-risk-analysis (Bearer secret)
+Backend --> Gemini : HTTPS request (with API key)
+Backend --> DB : update project risk (UNDER_REVIEW/COMPLETED)\nor record failure (FAILED + FailedWorkflowEvent)
+Backend --> NotifSvc : create in-app notification (optional)
+
+' --- Cron jobs ---
+Cron --> Backend : GET /internal/expire-investments (Bearer token)
+Cron --> Backend : GET /internal/expire-projects (Bearer token)
+Cron --> Backend : GET /internal/cleanup-stuck-states (Bearer token)
+
+' --- Rate limiting ---
+Backend --> RateLimiter : applies to /api/*
+
+' ============================================================================
+' 8. NOTES (updated: overfunding = full refund)
+' ============================================================================
+
+note right of Backend
+  **Backend Responsibilities:**
+  • REST API endpoints
+  • Business logic, transactions, reconciliation
+  • Enqueues jobs via BullMQ (not direct n8n calls)
+  • Verifies payment webhook signatures (per provider)
+  • Uses HTTP‑only cookies for auth
+  • Internal endpoints (/internal/*) use Bearer token with shared secret
+  • **PaymentGateway service** routes to Flouci/Konnect/D17 based on Transaction.provider
+  • **Overfunding handling (full refund only):**
+      - Webhook detects if previousFunding + amount > fundingGoal BEFORE increment.
+      - If overfunding → attempt synchronous FULL refund of the entire amount.
+      - If refund succeeds → mark Transaction refundStatus=SUCCEEDED, status=REFUNDED,
+        Investment REFUNDED, send OVERFUND_REFUNDED notification → **no payout, currentFunding unchanged**.
+      - If refund fails → mark Transaction SUCCEEDED, refundStatus=FAILED,
+        Investment SUCCESS, create FailedRefundEvent (OVERFUNDING) → **payout blocked**,
+        currentFunding unchanged (project not closed).
+        • **Payout creation (corrected):**
+      - When currentFunding >= fundingGoal, project.status becomes FUNDED (not CLOSED).
+      - A separate cron job (every minute) finds FUNDED projects where ALL SUCCESS investments
+        have Transaction.createdAt + investment.cancellationGracePeriodMinutes < now().
+        **Important:** Only investments whose linked Transaction.refundStatus is NOT_ATTEMPTED or SUCCEEDED are considered.
+        Investments with refundStatus = FAILED (e.g., overfunding refund failure) are excluded from the grace period check.
+      - When condition met: project.status → CLOSED, Payout created (amount = fundingGoal),
+        PROJECT_FUNDED notification sent.
+      - Must verify no unresolved OVERFUNDING FailedRefundEvent exists before closing.
+
+  • ReactivateProject: checks AI staleness (30 days)
+
+  **Project closure after goal:**  
+A separate cron job (every minute) finds FUNDED projects where all SUCCESS investments
+are outside their cancellation grace period, then:
+  - Sets project.status = CLOSED
+  - Creates Payout (amount = fundingGoal)
+  - Sends PROJECT_FUNDED notification to creator
+  • **Overfunding atomicity:** Use conditional update: `updateOne({ _id: projectId, $expr: { $lte: [ { $add: ["$currentFunding", amount] }, "$fundingGoal" ] } }, { $inc: { currentFunding: amount } })`. If modifiedCount = 0 → overfunding detected.
+
+end note
+
+note right of Queue
+  **BullMQ (Redis)**
+  • Adds resilience: if n8n is down, jobs persist
+  • Supports retries and dead‑letter queue
+end note
+
+note right of NotifSvc
+  **Notification Service**
+  • Creates in‑app notification inside the same transaction as main operation
+  • After commit, pushes email job to BullMQ
+end note
+
+note right of PaymentGateway
+  **Payment Gateway Abstraction**
+  • Supports Flouci, Konnect, D17
+  • Backend calls PaymentGateway with a provider parameter
+  • Handles provider‑specific API calls, signatures, webhook routing
+end note
+
+note right of Cron
+  **Scheduled Jobs (same Node.js process)**
+  • Calls internal endpoints with Bearer token (shared secret)
+  • Expire Investments: marks INITIATED >30 min as FAILED
+  • Expire Projects: closes expired projects, queues refunds
+  • Reconciliation Job (every 15 min):
+      - Detects CANCELLING >30 min → FailedCancellationEvent
+      - Clears stale scheduledForDeactivation flags (>5 min)
+    • Cleanup FailedWorkflowEvents (every hour): auto-resolve events with retryCount >= 3
+end note
+
+note right of DB
+  **MongoDB Requirements**
+  • Replica set for transactions (production)
+  • Indexes optimized for search and expiry queries
+  • Bank details in Payouts encrypted (AES‑256‑CBC)
+  • User deletion: anonymizes PII, retains IDs for audit
+  • Deletion blocked if user has active investments (INITIATED/CANCELLING) or pending payouts (PENDING/READY)
+end note
+@enduml

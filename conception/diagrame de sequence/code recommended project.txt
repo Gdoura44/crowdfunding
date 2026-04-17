@@ -1,0 +1,36 @@
+@startuml
+actor Investor as inv
+participant "Frontend" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+participant "RecommendationService" as Rec
+participant "Cache (Redis)" as Cache
+
+inv -> FE: Request recommendations
+FE -> API: GET /api/recommendations
+
+API -> Cache: Get cached recommendations for investor
+alt cache hit
+  Cache --> API: cachedProjects
+  API --> FE: projects
+else cache miss
+  API -> Rec: generateRecommendations(investorId)
+  Rec -> DB: Get investor profile
+  DB --> Rec: profile
+  Rec -> DB: Query projects (status = ACTIVE)
+  DB --> Rec: projects
+  Rec -> Rec: Calculate compatibility score
+  Rec -> Cache: Store result with TTL (e.g., 5 minutes)
+  Rec --> API: Sorted projects
+  API --> FE: projects
+end
+
+FE --> inv: Display results
+
+note right of API
+  **Caching Strategy:**
+  - Recommendations are cached per investor for a short period (5 minutes) to reduce database load.
+  - Cache is invalidated when the user's profile changes (risk preference, preferred categories) or when a new project is published.
+  - In production, Redis or in-memory caching can be used.
+end note
+@enduml

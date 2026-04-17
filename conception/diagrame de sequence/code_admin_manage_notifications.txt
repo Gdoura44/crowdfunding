@@ -1,0 +1,27 @@
+@startuml
+actor Admin as admin
+participant "Frontend" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+
+admin -> FE: Navigate to Notifications Manager
+FE -> API: GET /api/admin/notifications?status=unread&limit=50
+API -> DB: Find notifications (system + user-scoped) sorted by createdAt desc
+DB --> API: notifications
+API --> FE: list
+FE --> admin: Display notifications (type, userId, relatedEntity, read flag)
+
+admin -> FE: Click "Mark as Read" on a notification
+FE -> API: PUT /api/admin/notifications/{id}/read
+API -> DB: Update notification.read = true
+API -> DB: Insert AuditLog { actorId: admin.id, actorRole: ADMIN, action: "MARK_NOTIFICATION_READ", targetType: "Notification", targetId: notification.id }
+API --> FE: 200 OK
+FE --> admin: Notification marked read
+
+note right of API
+  - Admin can view all notifications (system alerts, user reports, etc.)
+  - Filter by read/unread, type, date range
+  - Marking as read does not delete the notification
+  - No email is sent for this action
+end note
+@enduml

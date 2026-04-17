@@ -1,0 +1,148 @@
+const bcrypt = require("bcrypt");
+const mongoose = require("mongoose");
+const HttpError = require("../utils/HttpError");
+const User = require("../models/User");
+const Project = require("../models/Project");
+const Investment = require("../models/Investment");
+const Transaction = require("../models/Transaction");
+const Payout = require("../models/Payout");
+const Notification = require("../models/Notification");
+const { writeAudit } = require("./auditService");
+
+const BCRYPT_ROUNDS = 10;
+
+function anonymizedEmailFor(userId) {
+  return `deleted+${String(userId)}@fincollab.local`;
+}
+
+/**
+ * Account deletion (conception: `code_delet_account_diag.txt`).
+ * We keep it synchronous + blocking to avoid leaving orphan financial states.
+ *
+ * NOTE (intentional improvement vs conception):
+ * - We clear payout `bankDetails` only for non-COMPLETED payouts.
+ *   For COMPLETED payouts, keeping bankDetails preserves traceability (audit / dispute).
+ */
+async function deleteAccount({ userId }) {
+  if (!mongoose.isValidObjectId(userId)) throw new HttpError(400, "Invalid user id");
+
+  const user = await User.findById(userId);
+  if (!user || user.deletedAt) {
+    throw new HttpError(400, "Account already deleted or cannot delete");
+  }
+  if (user.role === "ADMIN") {
+    throw new HttpError(403, "Admin accounts cannot be deleted from the platform");
+  }
+
+  // 1) Block if pending payouts exist for creator.
+  const pendingCreatorPayout = await Payout.findOne({
+    creatorId: user._id,
+    status: { $in: ["PENDING", "READY"] },
+  }).lean();
+  if (pendingCreatorPayout) {
+    throw new HttpError(
+      400,
+      "Cannot delete account: you have pending payouts. Contact support."
+    );
+  }
+
+  // 2) Block if creator has projects that should not be left unmanaged.
+  const blockingCreatorProject = await Project.findOne({
+    creatorId: user._id,
+    status: { $in: ["ACTIVE", "APPROVED", "UNDER_REVIEW", "AWAITING_AI", "FUNDED"] },
+  }).lean();
+  if (blockingCreatorProject) {
+    throw new HttpError(
+      400,
+      "Cannot delete account: you have active projects. Close or suspend them first."
+    );
+  }
+
+  // 3) Block if user has active investments.
+  const activeInvestment = await Investment.findOne({
+    investorId: user._id,
+    status: { $in: ["INITIATED", "CANCELLING"] },
+  }).lean();
+  if (activeInvestment) {
+    throw new HttpError(
+      400,
+      "Cannot delete account: you have active or cancelling investments. Cancel them first or contact support."
+    );
+  }
+
+  // 4) Block if any SUCCESS investment is not fully refunded.
+  const successInvestments = await Investment.find({
+    investorId: user._id,
+    status: "SUCCESS",
+  })
+    .select("_id")
+    .lean();
+  for (const inv of successInvestments) {
+    // eslint-disable-next-line no-await-in-loop
+    const tx = await Transaction.findOne({ investmentId: inv._id })
+      .sort({ attemptNumber: -1 })
+      .lean();
+    if (!tx || tx.refundStatus !== "SUCCEEDED") {
+      throw new HttpError(
+        400,
+        "Cannot delete account: you have successful investments that are not fully refunded. Wait for refunds to complete or contact support."
+      );
+    }
+  }
+
+  // 5) Update creator projects: keep creatorId, but mark as creator deleted.
+  await Project.updateMany(
+    { creatorId: user._id },
+    { $set: { isCreatorDeleted: true } }
+  );
+
+  // 6) Clear bank details for non-completed payouts (privacy).
+  await Payout.updateMany(
+    { creatorId: user._id, status: { $in: ["PENDING", "READY", "FAILED"] } },
+    { $set: { bankDetails: null } }
+  );
+
+  // 7) Anonymize user and soft delete.
+  const randomPass = `deleted-${Date.now()}-${Math.random()}`;
+  user.email = anonymizedEmailFor(user._id);
+  user.passwordHash = await bcrypt.hash(randomPass, BCRYPT_ROUNDS);
+  user.isActive = false;
+  user.verifyTokenHash = null;
+  user.verifyTokenExpiry = null;
+  user.resetTokenHash = null;
+  user.resetTokenExpiry = null;
+  user.refreshTokens = [];
+  user.profile = { firstName: "", lastName: "", phone: "", preferredCategories: [] };
+  user.deletedAt = new Date();
+  await user.save();
+
+  await writeAudit({
+    actorId: user._id,
+    actorRole: "USER",
+    action: "DELETE_ACCOUNT",
+    targetType: "User",
+    targetId: user._id,
+    details: {},
+  });
+
+  // Best-effort notification (account is deleted, but we keep an internal record).
+  try {
+    await Notification.create({
+      userId: user._id,
+      type: "ACCOUNT_DELETED",
+      title: "Compte supprimé",
+      message: "Votre compte a été supprimé et vos données personnelles ont été anonymisées.",
+      relatedEntityId: user._id,
+      relatedEntityType: "USER",
+    });
+  } catch {
+    // notification must not break deletion
+  }
+
+  return { ok: true };
+}
+
+module.exports = {
+  deleteAccount,
+};
+

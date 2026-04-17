@@ -1,0 +1,59 @@
+@startuml
+actor Admin as admin
+participant "Frontend" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+participant "BullMQ Queue" as Queue
+participant "NotificationService" as Notif
+
+admin -> FE: Select suspended project, click "Reactivate"
+FE -> API: POST /api/admin/projects/{id}/reactivate
+
+API -> DB: Find project by id
+DB --> API: project
+
+alt project.status == "SUSPENDED" AND project.isArchived == false
+  ' Check if project already reached funding goal
+  alt project.currentFunding >= project.fundingGoal
+    API --> FE: 400 "Cannot reactivate a project that has already reached its funding goal. It must be closed."
+  else
+    ' ===== Check for unresolved overfunding refunds =====
+    API -> DB: Find FailedRefundEvent where projectId = project.id AND reason = "OVERFUNDING" AND resolved = false
+    DB --> API: unresolvedRefunds
+    alt unresolvedRefunds not empty
+      API --> FE: 400 "Cannot reactivate: unresolved overfunding refunds exist. Resolve them first."
+    else
+      ' ===== Check for any investment still flagged scheduledForDeactivation =====
+      API -> DB: Find Investment where projectId = project.id AND scheduledForDeactivation = true
+      DB --> API: pendingDeactivations
+      alt pendingDeactivations not empty
+        API --> FE: 400 "Cannot reactivate: some investments are still being processed (cancellation/refund in progress). Wait for background jobs to complete."
+      else
+        ' freshness check
+        API -> DB: Get project.aiAnalysis.analyzedAt
+        DB --> API: analyzedAt
+
+        alt analyzedAt != null AND analyzedAt < now() - 30 days
+          '  Reset aiAnalysisRetries to 0 =====
+          API -> DB: Update project.aiStatus = "PENDING", aiAnalysisRetries = 0
+          API -> Queue: Add job for risk analysis (with project id)
+          API -> DB: Set project.status = "AWAITING_AI"
+          API -> Notif: Notify admin (type PROJECT_REACTIVATED) that analysis will be re‑run
+          API --> FE: 202 "Reactivating, fresh analysis queued"
+          FE --> admin: "Analysis outdated – will re‑analyze"
+        else
+          API -> DB: Update project.status = "UNDER_REVIEW"
+          API -> Notif: Notify admin (type PROJECT_REACTIVATED)
+        end
+
+        API -> DB: Insert Notification (in-app) for creator (type PROJECT_REACTIVATED, relatedEntityId = project.id)
+        API -> DB: Insert AuditLog { actorId: admin.id, actorRole: ADMIN, action: "REACTIVATE_PROJECT", targetType: "Project", targetId: project.id, details: {} }
+        API --> FE: 200 OK
+        FE --> admin: "Project reactivated"
+      end
+    end
+  end
+else
+  API --> FE: 400 "Only suspended projects can be reactivated"
+end
+@enduml

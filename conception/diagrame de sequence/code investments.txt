@@ -1,0 +1,204 @@
+@startuml
+actor "Investor" as inv
+participant "Frontend (React)" as FE
+participant "Backend API (Node.js)" as API
+database "MongoDB" as DB
+participant "PaymentGateway" as PG
+participant "BullMQ Queue" as Queue
+
+inv -> FE: Choose project & enter amount
+FE -> API: POST /api/investments
+API -> DB: Find project (status = ACTIVE, deadline >= now, currentFunding < fundingGoal)
+DB --> API: project
+
+alt project invalid
+  API --> FE: 400 "Project not available for investment"
+else
+  API -> API: Validate amount > 0
+  alt amount <= 0
+    API --> FE: 400 "Amount must be positive"
+  else
+    alt investorId == project.creatorId
+      API --> FE: 400 "You cannot invest in your own project"
+    else
+      ' ===== Generate idempotency key before any external call =====
+      API -> API: idempotencyKey = new ObjectId()
+      API -> API: provider = getProviderForProject(project)
+
+      ' ===== Call provider FIRST =====
+      API -> PG: createPaymentLink(provider, amount, idempotencyKey)
+alt provider call fails (timeout, 5xx, invalid response)
+  API --> FE: 502 "Payment provider error, please try again later"
+  ' No Investment or Transaction created – idempotencyKey discarded
+else provider returns success
+  PG --> API: payment_url, providerPaymentId
+
+        ' ===== Atomically create Investment + Transaction =====
+        API -> DB: Start transaction
+        API -> DB: Insert Investment {
+          _id: idempotencyKey,
+          investorId,
+          projectId,
+          amount,
+          status: "INITIATED",
+          paymentAttempts: 1,
+          createdAt: now()
+        }
+        API -> DB: Insert Transaction {
+          investmentId: idempotencyKey,
+          provider,
+          providerPaymentId,
+          amount,
+          status: "PENDING",
+          attemptNumber: 1,
+          createdAt: now()
+        }
+        API -> DB: Commit transaction
+
+        alt insert success
+          API --> FE: payment_url
+          FE -> inv: Redirect to payment page
+
+          ' ===== Webhook handling =====
+          inv -> PG: Complete payment
+          PG -> API: Webhook (with signature)
+          API -> API: Verify HMAC signature
+          alt signature invalid
+            API --> PG: 401 Unauthorized
+          else signature valid
+            API -> DB: Find Transaction by providerPaymentId
+            DB --> API: transaction
+            alt transaction already processed (status != "PENDING")
+              API --> PG: 200 OK (idempotent)
+            else
+              API -> DB: Start transaction
+              API -> DB: Find Investment by transaction.investmentId
+              DB --> API: investment
+
+              ' ---- Check edge cases (deactivation, deletion, project expired) ----
+              alt investment.status != "INITIATED"
+                ' Unexpected state – full refund
+                API -> PG: refundPayment(provider, transaction.providerPaymentId)
+                alt refund successful
+                  API -> DB: Update Transaction set status = "REFUNDED", refundStatus = "SUCCEEDED", refundedAt = now()
+                  API -> DB: Update Investment set status = "REFUNDED"
+                else
+                  API -> DB: Update Transaction set status = "SUCCEEDED", refundStatus = "FAILED"
+                  API -> DB: Update Investment set status = "SUCCESS"
+                  API -> DB: Validate that Investment.projectId == projectId
+                  API -> DB: Insert FailedRefundEvent { reason: "OVERFUNDING", investmentId,
+                             projectId }
+                 note right: Validation ensures consistency rule from failedRefund.txt                 
+                end
+              else
+                ' ---- Check scheduledForDeactivation (project deactivation) ----
+                alt investment.scheduledForDeactivation == true
+                  API -> PG: refundPayment(provider, transaction.providerPaymentId)
+                  alt refund successful
+                    API -> DB: Update Transaction set status = "REFUNDED", refundStatus = "SUCCEEDED", refundedAt = now()
+                    API -> DB: Update Investment set status = "REFUNDED"
+                    API -> DB: Insert Notification { userId, type: "PAYMENT_REFUNDED", relatedEntityId: investment._id }
+                  else
+                    API -> DB: Update Transaction set status = "SUCCEEDED", refundStatus = "FAILED"
+                    API -> DB: Update Investment set status = "SUCCESS"
+                    API -> DB: Insert FailedRefundEvent { reason: "PROJECT_DEACTIVATED", investmentId, projectId }
+                  end
+                else
+                  ' ---- Check user deletion (deletedAt != null) ----
+                  API -> DB: Find User by investment.investorId
+                  DB --> API: user
+                  alt user.deletedAt != null
+                    API -> PG: refundPayment(provider, transaction.providerPaymentId)
+                    alt refund successful
+                      API -> DB: Update Transaction set status = "REFUNDED", refundStatus = "SUCCEEDED", refundedAt = now()
+                      API -> DB: Update Investment set status = "REFUNDED"
+                      API -> DB: Insert Notification { userId, type: "PAYMENT_REFUNDED", relatedEntityId: investment._id }
+                    else
+                      API -> DB: Update Transaction set status = "SUCCEEDED", refundStatus = "FAILED"
+                      API -> DB: Update Investment set status = "SUCCESS"
+                      API -> DB: Insert FailedRefundEvent { reason: "ACCOUNT_DELETION", investmentId, projectId }
+                    end
+                  else
+                    ' ---- Check project active and deadline ----
+                    alt project.status != "ACTIVE" OR project.deadline < now()
+                      API -> PG: refundPayment(provider, transaction.providerPaymentId)
+                      alt refund successful
+                        API -> DB: Update Transaction set status = "REFUNDED", refundStatus = "SUCCEEDED", refundedAt = now()
+                        API -> DB: Update Investment set status = "REFUNDED"
+                      else
+                        API -> DB: Update Transaction set status = "SUCCEEDED", refundStatus = "FAILED"
+                        API -> DB: Update Investment set status = "SUCCESS"
+                        API -> DB: Insert FailedRefundEvent { reason: "EXPIRY", investmentId, projectId }
+                      end
+                    else
+                      ' ===== ATOMIC OVERFUNDING DETECTION (conditional update) =====
+                      API -> DB: updateOne Project {
+                        { _id: project._id, $expr: { $lte: [ { $add: ["$currentFunding", amount] }, "$fundingGoal" ] } },
+                        { $inc: { currentFunding: amount } }
+                      }
+                      DB --> API: updateResult
+                      alt updateResult.modifiedCount == 0
+                        ' Overfunding detected – FULL refund, no increment
+                        API -> PG: refundPayment(provider, transaction.providerPaymentId)
+                        alt refund successful
+                          API -> DB: Update Transaction set status = "REFUNDED", refundStatus = "SUCCEEDED", refundedAt = now()
+                          API -> DB: Update Investment set status = "REFUNDED"
+                          API -> DB: Insert AuditLog { actorId: investment.investorId, actorRole: USER, action: "REFUND_INVESTMENT", targetType: "Investment", targetId: investment._id, details: { amount, projectId, status: "REFUNDED", reason: "OVERFUNDING" } }
+                          API -> DB: Insert Notification for investor { type: "OVERFUND_REFUNDED", amount: amount }
+                          ' currentFunding unchanged – no payout
+                        else
+                          API -> DB: Update Transaction set status = "SUCCEEDED", refundStatus = "FAILED"
+                          API -> DB: Update Investment set status = "SUCCESS"
+                          API -> DB: Insert FailedRefundEvent { reason: "OVERFUNDING", investmentId, projectId }
+                          API -> DB: Insert Notification for admin { type: "REFUND_FAILED_OVERFUND" }
+                        end
+                      else
+                        ' Normal funding – currentFunding already incremented
+                        API -> DB: Update Transaction set status = "SUCCEEDED"
+                        API -> DB: Update Investment set status = "SUCCESS"
+                        API -> DB: Insert AuditLog { actorId: investment.investorId, actorRole: USER, action: "CREATE_INVESTMENT", targetType: "Investment", targetId: investment._id, details: { amount, projectId, status: "SUCCESS" } }
+                        API -> DB: Insert Notification for investor { type: "PAYMENT_SUCCESS" }
+
+                        ' Check if goal reached
+                        API -> DB: Find project by _id (to get updated currentFunding)
+                        DB --> API: updatedProject
+                        alt updatedProject.currentFunding >= updatedProject.fundingGoal
+                          API -> DB: Update Project set status = "FUNDED"
+                          API -> DB: Insert Notification for creator (type PROJECT_FUNDED)
+                        end
+                      end
+                    end
+                  end
+                end
+              end
+
+              API -> DB: Commit transaction
+              API -> Queue: Add email jobs (receipt, funding update, etc.)
+              API --> PG: 200 OK
+            end
+          end
+        else (insert failure due to duplicate key)
+          API -> PG: cancelPayment(provider, providerPaymentId)
+          API --> FE: 409 "Duplicate request, please retry"
+        end
+      end
+    end
+  end
+end
+
+note right of API
+  **Fixed implementation guarantees:**
+  1. Idempotency key generated **before** any provider call.
+  2. Provider is called first – no DB writes if provider fails.
+  3. Investment and Transaction created **atomically** with `providerPaymentId` never null.
+  4. `paymentAttempts = 1` directly (first attempt succeeded).
+  5. **Atomic overfunding detection** using conditional `updateOne` with `$expr` – no race condition.
+  6. `currentFunding` only incremented when no overfunding.
+  7. Project becomes `FUNDED` when goal reached (payout delayed until grace period cron).
+  8. Webhook idempotent via transaction status check.
+  9. Refund only for account deletion (`deletedAt != null`), not for deactivation.
+  10. Refund when `scheduledForDeactivation == true` (project deactivation) with reason `PROJECT\\\_DEACTIVATED`.
+  11. Overfunding full refund sets Transaction.status = REFUNDED (consistent with schema).
+  12. FailedRefundEvent reasons match the enum: `EXPIRY`, `ACCOUNT\\\_DELETION`, `OVERFUNDING`, `PROJECT\\\_DEACTIVATED`, `USER\\\_DEACTIVATED`.
+end note
+@enduml

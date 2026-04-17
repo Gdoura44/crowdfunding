@@ -1,0 +1,33 @@
+@startuml
+actor Admin as admin
+participant "Frontend" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+participant "BullMQ Queue" as Queue
+
+admin -> FE: Search for deactivated user
+FE -> API: GET /api/admin/users?isActive=false
+API -> DB: Find users with isActive = false
+DB --> API: users
+API --> FE: list
+FE --> admin: Select user
+
+admin -> FE: Click "Reactivate"
+FE -> API: POST /api/admin/users/{id}/reactivate
+
+API -> DB: Start transaction
+API -> DB: Find user by id
+DB --> API: user
+
+alt user.isActive == false AND user.deletedAt == null   ' ===== MEDIUM: Check not deleted =====
+  API -> DB: Update user.isActive = true
+  API -> DB: Insert AuditLog { actorId: admin.id, actorRole: ADMIN, action: "REACTIVATE_USER", targetType: "User", targetId: user.id }
+  API -> DB: Insert Notification (in-app) for user (type USER_REACTIVATED, relatedEntityType = "USER", relatedEntityId = user.id)
+  API -> DB: Commit transaction
+  API -> Queue: Add job "send-email" with notificationId
+  API --> FE: 200 OK
+  FE --> admin: "User reactivated"
+else
+  API --> FE: 400 "User is already active, does not exist, or has been deleted"
+end
+@enduml

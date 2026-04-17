@@ -1,0 +1,41 @@
+@startuml
+actor Admin as admin
+participant "Frontend" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+participant "BullMQ Queue" as Queue
+
+admin -> FE: Select report, choose resolution
+FE -> API: POST /api/admin/reports/{id}/resolve { resolution, actionOnProject? }
+
+API -> DB: Find report by id
+DB --> API: report
+
+alt report.status == "PENDING"
+  API -> DB: Start transaction
+  API -> DB: Update report.status = "RESOLVED", resolvedBy = admin.id, resolvedAt = now(), resolution = resolution
+  ' ===== MEDIUM: Optional project action =====
+  alt actionOnProject == "DEACTIVATE"
+    API -> DB: Update project.status = "SUSPENDED", rejectionReason = "Reported fraud", rejectedBy = admin.id, rejectedAt = now()
+    API -> DB: Insert Notification (in-app) for project creator (type PROJECT_SUSPENDED, include reason)
+  else actionOnProject == "WARNING"
+    API -> DB: Insert Notification (in-app) for project creator (type PROJECT_WARNING, include reason)
+  end
+  API -> DB: Insert Notification (in-app) for reporter (type REPORT_RESOLVED, relatedEntityId = report.id)
+  API -> DB: Insert AuditLog { actorId: admin.id, actorRole: ADMIN, action: "RESOLVE_REPORT", targetType: "Report", targetId: report.id, details: { resolution, actionOnProject } }
+  API -> DB: Commit transaction
+  API -> Queue: Add job "send-email" with notificationId
+  API --> FE: 200 OK
+  FE --> admin: "Report resolved"
+else
+  API --> FE: 400 "Report already resolved"
+end
+
+note right of API
+  **Project action:** 
+  - If actionOnProject == "DEACTIVATE" → project.status = SUSPENDED, send PROJECT_SUSPENDED notification.
+  - If actionOnProject == "WARNING" → send PROJECT_WARNING notification to creator (no status change).
+  **Notifications:** In‑app notification stored in transaction; email queued after commit.
+end note
+
+@enduml

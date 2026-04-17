@@ -1,0 +1,25 @@
+@startuml
+actor User as user
+participant "Frontend (React)" as FE
+participant "Backend API (Node.js)" as API
+database "MongoDB" as DB
+
+user -> FE: Click "Logout"
+FE -> API: POST /api/users/logout
+
+API -> API: Extract refreshToken from cookie
+API -> DB: Find user by refreshToken hash
+DB --> API: user and token entry
+
+API -> DB: Remove that token from user.refreshTokens array
+API -> FE: Clear cookies (Set-Cookie: ...; Max-Age=0)
+API --> FE: 200 OK
+FE -> FE: Clear local user state
+FE --> user: Redirect to home/login
+
+note right of API
+  - All refresh tokens for the current device are removed
+  - Access token is cleared via cookie expiry
+  - Other devices remain logged in
+end note
+@enduml

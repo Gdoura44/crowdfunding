@@ -1,0 +1,54 @@
+@startuml
+actor Admin as admin
+participant "Frontend" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+participant "BullMQ Queue" as Queue
+
+admin -> FE: View failed analyses
+FE -> API: GET /api/admin/failed-analyses
+API -> DB: Find FailedWorkflowEvents where workflowType="risk-analysis" AND resolved=false
+DB --> API: list
+API --> FE: list
+FE --> admin: Show failed events
+
+admin -> FE: Select event, click "Retry"
+FE -> API: POST /api/admin/retry-analysis { eventId }
+
+API -> DB: Find FailedWorkflowEvent by id
+DB --> API: event
+API -> DB: Find Project by event.projectId
+DB --> API: project
+
+alt project.status == "AWAITING_AI" AND project.aiStatus == "FAILED" AND project.aiAnalysisRetries < 3
+  ' ===== MEDIUM: Atomic increment =====
+  API -> DB: Start transaction
+  API -> DB: Update Project SET aiAnalysisRetries = aiAnalysisRetries + 1, aiStatus = "PENDING"
+  '   WHERE _id = project._id AND aiAnalysisRetries = project.aiAnalysisRetries
+  DB --> API: updateResult
+  alt updateResult.modifiedCount == 0
+    API -> DB: Abort transaction
+    API --> FE: 409 "Concurrent retry, please try again"
+  else
+    API -> Queue: Add job "risk-analysis" with original payload
+    API -> DB: Insert AuditLog { actorId: admin.id, actorRole: ADMIN, action: "RETRY_ANALYSIS", targetType: "FailedWorkflowEvent", targetId: event.id, details: { retryCount: project.aiAnalysisRetries + 1 } }
+    API -> DB: Commit transaction
+    API --> FE: 202 "Analysis retry queued"
+    FE --> admin: "Retry queued"
+  end
+else
+  else if project.aiAnalysisRetries >= 3
+  API --> FE: 400 "Maximum retries (3) exceeded. Manual review required."
+else if project.status != "AWAITING_AI" or project.aiStatus != "FAILED"
+  API --> FE: 400 "Project not in retryable state."
+else
+  API --> FE: 400 "Retry not allowed for unknown reason."
+end
+
+note right of API
+  - Only allowed if project.status = AWAITING_AI and aiStatus = FAILED and aiAnalysisRetries < 3.
+  - Atomic increment prevents double retry.
+  - Job is queued to BullMQ, not called directly.
+  - Audit log records the retry.
+end note
+@enduml

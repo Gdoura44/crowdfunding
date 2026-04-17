@@ -1,0 +1,39 @@
+@startuml
+actor User as user
+participant "Frontend (React)" as FE
+participant "Backend API (Node.js)" as API
+database "MongoDB" as DB
+
+user -> FE: Enter email & password
+FE -> API: POST /api/users/login { email, password }
+
+' ===== HIGH: Rate limiting =====
+API -> API: Check rate limit for this IP/email (e.g., 5 attempts per 15 minutes)
+alt rate limit exceeded
+  API --> FE: 429 "Too many login attempts. Please try again later."
+  FE --> user: Show rate limit message
+else
+  API -> DB: Find user by email
+  DB --> API: user (with password hash)
+
+  alt valid credentials
+    API -> API: bcrypt.compare(password, hash)
+    alt user.isActive == false
+      API --> FE: 401 "Account not verified or deactivated"
+    else
+      API -> API: generateAccessToken(user)
+      API -> API: generateRefreshToken(user, device="web")
+      API -> API: hash refresh token → tokenHash
+      API -> DB: Push new refresh token entry to user.refreshTokens array
+      API --> FE: Set-Cookie: accessToken=...; HttpOnly; Secure; SameSite=Strict
+      API --> FE: Set-Cookie: refreshToken=...; HttpOnly; Secure; SameSite=Strict
+      API --> FE: { user }  (no tokens in body)
+      FE -> FE: Store user info in memory
+      FE --> user: Redirect to dashboard
+    end
+  else invalid credentials
+    API --> FE: 401 Unauthorized
+    FE --> user: Show error message
+  end
+end
+@enduml

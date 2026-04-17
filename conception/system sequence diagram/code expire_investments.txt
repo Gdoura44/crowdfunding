@@ -1,0 +1,37 @@
+@startuml
+actor "System" as system
+participant "Scheduler (cron)" as Cron
+participant "Backend API" as API
+database "MongoDB" as DB
+
+system -> Cron: Trigger every 30 minutes
+Cron -> API: GET /internal/expire-investments
+
+API -> DB: Find investments with status = "INITIATED"\n  AND no linked transaction (payment link never created)\n  AND createdAt < now() - 30 minutes
+
+loop each investment
+  API -> DB: Start transaction
+  API -> DB: Update Investment set status = "FAILED"
+  API -> DB: Insert Notification (in-app) for investor (type PAYMENT_FAILED)
+  API -> DB: Insert AuditLog {
+    actorId: ObjectId("000000000000000000000001"),
+    actorRole: "ADMIN",
+    action: "EXPIRE_INVESTMENT",
+    targetType: "Investment",
+    targetId: investment._id,
+    details: { reason: "No transaction created within 30 minutes" }
+  }
+  API -> DB: Commit transaction
+  API -> Queue: Add job "send-email" with notificationId
+end
+
+API --> Cron: 200 OK
+
+note right of API
+  **Expiry logic changed – race condition eliminated:**
+  - Only expires investments that **never** received a providerPaymentId (i.e., no Transaction document).
+  - Once a Transaction exists (status = PENDING), expiry is **not** automatic.
+  - Reconciliation cron is the sole decider of PENDING transaction status (by querying provider).
+  - This eliminates the illegal FAILED → SUCCESS transition.
+end note
+@enduml

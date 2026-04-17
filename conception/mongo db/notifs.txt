@@ -1,0 +1,106 @@
+{
+  "_id": ObjectId,
+  "userId": { "type": "ObjectId", "ref": "User", "index": true, "required": true },
+  "type": {
+    "type": "string",
+    "required": true,
+    "enum": [
+      "PROJECT_APPROVED",
+      "PROJECT_REJECTED",
+      "PROJECT_PUBLISHED",
+      "PROJECT_FUNDED",
+      "PROJECT_WARNING",
+      "PROJECT_FUNDING_GOAL_LOST",
+      "NEW_INVESTMENT",
+      "PAYMENT_SUCCESS",
+      "PAYMENT_FAILED",
+      "PAYMENT_CANCELLED",
+      "PAYMENT_REFUNDED",
+      "OVERFUND_REFUNDED",
+      "PROJECT_EXPIRED",
+      "REPORT_RESOLVED",
+      "PAYOUT_COMPLETED",
+      "PAYOUT_BANK_DETAILS_REQUEST",
+      "PAYOUT_CANCELLED",
+      "PROJECT_REACTIVATED",
+      "PROJECT_SUSPENDED",
+      "CANCELLATION_FAILED",
+      "REFUND_FAILED",
+      "ACCOUNT_DELETED",
+      "NEW_REPORT",
+      "USER_DEACTIVATED",
+      "PAYOUT_FAILED",
+      "USER_REACTIVATED",
+      "PASSWORD_RESET_REQUESTED"
+    ]
+  },
+  "title": { "type": "string", "required": true },
+  "message": { "type": "string", "required": true },
+  "read": { "type": "boolean", "default": false },
+
+  "relatedEntityId": { "type": "ObjectId", "required": false, "default": null },
+  // For ACCOUNT_DELETED, relatedEntityType = "USER" and relatedEntityId = userId
+  // (userId retained even after anonymization for audit trail)
+
+  "relatedEntityType": {
+    "type": "string",
+    "required": false,
+    "enum": ["PROJECT", "INVESTMENT", "REPORT", "PAYOUT", "USER"],
+    "default": null
+  },
+
+  "createdAt": { "type": "Date", "default": "Date.now" }
+}
+
+// Indexes
+db.notifications.createIndex({ userId: 1, createdAt: -1 });
+db.notifications.createIndex({ read: 1 });
+
+// ============================================================================
+// RELATED ENTITY REFERENCE MAPPING BY NOTIFICATION TYPE
+// ============================================================================
+//
+// **PROJECT-scoped notifications:**
+// - PROJECT_APPROVED, PROJECT_REJECTED, PROJECT_PUBLISHED, PROJECT_FUNDED,
+//   PROJECT_REACTIVATED, PROJECT_SUSPENDED, PROJECT_EXPIRED
+//   → relatedEntityType: "PROJECT"
+//   → relatedEntityId: projectId
+//
+// **INVESTMENT-scoped notifications:**
+// - NEW_INVESTMENT
+//   → relatedEntityType: "INVESTMENT"
+//   → relatedEntityId: investmentId
+//
+// **PAYMENT/TRANSACTION-scoped notifications:**
+// - PAYMENT_SUCCESS, PAYMENT_FAILED, PAYMENT_CANCELLED, PAYMENT_REFUNDED,
+//   OVERFUND_REFUNDED, CANCELLATION_FAILED, REFUND_FAILED
+//   → relatedEntityType: "INVESTMENT"
+//   → relatedEntityId: investmentId (NOT transactionId, for consistency)
+//
+// **REPORT-scoped notifications:**
+// - REPORT_RESOLVED, NEW_REPORT
+//   → relatedEntityType: "REPORT"
+//   → relatedEntityId: reportId
+//
+// **PAYOUT-scoped notifications:**
+// - PAYOUT_COMPLETED, PAYOUT_BANK_DETAILS_REQUEST, PAYOUT_CANCELLED, PAYOUT_FAILED
+//   → relatedEntityType: "PAYOUT"
+//   → relatedEntityId: payoutId
+//
+// **USER-scoped notifications (SPECIAL CASES):**
+//
+// 1. **USER_DEACTIVATED:**
+//    - Sent to the deactivated user themselves
+//    - relatedEntityType: "USER"
+//    - relatedEntityId: userId (self-reference to the deactivated user's _id)
+//    - User document persists (anonymized) for audit trail
+//
+// 2. **ACCOUNT_DELETED:**
+//    // - Sent to the deleted user (notification persists for audit)
+// - relatedEntityType: "USER"
+// - relatedEntityId: userId (still points to the anonymized User document)
+// - The reference remains valid because the User document 
+//   is soft-deleted (deletedAt set, data anonymized)
+// - Useful for admin queries: "Show all notifications for this deleted user"
+//
+// ============================================================================

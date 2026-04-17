@@ -1,0 +1,117 @@
+{
+  "_id": ObjectId,
+  "payoutId": { "type": "ObjectId", "ref": "Payout", "required": true },
+  "error": { "type": "string", "required": true },
+  "retryCount": { "type": "number", "default": 0 },
+  
+  // Added for audit trail
+  "resolvedBy": { "type": "ObjectId", "ref": "User" },
+  "resolvedAt": { "type": "Date" },
+  
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "resolved": { "type": "boolean", "default": false }
+}
+
+// Indexes
+db.failedPayoutEvents.createIndex({ payoutId: 1 });
+db.failedPayoutEvents.createIndex({ resolved: 1, createdAt: -1 });
+
+// ============================================================================
+// PAYOUT FAILURE SCENARIOS
+// ============================================================================
+//
+// **Common Failure Reasons:**
+// - Invalid bank details (wrong IBAN format, closed account, incorrect routing number)
+// - Insufficient funds in platform account (balance check failed)
+// - Provider API error (timeout, rate limit, service down)
+// - Recipient bank rejection (account frozen, name mismatch)
+// - Compliance/KYC issues (requires additional verification)
+//
+// **When Failures Occur:**
+// 1. Admin approves payout (status READY → COMPLETED)
+// 2. Backend calls provider payout API
+// 3. Provider rejects or timeout occurs
+// 4. Backend actions:
+//    - Payout.status → FAILED
+//    - Payout.failureReason = error message
+//    - FailedPayoutEvent created
+//    - Creator receives PAYOUT_FAILED notification
+//    - Admin receives escalation notification
+//
+// ============================================================================
+
+// ============================================================================
+// RETRY MECHANISM (UC_RetryPayout)
+// ============================================================================
+//
+// **Admin Retry Flow:**
+// 1. Admin views FailedPayoutEvent in dashboard
+// 2. Admin investigates failure reason:
+//    - Check Payout.failureReason field
+//    - Verify bank details validity
+//    - Contact creator if details need correction
+//    - Check platform account balance
+// 3. Admin corrects issue (if applicable):
+//    - Update Payout.bankDetails (encrypted)
+//    - Add notes documenting changes
+// 4. Admin clicks "Retry Payout"
+// 5. Backend:
+//    - Verifies Payout.status = FAILED
+//    - Verifies bankDetails are populated
+//    - Calls provider payout API
+//    - On success:
+//        • Payout.status → COMPLETED
+//        • Payout.completedAt = now
+//        • Payout.failureReason cleared
+//        • FailedPayoutEvent.resolved = true
+//        • resolvedBy = admin._id, resolvedAt = now
+//        • Creator receives PAYOUT_COMPLETED notification
+//    - On failure:
+//        • retryCount++
+//        • error field updated with new error message
+//        • Payout.failureReason updated
+//        • If retryCount > 3: Escalate to finance team
+//
+// **Manual Resolution Paths:**
+//
+// 1. **Cancel Payout:**
+//    - Admin determines payout is unrecoverable (e.g., creator unreachable, bank account invalid)
+//    - Admin clicks "Cancel Payout"
+//    - Payout.status → CANCELLED
+//    - Payout.notes documents cancellation reason
+//    - FailedPayoutEvent.resolved = true
+//    - Creator receives PAYOUT_CANCELLED notification
+//
+// 2. **Alternative Payment Method:**
+//    - Admin arranges offline payment (wire transfer, check, etc.)
+//    - Admin manually marks Payout.status → COMPLETED
+//    - Admin documents method in Payout.notes
+//    - FailedPayoutEvent.resolved = true
+//    - Creator receives PAYOUT_COMPLETED notification
+//
+// 3. **Escalation to Legal:**
+//    - If compliance issues or disputes arise
+//    - Payout remains in FAILED state
+//    - Legal team handles resolution externally
+//    - Eventually resolved via Cancel or Manual Completion
+//
+// ============================================================================
+
+// ============================================================================
+// CREATOR DELETION EDGE CASE
+// ============================================================================
+//
+// **If Creator Deletes Account While Payout is FAILED:**
+// - Payout persists with creatorId pointing to anonymized User document
+// - bankDetails cleared during user deletion (privacy requirement)
+// - Admin must:
+//     1. Cancel payout (cannot complete without valid bank details)
+//     2. OR contact creator via external means (if possible) to restore details
+//     3. OR hold funds in escrow pending creator contact
+// - FailedPayoutEvent remains unresolved until admin takes action
+//
+// **If Creator Deletes Account While Payout is PENDING/READY:**
+// - User deletion is BLOCKED (see User schema)
+// - Creator must wait for payout completion or cancellation before deletion
+//
+// ============================================================================

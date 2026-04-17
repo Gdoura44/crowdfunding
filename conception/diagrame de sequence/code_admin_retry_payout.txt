@@ -1,0 +1,69 @@
+@startuml
+actor Admin as admin
+participant "Frontend" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+participant "PaymentGateway" as PG
+participant "BullMQ Queue" as Queue
+
+admin -> FE: View failed payouts
+FE -> API: GET /api/admin/failed-payouts
+API -> DB: Find FailedPayoutEvents where resolved = false
+DB --> API: events
+API --> FE: list
+FE --> admin: Show list with errors
+
+admin -> FE: Select event, click "Retry"
+FE -> API: POST /api/admin/retry-payout { eventId, correctedBankDetails? (optional) }
+
+API -> DB: Find FailedPayoutEvent by id
+DB --> API: event
+API -> DB: Find Payout by event.payoutId
+DB --> API: payout
+
+API -> DB: Find original transaction that funded this payout (via investment -> project)
+DB --> API: sourceTransaction
+
+alt payout.status == "FAILED"
+  alt correctedBankDetails provided
+    API -> API: Encrypt corrected bank details
+    API -> DB: Update payout.bankDetails = encryptedValue
+    API -> DB: Update payout.notes = append "Bank details corrected by admin"
+  end
+
+  API -> API: provider = getProviderForPayout(payout)
+  API -> PG: createPayout(provider, amount=payout.amount, bankDetails=payout.bankDetails, reference=payout._id, sourcePaymentId=sourceTransaction.providerPaymentId)
+  PG --> API: result
+
+  alt success
+    API -> DB: Start transaction
+    API -> DB: Update payout.status = "COMPLETED", completedAt = now()
+    '  Clear failureReason =====
+    API -> DB: Update payout.failureReason = null
+    API -> DB: Update event.resolved = true, resolvedBy = admin.id, resolvedAt = now()
+    API -> DB: Insert AuditLog { actorId: admin.id, actorRole: ADMIN, action: "RETRY_PAYOUT_SUCCESS", targetType: "Payout", targetId: payout.id, details: { retryCount: event.retryCount, sourcePaymentId: sourceTransaction.providerPaymentId, provider } }
+    API -> DB: Insert Notification (in‑app) for creator (type PAYOUT_COMPLETED, relatedEntityId = payout.id)
+    API -> DB: Commit transaction
+    API -> Queue: Add job "send-email" with notificationId
+    API --> FE: 200 OK
+    FE --> admin: "Payout succeeded"
+  else failure
+    API -> DB: Increment event.retryCount by 1
+    API -> DB: Update payout.failureReason = result.error
+    API -> DB: Insert AuditLog { actorId: admin.id, actorRole: ADMIN, action: "RETRY_PAYOUT_FAILED", targetType: "FailedPayoutEvent", targetId: event.id, details: { error: result.error, provider } }
+    API --> FE: 500 "Retry failed again"
+    FE --> admin: "Check provider logs"
+  end
+else
+  API --> FE: 400 "Payout not in FAILED state"
+end
+
+note right of API
+  - Retry only allowed for payouts with `status = FAILED`
+  - Admin can optionally provide corrected bank details (encrypted) before retry
+  - Source payment reference (original transaction providerPaymentId) is sent to provider for reconciliation
+  - On success: payout → COMPLETED, failureReason cleared, event resolved, creator notified
+  - On failure: retryCount incremented, event remains unresolved for manual review
+  - After 3 retries, an escalation notification is sent to senior admin (not shown)
+end note
+@enduml

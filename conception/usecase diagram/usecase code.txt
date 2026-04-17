@@ -1,0 +1,185 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam defaultFontSize 14
+skinparam usecaseSeparatorSpace 40
+skinparam packageSeparatorSpace 40
+skinparam usecaseBorderColor Black
+skinparam usecaseBackgroundColor #F9F9F9
+skinparam packageBackgroundColor #E8F0F8
+skinparam linetype ortho
+skinparam arrowColor Black
+skinparam arrowThickness 1
+
+' --- Actors ---
+actor "Visitor" as visitor
+actor "User" as user
+actor "Admin" as admin
+actor "AI Engine (n8n + Gemini)" as AI
+
+' --- System boundary ---
+rectangle "Crowdfunding Platform" {
+
+  package "User Management" {
+    usecase "Register" as UC_Register
+    usecase "Login" as UC_Login
+    usecase "Logout" as UC_Logout
+    usecase "Resend Verification Email" as UC_ResendVerif
+    usecase "Update Profile" as UC_UpdateProfile
+    usecase "Reset Password" as UC_ResetPassword
+    usecase "Delete Account" as UC_DeleteAccount
+  }
+
+  package "Project Management" {
+    usecase "Create Project" as UC_CreateProject
+    usecase "Edit Project" as UC_EditProject
+    usecase "Resubmit Project" as UC_ResubmitProject
+    usecase "Archive Project" as UC_ArchiveProject
+    usecase "View Project" as UC_ViewProject
+    usecase "Search Projects" as UC_Search
+  }
+
+  package "Investment & Financial" {
+    usecase "Invest" as UC_Invest
+    usecase "Cancel Investment" as UC_CancelInvestment
+    usecase "View Investments" as UC_ViewInvestments
+    usecase "View Payouts" as UC_ViewPayouts
+    usecase "Provide Bank Details" as UC_ProvideBankDetails
+    usecase "Retry Failed Payment" as UC_RetryFailedPayment
+  }
+
+  package "AI & Recommendations" {
+    usecase "Get Recommendations" as UC_Recommendations
+    usecase "View Risk Score" as UC_RiskScore
+    usecase "View AI Analysis" as UC_ViewAIAnalysis
+    usecase "Analyze Project Risk" as UC_AnalyzeRisk
+    usecase "Chat with Project AI" as UC_Chatbot
+  }
+
+  package "Moderation & Admin" {
+    usecase "Validate Project" as UC_ValidateProject
+    usecase "Publish Project" as UC_PublishProject
+    usecase "Reactivate Project" as UC_ReactivateProject
+    usecase "View Reports" as UC_ViewReports
+    usecase "Resolve Report" as UC_ResolveReport
+    usecase "Manage Users" as UC_ManageUsers
+    usecase "Manage Notifications" as UC_ManageNotifications
+    usecase "Approve Payouts" as UC_ApprovePayouts
+  }
+
+  package "Retry Operations" {
+    usecase "Retry Failed Analysis" as UC_RetryAnalysis
+    usecase "Retry Failed Cancellation" as UC_RetryCancellation
+    usecase "Retry Failed Refund" as UC_RetryRefund
+    usecase "Retry Failed Payout" as UC_RetryPayout
+    usecase "Retry Failed Notification" as UC_RetryNotification
+  }
+
+  package "General & Notifications" {
+    usecase "Report Project" as UC_Report
+    usecase "View Notifications" as UC_ViewNotifications
+  }
+
+  ' --- Notes attached to specific use cases ---
+  note right of UC_Login
+  **Authentication Requirements**  
+
+  **Public (no authentication required):**  
+  • Register  
+  • Login  
+  • Resend Verification Email  
+  • Reset Password  
+  • View Project (read-only)  
+  • Search Projects (read-only)  
+
+  **Authenticated Users (valid JWT required):**  
+  All other use cases require a valid JWT token, including:  
+  • Logout  
+  • Update Profile, Delete Account  
+  • Create/Edit/Archive/Resubmit Project  
+  • Invest / Cancel Investment / View Investments  
+  • Report Project  
+  • View Notifications, View Payouts, Provide Bank Details  
+  • Get Recommendations, View Risk Score, View AI Analysis  
+end note
+
+  note right of UC_ValidateProject
+    **Admin Only (JWT + role=ADMIN):**  
+    • Validate Project, Publish Project, Reactivate Project  
+    • View Reports, Resolve Report  
+    • Manage Users, Manage Notifications  
+    • Approve Payouts  
+    • Retry Failed Analysis/Cancellation/Refund/Payout/Notification  
+  end note
+
+  note right of UC_DeleteAccount
+    **Deletion Restrictions:**  
+    Users cannot delete account if they have:  
+    • Active investments (status: INITIATED or CANCELLING)  
+    • Pending/Ready payouts (status: PENDING or READY)
+    • Any project they created with status = FUNDED (goal reached but not closed) 
+  end note
+
+  note right of UC_Chatbot
+  **Chatbot for investors:**  
+  - Available to authenticated users.  
+  - Rate limited to 10 questions per hour.  
+  - Answers based on project data and platform rules.  
+  - Does not give financial advice.  
+  - Direct call to Gemini API (no n8n).
+  end note
+}
+
+' --- Actor associations ---
+visitor --> UC_ViewProject
+visitor --> UC_Search
+
+user --> UC_Register
+user --> UC_Login
+user --> UC_Logout
+user --> UC_ResendVerif
+user --> UC_UpdateProfile
+user --> UC_ResetPassword
+user --> UC_DeleteAccount
+user --> UC_CreateProject
+user --> UC_EditProject
+user --> UC_ResubmitProject
+user --> UC_ArchiveProject
+user --> UC_ViewProject
+user --> UC_Search
+user --> UC_ViewNotifications
+user --> UC_Invest
+user --> UC_CancelInvestment
+user --> UC_ViewInvestments
+user --> UC_Recommendations
+user --> UC_RiskScore
+user --> UC_ViewAIAnalysis
+user --> UC_Report
+user --> UC_ViewPayouts
+user --> UC_ProvideBankDetails
+user --> UC_RetryFailedPayment
+user --> UC_Chatbot
+
+admin --> UC_ValidateProject
+admin --> UC_PublishProject
+admin --> UC_ReactivateProject
+admin --> UC_ViewReports
+admin --> UC_ResolveReport
+admin --> UC_ManageUsers
+admin --> UC_ManageNotifications
+admin --> UC_ApprovePayouts
+admin --> UC_RetryAnalysis
+admin --> UC_RetryCancellation
+admin --> UC_RetryRefund
+admin --> UC_RetryPayout
+admin --> UC_RetryNotification
+
+AI --> UC_AnalyzeRisk
+
+' --- Include relationships ---
+UC_Recommendations ..> UC_ViewProject : <<include>>
+UC_ValidateProject ..> UC_ViewAIAnalysis : <<include>>
+UC_PublishProject ..> UC_ViewProject : <<include>>
+
+@enduml

@@ -1,0 +1,107 @@
+{
+  "_id": ObjectId,
+  "email": { "type": "string", "unique": true, "index": true, "required": true },
+  "passwordHash": { "type": "string", "required": true },
+  "role": { "type": "string", "enum": ["USER", "ADMIN"], "required": true },
+  "isActive": { "type": "boolean", "default": false },
+  "verifyTokenHash": "string",
+  "verifyTokenExpiry": "Date",
+  "resetTokenHash": "string",
+  "resetTokenExpiry": "Date",
+  "deletedAt": { "type": "Date", "default": null },
+  "refreshTokens": {
+    "type": "array",
+    "maxItems": 5,
+    "items": {
+      "tokenHash": { "type": "string", "required": true },
+      "expiresAt": { "type": "Date", "required": true },
+      "device": "string"
+    }
+  // Cleanup: When a new refresh token is added (login or refresh), if the array size exceeds 5,
+  // the oldest token (by expiresAt, or createdAt if not stored) is removed atomically.
+  // A daily cron job also removes expired tokens regardless of count.
+  },
+  "profile": {
+    "firstName": "string",
+    "lastName": "string",
+    "phone": "string",
+    "riskPreference": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+    "preferredCategories": [{ "type": "string" }]
+  },
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "updatedAt": { "type": "Date", "default": "Date.now" }
+}
+
+// Indexes
+db.users.createIndex({ email: 1 }, { unique: true });
+db.users.createIndex({ isActive: 1 });
+db.users.createIndex({ deletedAt: 1 });
+
+// ============================================================================
+// USER DELETION CASCADE RULES
+// ============================================================================
+// When a user is deleted (deletedAt set), the following happens:
+//
+// 1. **User Document Anonymization:**
+//    - email → "deleted_<userId>_<timestamp>@anonymized.local"
+//    - passwordHash → cleared (set to null or random hash)
+//    - refreshTokens → cleared (empty array)
+//    - profile fields → cleared/anonymized
+//    - deletedAt → current timestamp
+//    - Document persists for audit trail
+//
+// 2. **Related Entity Handling:**
+//        - **Projects**: 
+//        • creatorId retained (points to anonymized user document)
+//        • isCreatorDeleted = true
+//        • This applies to ALL project statuses (DRAFT, AWAITING_AI, UNDER_REVIEW, 
+//          REJECTED, APPROVED, ACTIVE, FUNDED, CLOSED, SUSPENDED)
+//        • No project ever sets creatorId = null
+//
+//    - **Investments**: investorId retained (points to anonymized user document)
+//      → SUCCESS investments are refunded during deletion; deletion blocked until
+//        refunds succeed or admin resolves (see FailedRefundEvent reason="USER_DELETION")
+//
+//    - **Reports**: reporterId retained for audit trail
+//    - **Payouts**: 
+//        • creatorId retained for audit
+//        • bankDetails cleared if status != COMPLETED
+//    - **Notifications**: userId retained (user still receives system notifications in DB)
+//    - **AuditLog**: actorId retained for compliance
+//    - **Transactions**: investmentId chain remains intact//
+// 3.   **Policy rationale for different handling of SUCCESS investments:**
+//    - Deactivation (isActive=false) is reversible; admin may reactivate the user.
+//      Refunding SUCCESS investments would be disruptive and unnecessary.
+//    - Deletion (deletedAt set) is permanent and irreversible.
+//      All financial obligations must be settled, hence SUCCESS investments are refunded.
+//
+// 4. Deletion Restrictions (enforced at service layer):
+//    User CANNOT delete account if:
+//    - Any Investment exists with status IN ["INITIATED", "CANCELLING"]
+//    - Any Payout exists with status IN ["PENDING", "READY"]
+//    - Any Project exists where creatorId = user._id AND
+//      status IN ["ACTIVE", "APPROVED", "UNDER_REVIEW", "AWAITING_AI", "FUNDED"]
+//    - FAILED investments do NOT block deletion because no funds were transferred.
+//        - Any Investment exists with status = "SUCCESS" AND
+//      its Transaction.refundStatus != "SUCCEEDED"
+//      (refund must be completed before account deletion)
+//      
+//    **Timeout and Admin Override:**
+//    - If a refund remains in FAILED state for more than 7 days after deletion request,
+//      an admin may force-delete the account via the dead-letter dashboard.
+//    - Force-deletion sets a flag `deletedAt` and marks the associated FailedRefundEvent
+//      as resolved with a note "User deleted despite refund failure – manual reconciliation
+//      required".
+//    - The platform remains liable for the failed refund amount (manual payout required).
+//
+//  **Deletion timeout:** If a refund fails during account deletion and remains unresolved for
+//     7 days, admin may force-delete the account. The FailedRefundEvent is marked resolved with
+//     a note, and the platform must manually settle the refund externally.
+//
+// 5. **Notification on Deletion:**
+//    - ACCOUNT_DELETED notification created with:
+//        • userId = deleted user's _id (self-reference)
+//        • relatedEntityId = userId
+//        • relatedEntityType = "USER"
+//
+// ============================================================================

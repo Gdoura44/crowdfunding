@@ -1,0 +1,63 @@
+@startuml
+actor Admin as admin
+participant "Frontend" as FE
+participant "Backend API" as API
+database "MongoDB" as DB
+participant "PaymentGateway" as PG
+participant "BullMQ Queue" as Queue
+
+admin -> FE: View payouts ready for approval (status = READY)
+FE -> API: GET /api/admin/payouts?status=READY
+API -> DB: Find payouts with status READY
+DB --> API: list
+API --> FE: list
+FE --> admin: Show payouts with bank details
+
+admin -> FE: Select payout, click "Approve"
+FE -> API: POST /api/admin/payouts/{id}/approve { notes }
+
+API -> DB: Find payout
+DB --> API: payout
+
+alt payout.status == "READY" AND payout.bankDetails != null
+  ' Overfunding check
+  API -> DB: Find project by payout.projectId
+  DB --> API: project
+  API -> DB: Check for unresolved OVERFUNDING FailedRefundEvent for this project
+  DB --> API: unresolvedRefunds
+  alt unresolvedRefunds exists
+    API --> FE: 400 "Cannot approve payout: unresolved overfunding refunds exist"
+  else
+    ' Determine provider for payout (could be configured per project or default)
+    API -> API: provider = getProviderForPayout(project)
+    API -> API: idempotencyKey = payout._id.toString()
+    API -> PG: createPayout(provider, amount=payout.amount, bankDetails=payout.bankDetails, reference=payout._id)
+    PG --> API: payoutResult
+    alt success
+      API -> DB: Start MongoDB transaction
+      API -> DB: Update payout.status = "COMPLETED", completedAt = now()
+      API -> DB: Insert AuditLog { actorId: admin.id, actorRole: ADMIN, action: "APPROVE_PAYOUT", targetType: "Payout", targetId: payout.id, details: { notes, provider } }
+      API -> DB: Insert Notification (in-app) for project creator (type PAYOUT_COMPLETED, relatedEntityId = payout.id)
+      API -> DB: Commit transaction
+      API -> Queue: Add job "send-email" with notificationId
+      API --> FE: 200 OK
+      FE --> admin: "Payout approved and transferred"
+    else failure
+      API -> DB: Start MongoDB transaction
+      API -> DB: Update payout.status = "FAILED", notes = "Transfer failed: " + error, failureReason = error
+      API -> DB: Insert FailedPayoutEvent { payoutId, error, provider }
+      API -> DB: Insert Notification (in-app) for admin (type PAYOUT_FAILED)
+      API -> DB: Commit transaction
+      API --> FE: 500 "Transfer failed"
+    end
+  end
+else
+  API --> FE: 400 "Payout not ready or bank details missing"
+end
+
+note right of API
+  **Provider for payouts:** Can be configured per project or use a default platform payout provider.
+  The PaymentGateway abstracts Flouci, Konnect, or D17 for bank transfers.
+  Reference uses payout._id for reconciliation.
+end note
+@enduml
