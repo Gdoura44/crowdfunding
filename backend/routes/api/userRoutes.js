@@ -24,7 +24,7 @@ router.get(
     const user = await User.findById(req.user.id)
       .select("email role profile createdAt deletedAt")
       .lean();
-    if (!user || user.deletedAt) throw new HttpError(404, "User not found");
+    if (!user || user.deletedAt) throw new HttpError(404, "Utilisateur introuvable.");
     res.json({
       profile: user.profile,
       email: user.email,
@@ -40,7 +40,7 @@ router.put(
   asyncHandler(async (req, res) => {
     const data = parseBody(updateProfileSchema, req.body);
     const user = await User.findById(req.user.id);
-    if (!user || user.deletedAt) throw new HttpError(404, "User not found");
+    if (!user || user.deletedAt) throw new HttpError(404, "Utilisateur introuvable.");
 
     user.profile = {
       ...user.profile?.toObject?.(),
@@ -57,7 +57,7 @@ router.put(
       details: { fields: Object.keys(data || {}) },
     });
 
-    res.json({ message: "Profile updated", profile: user.profile });
+    res.json({ message: "Profil mis à jour.", profile: user.profile });
   })
 );
 
@@ -66,7 +66,7 @@ router.post(
   requireAuth,
   asyncHandler(async (req, res) => {
     await accountService.deleteAccount({ userId: req.user.id });
-    res.json({ ok: true, message: "Account deleted successfully" });
+    res.json({ ok: true, message: "Compte supprimé. Vous êtes maintenant déconnecté." });
   })
 );
 

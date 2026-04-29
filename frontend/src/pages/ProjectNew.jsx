@@ -5,7 +5,10 @@ import { useAuth } from "../hooks/useAuth.js";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import Stepper from "../components/ui/Stepper.jsx";
 import ProjectPreviewCard from "../components/project/ProjectPreviewCard.jsx";
+import Guidance from "../components/ui/Guidance.jsx";
 import { FUNDING_GOAL_MAX, FUNDING_GOAL_MIN } from "../config/businessRules.js";
+import { extractApiError } from "../utils/apiError.js";
+import { PROJECT_CATEGORIES } from "../config/categories.js";
 
 function addDays(n) {
   const d = new Date();
@@ -13,10 +16,19 @@ function addDays(n) {
   return d.toISOString().slice(0, 10);
 }
 
+function addDaysToDateInput(dateStr, days) {
+  const base = dateStr ? new Date(dateStr) : new Date();
+  if (Number.isNaN(base.getTime())) return addDays(days);
+  base.setDate(base.getDate() + days);
+  return base.toISOString().slice(0, 10);
+}
+
+// Page création: guide l’utilisateur (dates/règles) et crée un brouillon avant soumission à l’analyse IA.
 export default function ProjectNew() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const defaultStart = addDays(7);
+  const minDurationDays = 30;
   const defaultForm = useMemo(
     () => ({
       title: "",
@@ -24,7 +36,7 @@ export default function ProjectNew() {
       category: "",
       fundingGoal: 10000,
       startAt: defaultStart,
-      deadline: addDays(21),
+      deadline: addDaysToDateInput(defaultStart, minDurationDays),
     }),
     [defaultStart]
   );
@@ -34,13 +46,55 @@ export default function ProjectNew() {
     category: "",
     fundingGoal: 10000,
     startAt: defaultStart,
-    deadline: addDays(21),
+    deadline: addDaysToDateInput(defaultStart, minDurationDays),
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [touched, setTouched] = useState({});
 
   const descMax = 5000;
+  const descTemplate = [
+    "1. Problème & contexte",
+    "- Quel besoin concret voulez-vous résoudre ? (pour qui, où, pourquoi maintenant)",
+    "- Constat chiffré si possible (ex. nombre de bénéficiaires, coût actuel, délai, etc.)",
+    "- Situation actuelle et limites (ce qui ne marche pas aujourd’hui)",
+    "",
+    "2. Objectif & impact attendu",
+    "- Objectif principal (1 phrase) + 2–3 objectifs secondaires",
+    "- Indicateurs de succès (ex. 200 bénéficiaires, 50 kits distribués, 3 ateliers, etc.)",
+    "",
+    "3. Solution proposée",
+    "- Votre idée en 5–8 lignes (ce que vous allez faire concrètement)",
+    "- Pourquoi cette solution est réaliste ? (équipe, partenaires, ressources)",
+    "",
+    "4. Plan d’action (jalons)",
+    "- Étape 1 (Semaine 1–2) : ...",
+    "- Étape 2 (Semaine 3–4) : ...",
+    "- Étape 3 (Semaine 5–6) : ...",
+    "- Date de livraison / mise en service : ...",
+    "",
+    "5. Budget (utilisation des fonds)",
+    "- Poste A : ... TND (ex. matériel)",
+    "- Poste B : ... TND (ex. transport / logistique)",
+    "- Poste C : ... TND (ex. communication)",
+    "- Total : ... TND",
+    "- Si vous avez déjà une contribution (personnelle/partenaire), précisez-la.",
+    "",
+    "6. Livrables / preuves (ce que les contributeurs verront)",
+    "- Livrable 1 : ... (photo, rapport, vidéo, lien, événement)",
+    "- Livrable 2 : ...",
+    "- Fréquence des mises à jour (ex. 1 fois / semaine)",
+    "",
+    "7. Risques & plan d’atténuation",
+    "- Risque 1 : ... → Solution : ...",
+    "- Risque 2 : ... → Solution : ...",
+    "- Plan B (si un fournisseur / une étape échoue) : ...",
+    "",
+    "8. Transparence",
+    "- Qui gère le projet ? (nom/organisation, rôle)",
+    "- Comment l’argent sera utilisé ? (rappel du budget)",
+    "- Comment les contributeurs seront informés ?",
+  ].join("\n");
 
   const step = useMemo(() => {
     if (!form.title.trim() || !form.category.trim()) return 0;
@@ -67,6 +121,13 @@ export default function ProjectNew() {
     else if (startAt < minStart) e.startAt = "Le démarrage doit être au moins dans 7 jours.";
     if (!deadline || Number.isNaN(deadline.getTime())) e.deadline = "Choisissez une date limite.";
     else if (startAt && deadline <= startAt) e.deadline = "La date limite doit être après la date de démarrage.";
+    else if (startAt) {
+      const min = new Date(startAt);
+      min.setDate(min.getDate() + minDurationDays);
+      if (deadline < min) {
+        e.deadline = "La campagne doit durer au moins 1 mois (30 jours) après le démarrage.";
+      }
+    }
     return e;
   }, [form.title, form.category, form.fundingGoal, form.startAt, form.deadline, form.description]);
 
@@ -93,18 +154,17 @@ export default function ProjectNew() {
         deadline: new Date(form.deadline).toISOString(),
       };
       const { data } = await projectsApi.create(payload);
-      // Clean the form so if user comes back it’s fresh.
+      // Nettoyer le formulaire pour qu’un retour sur la page reparte sur une base saine.
       setForm(defaultForm);
       setTouched({});
       navigate(`/projects/${data.project._id}`, { replace: true });
     } catch (err) {
-      const msg =
-        err.response?.data?.message ||
-        (err.response?.data?.details
-          ? JSON.stringify(err.response.data.details)
-          : null) ||
-        "Impossible de créer le projet.";
-      setError(msg);
+      const out = extractApiError(err, "Impossible de créer le projet.");
+      const details =
+        out.fieldMessages?.length > 0
+          ? `\n- ${out.fieldMessages.map((e) => `${e.field}: ${e.message}`).join("\n- ")}`
+          : "";
+      setError(`${out.message}${details}`);
     } finally {
       setLoading(false);
     }
@@ -130,6 +190,20 @@ export default function ProjectNew() {
           </div>
           <Stepper steps={["Infos", "Calendrier", "Revue"]} current={step} />
         </div>
+        <Guidance title="Guidance" variant="info">
+          Astuce: l’analyse IA se base surtout sur votre <strong>description</strong>. Une description claire et
+          structurée (quelques chiffres, un mini-plan, budget) aide à mieux évaluer le projet et rassure les
+          contributeurs. Si votre <strong>objectif</strong> dépasse votre budget estimé, expliquez brièvement à quoi
+          servira la marge (ex. plan B) ou comment elle sera utilisée.
+          <div className="mt-2">
+            <strong>Budget :</strong> l’estimation des dépenses est déduite de votre description. Si l’écart entre
+            l’objectif et les besoins dépasse <strong>30%</strong>, le projet est <strong>rejeté automatiquement</strong>.
+          </div>
+        </Guidance>
+        <div className="alert alert-secondary border-0 small">
+          <strong>Important :</strong> FinCollab est une plateforme de <strong>soutien</strong> (don / contribution).
+          Ce n’est <strong>pas</strong> un produit financier : aucun rendement n’est garanti.
+        </div>
 
         <div className="row g-4 align-items-start">
           <div className="col-12 col-lg-7">
@@ -143,7 +217,7 @@ export default function ProjectNew() {
                 <span className="badge bg-light text-dark border">Brouillon</span>
               </div>
               <div>
-                <label className="form-label small text-muted mb-1">Titre</label>
+                <label className="form-label fw-semibold text-dark mb-1">Titre</label>
                 <input
                   className={`form-control ${touched.title && errors.title ? "is-invalid" : ""}`}
                   required
@@ -156,7 +230,7 @@ export default function ProjectNew() {
                 {touched.title && errors.title && <div className="invalid-feedback">{errors.title}</div>}
               </div>
               <div>
-                <label className="form-label small text-muted mb-1">
+                <label className="form-label fw-semibold text-dark mb-1">
                   Description
                 </label>
                 <textarea
@@ -170,6 +244,25 @@ export default function ProjectNew() {
                     setForm({ ...form, description: e.target.value })
                   }
                 />
+                <div className="mt-2 d-flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        description: f.description?.trim()
+                          ? f.description
+                          : descTemplate,
+                      }))
+                    }
+                  >
+                    Insérer un modèle
+                  </button>
+                  <div className="small text-muted align-self-center">
+                    Un projet clair (plan, budget, risques) inspire plus confiance.
+                  </div>
+                </div>
                 <div className="d-flex justify-content-between">
                   <div className="form-text">
                     Soyez concret : objectifs, plan d’action, et ce que vous livrez.
@@ -183,21 +276,28 @@ export default function ProjectNew() {
                 )}
               </div>
               <div>
-                <label className="form-label small text-muted mb-1">
+                <label className="form-label fw-semibold text-dark mb-1">
                   Catégorie
                 </label>
-                <input
-                  className={`form-control ${touched.category && errors.category ? "is-invalid" : ""}`}
-                  placeholder="Ex. social, tech, énergie…"
+                <select
+                  className={`form-select ${touched.category && errors.category ? "is-invalid" : ""}`}
                   value={form.category}
                   onBlur={() => setTouched((t) => ({ ...t, category: true }))}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
-                />
+                  required
+                >
+                  <option value="">Choisir une catégorie…</option>
+                  {PROJECT_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
                 {touched.category && errors.category && <div className="invalid-feedback">{errors.category}</div>}
               </div>
               <div className="row g-3">
                 <div className="col-md-6">
-                  <label className="form-label small text-muted mb-1">
+                  <label className="form-label fw-semibold text-dark mb-1">
                     Objectif (TND)
                   </label>
                   <div className="input-group">
@@ -260,7 +360,7 @@ export default function ProjectNew() {
                   </div>
                 </div>
                 <div className="col-md-6">
-                  <label className="form-label small text-muted mb-1">
+                  <label className="form-label fw-semibold text-dark mb-1">
                     Date de démarrage
                   </label>
                   <input
@@ -270,9 +370,15 @@ export default function ProjectNew() {
                     min={addDays(7)}
                     value={form.startAt}
                     onBlur={() => setTouched((t) => ({ ...t, startAt: true }))}
-                    onChange={(e) =>
-                      setForm({ ...form, startAt: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const nextStart = e.target.value;
+                      const minDeadline = addDaysToDateInput(nextStart || addDays(7), minDurationDays);
+                      setForm((f) => {
+                        const currentDeadline = String(f.deadline || "");
+                        const shouldBump = !currentDeadline || currentDeadline < minDeadline;
+                        return { ...f, startAt: nextStart, deadline: shouldBump ? minDeadline : currentDeadline };
+                      });
+                    }}
                   />
                   <div className="form-text">
                     La campagne peut démarrer au plus tôt dans 7 jours.
@@ -282,14 +388,14 @@ export default function ProjectNew() {
                   )}
                 </div>
                 <div className="col-md-6">
-                  <label className="form-label small text-muted mb-1">
+                  <label className="form-label fw-semibold text-dark mb-1">
                     Date limite de collecte
                   </label>
                   <input
                     className={`form-control ${touched.deadline && errors.deadline ? "is-invalid" : ""}`}
                     type="date"
                     required
-                    min={form.startAt || addDays(7)}
+                    min={addDaysToDateInput(form.startAt || addDays(7), minDurationDays)}
                     value={form.deadline}
                     onBlur={() => setTouched((t) => ({ ...t, deadline: true }))}
                     onChange={(e) =>
@@ -297,7 +403,7 @@ export default function ProjectNew() {
                     }
                   />
                   <div className="form-text">
-                    Doit être après la date de démarrage (ex. 2 à 4 semaines).
+                    Durée minimale : 1 mois (30 jours) après la date de démarrage.
                   </div>
                   {touched.deadline && errors.deadline && (
                     <div className="invalid-feedback d-block">{errors.deadline}</div>

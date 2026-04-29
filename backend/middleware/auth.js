@@ -7,7 +7,7 @@ const {
 function readAccessSecret() {
   const secret = process.env.JWT_ACCESS_SECRET;
   if (!secret) {
-    throw new Error("JWT_ACCESS_SECRET is required");
+    throw new Error("JWT_ACCESS_SECRET est requis");
   }
   return secret;
 }
@@ -21,23 +21,30 @@ function optionalAuth(req, res, next) {
   try {
     const payload = jwt.verify(token, readAccessSecret());
     req.user = { id: payload.sub, role: payload.role };
+    return next();
   } catch {
-    req.user = null;
+    // Important: si un token est présent mais invalide/expiré, renvoyer 401 pour que le client
+    // puisse rafraîchir la session (interceptor axios) au lieu de retomber silencieusement
+    // en “anonyme” et produire des 404 confus sur des ressources “propriétaire”.
+    return res.status(401).json({
+      message: "Session expirée. Merci de vous reconnecter.",
+    });
   }
-  next();
 }
 
 function requireAuth(req, res, next) {
   const token = req.cookies?.[ACCESS_TOKEN_COOKIE];
   if (!token) {
-    return res.status(401).json({ message: "Authentication required" });
+    return res.status(401).json({ message: "Authentification requise." });
   }
   try {
     const payload = jwt.verify(token, readAccessSecret());
     req.user = { id: payload.sub, role: payload.role };
     return next();
   } catch {
-    return res.status(401).json({ message: "Invalid or expired session" });
+    return res.status(401).json({
+      message: "Session expirée. Merci de vous reconnecter.",
+    });
   }
 }
 

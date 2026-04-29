@@ -9,14 +9,22 @@ const { generateGeminiText } = require("../../services/geminiChatService");
 
 const router = express.Router();
 
-// 10/hour per user. Note: this is in-memory rate limiting (acceptable for PFE demo).
+// Anti‑abus: limiter l’usage pour éviter le spam.
+// Important: ce plafond est distinct du quota Gemini (externe). Si Gemini est limité,
+// on répond en “mode simplifié” plutôt que de bloquer l’utilisateur.
 const chatLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 10,
+  max: Math.min(
+    Math.max(Number(process.env.CHAT_RATE_LIMIT_PER_HOUR || 60) || 60, 10),
+    300
+  ),
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.user?.id || rateLimit.ipKeyGenerator(req),
-  message: { message: "Trop de questions. Réessayez plus tard." },
+  message: {
+    message:
+      "Vous avez envoyé trop de questions sur une courte période. Merci de réessayer dans quelques minutes.",
+  },
 });
 
 router.post(
@@ -24,15 +32,17 @@ router.post(
   requireAuth,
   chatLimiter,
   asyncHandler(async (req, res) => {
-    if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(400, "Invalid project id");
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      throw new HttpError(400, "Identifiant de projet invalide.");
+    }
     const question = String(req.body?.question || "").trim();
-    if (!question) throw new HttpError(400, "question is required");
-    if (question.length > 800) throw new HttpError(400, "question is too long");
+    if (!question) throw new HttpError(400, "Veuillez saisir une question.");
+    if (question.length > 800) throw new HttpError(400, "Votre question est trop longue (max 800 caractères).");
 
     const project = await Project.findById(req.params.id)
       .select("title description category fundingGoal currentFunding deadline status")
       .lean();
-    if (!project) throw new HttpError(404, "Project not found");
+    if (!project) throw new HttpError(404, "Projet introuvable.");
 
     const fundingGoal = Number(project.fundingGoal || 0);
     const currentFunding = Number(project.currentFunding || 0);
@@ -71,9 +81,16 @@ router.post(
 
     try {
       const answer = await generateGeminiText(prompt);
-      res.json({ answer });
+      res.json({ answer, mode: "ai" });
     } catch (err) {
-      // Fallback: keep UX usable even if Gemini is down/quota exceeded.
+      const status = Number(err?.response?.status || 0) || null;
+      const reason =
+        status === 429
+          ? "AI_QUOTA"
+          : status === 503 || status === 502 || status === 504
+            ? "AI_TEMPORARY_FAILURE"
+            : "AI_UNAVAILABLE";
+      // Solution de secours (fallback): garder une UX utilisable même si Gemini est indisponible/quota dépassé.
       const safeAnswer = [
         `Projet: ${project.title}.`,
         `Statut: ${project.status}.`,
@@ -86,7 +103,7 @@ router.post(
       ]
         .filter(Boolean)
         .join(" ");
-      res.json({ answer: safeAnswer });
+      res.json({ answer: safeAnswer, mode: "fallback", reason });
     }
   })
 );

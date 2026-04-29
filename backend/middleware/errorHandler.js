@@ -18,7 +18,11 @@ function errorHandler(err, req, res, next) {
   }
 
   if (err.code === 11000) {
-    return res.status(409).json({ message: "Duplicate key" });
+    const fields = err?.keyValue && typeof err.keyValue === "object" ? Object.keys(err.keyValue) : [];
+    return res.status(409).json({
+      message: "Valeur déjà utilisée.",
+      ...(fields.length ? { details: { fieldErrors: Object.fromEntries(fields.map((f) => [f, ["Déjà utilisé."]])) } } : {}),
+    });
   }
 
   console.error(err);

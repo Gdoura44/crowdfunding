@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const asyncHandler = require("../../middleware/asyncHandler");
 const { requireAuth } = require("../../middleware/auth");
 const { requireAdmin } = require("../../middleware/requireAdmin");
@@ -9,6 +10,7 @@ const notificationService = require("../../services/notificationService");
 const reportService = require("../../services/reportService");
 const payoutService = require("../../services/payoutService");
 const adminOpsService = require("../../services/adminOpsService");
+const Comment = require("../../models/Comment");
 
 const router = express.Router();
 
@@ -59,7 +61,7 @@ router.post(
         role: user.role,
         isActive: user.isActive,
       },
-      message: "User reactivated",
+      message: "Utilisateur réactivé.",
     });
   })
 );
@@ -71,8 +73,29 @@ router.get(
   asyncHandler(async (req, res) => {
     const notifications = await notificationService.listAllNotificationsForAdmin({
       limit: req.query.limit,
+      unreadOnly: req.query.unreadOnly,
     });
     res.json({ notifications });
+  })
+);
+
+router.put(
+  "/notifications/:id/read",
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const notification = await notificationService.markAdminRead(req.params.id);
+    res.json({ notification, message: "Marquée comme lue." });
+  })
+);
+
+router.patch(
+  "/notifications/:id/read",
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const notification = await notificationService.markAdminRead(req.params.id);
+    res.json({ notification, message: "Marquée comme lue." });
   })
 );
 
@@ -95,17 +118,21 @@ router.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const { resolution, actionOnProject, status } = req.body || {};
-    if (!resolution) throw new HttpError(400, "resolution is required");
+    if (!resolution) throw new HttpError(400, "Le champ « resolution » est requis.");
     const report = await reportService.resolveReport({
       adminId: req.user.id,
       reportId: req.params.id,
       resolution,
       actionOnProject,
+      actionOnComment: req.body?.actionOnComment,
       status,
     });
     res.json({
       report,
-      message: String(status || "RESOLVED").toUpperCase() === "DISMISSED" ? "Report dismissed" : "Report resolved",
+      message:
+        String(status || "RESOLVED").toUpperCase() === "DISMISSED"
+          ? "Signalement classé sans suite."
+          : "Signalement traité.",
     });
   })
 );
@@ -123,13 +150,77 @@ router.get(
   })
 );
 
+router.get(
+  "/comments",
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const n = Number(req.query.limit ?? 50);
+    const limit = Number.isFinite(n) ? Math.min(Math.max(n, 1), 100) : 50;
+    const projectId = String(req.query.projectId || "").trim();
+    const includeHidden = String(req.query.includeHidden || "").trim().toLowerCase() === "true";
+    const q = String(req.query.q || "").trim();
+
+    const query = {};
+    if (projectId && mongoose.isValidObjectId(projectId)) query.projectId = projectId;
+    if (!includeHidden) query.isHidden = false;
+    if (q) query.content = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+
+    const comments = await Comment.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    res.json({ comments });
+  })
+);
+
+router.patch(
+  "/comments/:id/hide",
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      throw new HttpError(400, "Identifiant de commentaire invalide.");
+    }
+    const reason = String(req.body?.reason || "").trim();
+    const comment = await Comment.findById(req.params.id);
+    if (!comment) throw new HttpError(404, "Commentaire introuvable.");
+    comment.isHidden = true;
+    comment.hiddenReason = reason;
+    comment.hiddenAt = new Date();
+    comment.hiddenBy = req.user.id;
+    await comment.save();
+    res.json({ comment: comment.toObject(), message: "Commentaire masqué." });
+  })
+);
+
+router.patch(
+  "/comments/:id/unhide",
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      throw new HttpError(400, "Identifiant de commentaire invalide.");
+    }
+    const comment = await Comment.findById(req.params.id);
+    if (!comment) throw new HttpError(404, "Commentaire introuvable.");
+    comment.isHidden = false;
+    comment.hiddenReason = "";
+    comment.hiddenAt = undefined;
+    comment.hiddenBy = undefined;
+    await comment.save();
+    res.json({ comment: comment.toObject(), message: "Commentaire rétabli." });
+  })
+);
+
 router.post(
   "/projects/:id/validate",
   requireAuth,
   requireAdmin,
   asyncHandler(async (req, res) => {
     const { decision, feedback } = req.body || {};
-    if (!decision) throw new HttpError(400, "decision is required");
+    if (!decision) throw new HttpError(400, "Le champ « decision » est requis (APPROVED ou REJECTED).");
 
     const project = await adminProjectService.validateProject({
       adminId: req.user.id,
@@ -142,8 +233,8 @@ router.post(
       project,
       message:
         String(decision).toUpperCase() === "APPROVED"
-          ? "Project approved"
-          : "Project rejected",
+          ? "Projet approuvé."
+          : "Projet rejeté.",
     });
   })
 );
@@ -157,7 +248,21 @@ router.post(
       adminId: req.user.id,
       projectId: req.params.id,
     });
-    res.json({ project, message: "Project published" });
+    res.json({ project, message: "Projet publié (en ligne)." });
+  })
+);
+
+router.post(
+  "/projects/:id/revoke-approval",
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const project = await adminProjectService.revokeApproval({
+      adminId: req.user.id,
+      projectId: req.params.id,
+      reason: req.body?.reason,
+    });
+    res.json({ project, message: "Approbation annulée. Corrections demandées au créateur." });
   })
 );
 
@@ -170,7 +275,21 @@ router.post(
       adminId: req.user.id,
       projectId: req.params.id,
     });
-    res.json({ project, message: "AI analysis retry requested" });
+    res.json({ project, message: "Relance de l’analyse IA demandée." });
+  })
+);
+
+router.post(
+  "/projects/:id/deactivate",
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const project = await adminProjectService.deactivateProject({
+      adminId: req.user.id,
+      projectId: req.params.id,
+      reason: req.body?.reason,
+    });
+    res.json({ project, message: "Projet suspendu." });
   })
 );
 
@@ -183,7 +302,7 @@ router.post(
       adminId: req.user.id,
       projectId: req.params.id,
     });
-    res.json({ project, message: "Project reactivated" });
+    res.json({ project, message: "Projet réactivé." });
   })
 );
 
@@ -210,7 +329,7 @@ router.post(
       payoutId: req.params.id,
       notes: req.body?.notes,
     });
-    res.json({ payout, message: "Payout approved" });
+    res.json({ payout, message: "Retrait approuvé." });
   })
 );
 
@@ -246,7 +365,7 @@ router.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const eventId = req.body?.eventId;
-    if (!eventId) throw new HttpError(400, "eventId is required");
+    if (!eventId) throw new HttpError(400, "Le champ « eventId » est requis.");
     const out = await adminOpsService.retryNotificationOnce({
       adminId: req.user.id,
       eventId,

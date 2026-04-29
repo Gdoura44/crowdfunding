@@ -12,6 +12,10 @@ const reportSchema = new mongoose.Schema(
       ref: "Project",
       required: true,
     },
+    commentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Comment",
+    },
     type: {
       type: String,
       required: true,
@@ -34,5 +38,6 @@ reportSchema.index({ reporterId: 1 });
 reportSchema.index({ projectId: 1 });
 reportSchema.index({ status: 1, createdAt: -1 });
 reportSchema.index({ reporterId: 1, projectId: 1, type: 1 });
+reportSchema.index({ reporterId: 1, commentId: 1, type: 1 });
 
 module.exports = mongoose.model("Report", reportSchema);

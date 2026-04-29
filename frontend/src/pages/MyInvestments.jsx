@@ -6,6 +6,7 @@ import PageHeader from "../components/ui/PageHeader.jsx";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import { useAuth } from "../hooks/useAuth.js";
+import { extractApiError } from "../utils/apiError";
 
 function badge(status) {
   const map = {
@@ -58,7 +59,8 @@ export default function MyInvestments() {
       const { data } = await investmentsApi.mine({ limit: 50 });
       setItems(data.investments || []);
     } catch (e) {
-      setError(e?.response?.data?.message || "Impossible de charger vos investissements.");
+      const out = extractApiError(e, "Impossible de charger vos investissements.");
+      setError(out.message);
     } finally {
       setLoading(false);
     }
@@ -72,7 +74,10 @@ export default function MyInvestments() {
         const { data } = await investmentsApi.mine({ limit: 50 });
         if (!cancelled) setItems(data.investments || []);
       } catch (e) {
-        if (!cancelled) setError(e?.response?.data?.message || "Impossible de charger vos investissements.");
+        if (!cancelled) {
+          const out = extractApiError(e, "Impossible de charger vos investissements.");
+          setError(out.message);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -163,7 +168,8 @@ export default function MyInvestments() {
                                 }
                                 await refresh();
                               } catch (e) {
-                                setError(e?.response?.data?.message || "Retry impossible.");
+                                const out = extractApiError(e, "Retry impossible.");
+                                setError(out.message);
                               } finally {
                                 setBusyId("");
                               }
@@ -186,7 +192,7 @@ export default function MyInvestments() {
                                   title: "Annuler cet investissement ?",
                                   message:
                                     info.policy ||
-                                    "Si l’annulation est autorisée, le paiement sera annulé (ou remboursé en mode démo).",
+                                    "Si l’annulation est autorisée, le paiement sera annulé (ou remboursé si nécessaire).",
                                   buttons: [
                                     { label: "Retour" },
                                     {
@@ -198,9 +204,8 @@ export default function MyInvestments() {
                                           await investmentsApi.cancel(inv._id);
                                           await refresh();
                                         } catch (e) {
-                                          setError(
-                                            e?.response?.data?.message || "Annulation impossible."
-                                          );
+                                          const out = extractApiError(e, "Annulation impossible.");
+                                          setError(out.message);
                                         } finally {
                                           setBusyId("");
                                         }

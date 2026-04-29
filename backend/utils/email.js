@@ -18,8 +18,8 @@ async function getTransporter() {
     return transporter;
   }
 
-  // Dev fallback: auto-create a test SMTP account so emails are still "sent"
-  // and you can open the preview URL in the console (jury/demo friendly).
+  // Fallback dev: auto-créer un compte SMTP de test pour que les emails soient quand même “envoyés”
+  // et permettre d’ouvrir l’URL de prévisualisation dans la console (pratique pour démo/jury).
   if (process.env.NODE_ENV !== "production") {
     const acc = await nodemailer.createTestAccount();
     transporter = nodemailer.createTransport({
@@ -38,13 +38,13 @@ async function sendMail({ to, subject, text, html }) {
   const from = process.env.MAIL_FROM || "noreply@localhost";
   const tx = await getTransporter();
   if (!tx) {
-    console.info("[email] SMTP not configured; skipping send:", { to, subject });
+    console.info("[email] SMTP non configuré; envoi ignoré:", { to, subject });
     return false;
   }
   const info = await tx.sendMail({ from, to, subject, text, html });
   const preview = nodemailer.getTestMessageUrl(info);
   if (preview) {
-    console.info("[email] Preview URL:", preview);
+    console.info("[email] URL de prévisualisation:", preview);
   }
   return true;
 }

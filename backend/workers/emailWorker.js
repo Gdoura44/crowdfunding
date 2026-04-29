@@ -8,7 +8,18 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const FailedWorkflowEvent = require("../models/FailedWorkflowEvent");
 const { sendMail } = require("../utils/email");
+const { shouldEmailNotificationType } = require("../config/emailNotificationPolicy");
 
+/**
+ * Worker BullMQ "send-email".
+ *
+ * Rôle:
+ * - transformer une notification in-app en e-mail (simple copie du title/message).
+ *
+ * Note anti-spam:
+ * - on n’envoie des e-mails que pour une liste de types critiques (policy centrale).
+ * - même si un job existe déjà en queue, on peut le “skipper” proprement.
+ */
 function buildEmailFromNotification({ notification, user }) {
   const subject = notification.title || "Notification";
   const preview = notification.message || "";
@@ -37,18 +48,18 @@ function escapeHtml(s) {
 async function main() {
   const databaseUrl = process.env.DATABASE;
   if (!databaseUrl) {
-    throw new Error("DATABASE environment variable is required");
+    throw new Error("La variable d’environnement DATABASE est requise");
   }
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) {
     console.warn(
-      "[emailWorker] REDIS_URL not set: email worker will not start."
+      "[emailWorker] REDIS_URL non défini : le worker email ne démarrera pas."
     );
     process.exit(0);
   }
 
   await mongoose.connect(databaseUrl);
-  console.log("[emailWorker] Database connected");
+  console.log("[emailWorker] Base de données connectée");
 
   const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
 
@@ -61,6 +72,11 @@ async function main() {
       const notification = await Notification.findById(notificationId).lean();
       if (!notification) return { ok: false, missing: "notification" };
 
+      // Anti-spam: envoyer uniquement pour les types de notification critiques.
+      if (!shouldEmailNotificationType(notification.type)) {
+        return { ok: true, skipped: true, reason: "type-not-emailed", type: notification.type };
+      }
+
       const user = await User.findById(notification.userId).lean();
       if (!user || user.deletedAt) return { ok: false, missing: "user" };
 
@@ -72,10 +88,11 @@ async function main() {
   );
 
   worker.on("failed", (job, err) => {
-    console.error("[emailWorker] job failed", job?.id, err?.message || err);
+    console.error("[emailWorker] job en échec", job?.id, err?.message || err);
     const notificationId = job?.data?.notificationId;
     if (!notificationId) return;
-    // Record a dead-letter event so admin can retry later (conception: Retry Failed Notification).
+    // Enregistrer un event “dead-letter” pour relance admin plus tard
+    // (conception: Retry Failed Notification).
     FailedWorkflowEvent.create({
       workflowType: "notification",
       payload: { notificationId: String(notificationId) },
@@ -85,12 +102,12 @@ async function main() {
     }).catch(() => {});
   });
   worker.on("completed", (job) => {
-    console.log("[emailWorker] job completed", job?.id);
+    console.log("[emailWorker] job terminé", job?.id);
   });
 }
 
 main().catch((err) => {
-  console.error("[emailWorker] fatal:", err);
+  console.error("[emailWorker] erreur fatale:", err);
   process.exit(1);
 });
 

@@ -16,8 +16,8 @@ function getQueue() {
 }
 
 /**
- * Architecture: backend enqueues BullMQ job → n8n consumer → Gemini → /internal/*.
- * If REDIS_URL is not configured, we log the payload (stub mode).
+ * Architecture: le backend enfile un job BullMQ → n8n (consumer) → Gemini → /internal/*.
+ * Si REDIS_URL n’est pas configuré, on log le payload (stub mode).
  */
 async function enqueueRiskAnalysisJob(project) {
   const payload = buildRiskPayload(project);

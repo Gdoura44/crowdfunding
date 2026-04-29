@@ -10,15 +10,16 @@ const { seal, open } = require("../utils/cryptoSeal");
 const { enqueueEmailForNotifications } = require("../integrations/emailQueue");
 const User = require("../models/User");
 
-// WHY: Payouts stay demo-first (no real bank transfers), but we still model the
-// real workflow (PENDING -> READY -> COMPLETED) so the UX and admin process are realistic.
+// Pourquoi: l’intégration bancaire est simulée par un fournisseur factice (cf. MockPaymentProvider),
+// mais on modélise tout le workflow réel (PENDING → READY → COMPLETED) afin que l’UX et le processus
+// admin restent fidèles à un environnement de production.
 
 function validateBankDetailsJsonString(bankDetails) {
   let parsed;
   try {
     parsed = JSON.parse(String(bankDetails || ""));
   } catch {
-    throw new HttpError(400, "Invalid bank details: must be valid JSON");
+    throw new HttpError(400, "Coordonnées bancaires invalides : JSON invalide.");
   }
 
   const accountHolderName = String(parsed.accountHolderName || "").trim();
@@ -27,17 +28,26 @@ function validateBankDetailsJsonString(bankDetails) {
   const swiftCode = parsed.swiftCode ? String(parsed.swiftCode || "").trim().toUpperCase() : "";
 
   if (accountHolderName.length < 3 || accountHolderName.length > 100) {
-    throw new HttpError(400, "Invalid bank details: accountHolderName must be 3-100 characters");
+    throw new HttpError(
+      400,
+      "Coordonnées bancaires invalides : `accountHolderName` doit contenir 3 à 100 caractères."
+    );
   }
   if (bankName.length < 3 || bankName.length > 100) {
-    throw new HttpError(400, "Invalid bank details: bankName must be 3-100 characters");
+    throw new HttpError(
+      400,
+      "Coordonnées bancaires invalides : `bankName` doit contenir 3 à 100 caractères."
+    );
   }
-  // Basic IBAN check (good enough for PFE demo)
+  // Contrôle de format IBAN (lettres pays + 13 à 32 alphanumériques).
   if (!/^[A-Z]{2}[0-9A-Z]{13,32}$/.test(iban)) {
-    throw new HttpError(400, "Invalid bank details: iban format is invalid");
+    throw new HttpError(400, "Coordonnées bancaires invalides : format IBAN incorrect.");
   }
   if (swiftCode && !/^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(swiftCode)) {
-    throw new HttpError(400, "Invalid bank details: swiftCode must be 8 or 11 chars");
+    throw new HttpError(
+      400,
+      "Coordonnées bancaires invalides : `swiftCode` doit faire 8 ou 11 caractères."
+    );
   }
 
   return { accountHolderName, bankName, iban, swiftCode: swiftCode || null };
@@ -45,9 +55,9 @@ function validateBankDetailsJsonString(bankDetails) {
 
 async function ensurePayoutForFundedProject(projectId) {
   const project = await Project.findById(projectId);
-  if (!project) throw new HttpError(404, "Project not found");
-  // WHY: In conception, payout is created after FUNDED project is closed (cron/grace period).
-  // We accept FUNDED or CLOSED so the cron can close then create payout reliably.
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  // Pourquoi: dans la conception, le payout est créé après clôture d’un projet FUNDED (cron/période de grâce).
+  // On accepte FUNDED ou CLOSED afin que le cron puisse clôturer puis créer le payout de manière fiable.
   if (!["FUNDED", "CLOSED"].includes(project.status)) return { ok: false };
 
   const existing = await Payout.findOne({ projectId: project._id }).lean();
@@ -84,17 +94,19 @@ async function listMyPayouts(creatorId, { limit = 30 } = {}) {
 }
 
 async function getMyPayout(creatorId, payoutId) {
-  if (!mongoose.isValidObjectId(payoutId)) throw new HttpError(400, "Invalid payout id");
+  if (!mongoose.isValidObjectId(payoutId)) throw new HttpError(400, "Identifiant de retrait invalide.");
   const payout = await Payout.findOne({ _id: payoutId, creatorId }).lean();
-  if (!payout) throw new HttpError(404, "Payout not found");
+  if (!payout) throw new HttpError(404, "Retrait introuvable.");
   // Do not return decrypted bank details on API (minimize exposure)
   return payout;
 }
 
 async function provideBankDetails(creatorId, payoutId, bankDetails) {
   const payout = await Payout.findOne({ _id: payoutId, creatorId });
-  if (!payout) throw new HttpError(404, "Payout not found");
-  if (payout.status !== "PENDING") throw new HttpError(400, "Payout not in pending state");
+  if (!payout) throw new HttpError(404, "Retrait introuvable.");
+  if (payout.status !== "PENDING") {
+    throw new HttpError(400, "Retrait non modifiable : il n’est pas en attente (PENDING).");
+  }
 
   const normalized = validateBankDetailsJsonString(bankDetails);
   const sealed = seal(JSON.stringify(normalized));
@@ -133,7 +145,7 @@ async function provideBankDetails(creatorId, payoutId, bankDetails) {
         userId: a._id,
         type: "PAYOUT_READY_FOR_APPROVAL",
         title: "Payout à valider",
-        message: "Un créateur a fourni ses coordonnées. Vous pouvez approuver le payout (mode démo).",
+        message: "Un créateur a fourni ses coordonnées. Vous pouvez approuver le payout.",
         relatedEntityId: payout._id,
         relatedEntityType: "PAYOUT",
       }))
@@ -156,9 +168,9 @@ async function listAdminPayouts({ status, limit = 50 } = {}) {
 
 async function approvePayout({ adminId, payoutId, notes = "" }) {
   const payout = await Payout.findById(payoutId);
-  if (!payout) throw new HttpError(404, "Payout not found");
+  if (!payout) throw new HttpError(404, "Retrait introuvable.");
   if (payout.status !== "READY" || !payout.bankDetails) {
-    throw new HttpError(400, "Payout not ready or bank details missing");
+    throw new HttpError(400, "Retrait non prêt ou coordonnées bancaires manquantes.");
   }
 
   const unresolved = await FailedRefundEvent.findOne({
@@ -167,15 +179,15 @@ async function approvePayout({ adminId, payoutId, notes = "" }) {
     resolved: false,
   }).lean();
   if (unresolved) {
-    throw new HttpError(
-      400,
-      "Cannot approve payout: unresolved overfunding refunds exist"
-    );
+    throw new HttpError(400, "Approbation impossible : remboursements de surfinancement en attente.");
   }
 
-  // Demo-first: simulate transfer success. In real integration, call provider here.
+  // Provider factice : on simule la réussite du virement.
+  // En production, on appellerait ici le fournisseur de paiement réel (PSP/banque).
   const decrypted = open(payout.bankDetails); // validate decrypt works
-  if (!decrypted) throw new HttpError(500, "Unable to decrypt bank details");
+  if (!decrypted) {
+    throw new HttpError(500, "Erreur interne : impossible de déchiffrer les coordonnées bancaires.");
+  }
 
   payout.status = "COMPLETED";
   payout.completedAt = new Date();
@@ -196,7 +208,7 @@ async function approvePayout({ adminId, payoutId, notes = "" }) {
       userId: payout.creatorId,
       type: "PAYOUT_COMPLETED",
       title: "Virement effectué",
-      message: "Votre paiement a été validé et marqué comme complété (mode démo).",
+      message: "Votre paiement a été validé et marqué comme complété.",
       relatedEntityId: payout._id,
       relatedEntityType: "PAYOUT",
     },
@@ -208,7 +220,7 @@ async function approvePayout({ adminId, payoutId, notes = "" }) {
 
 async function failPayout({ adminId, payoutId, error }) {
   const payout = await Payout.findById(payoutId);
-  if (!payout) throw new HttpError(404, "Payout not found");
+  if (!payout) throw new HttpError(404, "Retrait introuvable.");
   payout.status = "FAILED";
   payout.failureReason = String(error || "Transfer failed");
   await payout.save();
@@ -244,6 +256,44 @@ async function failPayout({ adminId, payoutId, error }) {
   return payout.toObject();
 }
 
+async function cancelOpenPayoutForProject({ adminId, projectId, reason = "" }) {
+  if (!mongoose.isValidObjectId(projectId)) throw new HttpError(400, "Identifiant de projet invalide.");
+  const payout = await Payout.findOne({ projectId });
+  if (!payout) return { cancelled: false, payout: null };
+
+  if (!["PENDING", "READY"].includes(String(payout.status || ""))) {
+    return { cancelled: false, payout: payout.toObject() };
+  }
+
+  payout.status = "CANCELLED";
+  payout.failureReason = String(reason || "").trim() || "Cancelled by admin";
+  await payout.save();
+
+  await AuditLog.create({
+    actorId: adminId,
+    actorRole: "ADMIN",
+    action: "CANCEL_PAYOUT",
+    targetType: "Payout",
+    targetId: payout._id,
+    details: { projectId: String(projectId), reason: payout.failureReason },
+  });
+
+  const notifs = await Notification.create([
+    {
+      userId: payout.creatorId,
+      type: "PAYOUT_CANCELLED",
+      title: "Payout annulé",
+      message:
+        "Le payout associé à votre projet a été annulé suite à une action administrative (projet suspendu).",
+      relatedEntityId: payout._id,
+      relatedEntityType: "PAYOUT",
+    },
+  ]);
+  await enqueueEmailForNotifications(notifs);
+
+  return { cancelled: true, payout: payout.toObject() };
+}
+
 module.exports = {
   ensurePayoutForFundedProject,
   listMyPayouts,
@@ -252,5 +302,6 @@ module.exports = {
   listAdminPayouts,
   approvePayout,
   failPayout,
+  cancelOpenPayoutForProject,
 };
 

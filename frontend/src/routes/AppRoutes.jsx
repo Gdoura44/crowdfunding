@@ -26,6 +26,7 @@ import AdminUsers from "../pages/AdminUsers.jsx";
 import AdminNotifications from "../pages/AdminNotifications.jsx";
 import AdminReports from "../pages/AdminReports.jsx";
 import AdminPayouts from "../pages/AdminPayouts.jsx";
+import AdminComments from "../pages/AdminComments.jsx";
 import MockCheckout from "../pages/MockCheckout.jsx";
 import Recommendations from "../pages/Recommendations.jsx";
 import AdminOps from "../pages/AdminOps.jsx";
@@ -68,6 +69,7 @@ export default function AppRoutes() {
 
         <Route element={<AdminRoute />}>
           <Route path="admin/projects" element={<AdminProjects />} />
+          <Route path="admin/comments" element={<AdminComments />} />
           <Route path="admin/users" element={<AdminUsers />} />
           <Route path="admin/reports" element={<AdminReports />} />
           <Route path="admin/payouts" element={<AdminPayouts />} />

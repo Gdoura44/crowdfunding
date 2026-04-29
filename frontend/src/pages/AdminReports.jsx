@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import PageHeader from "../components/ui/PageHeader.jsx";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
+import { extractApiError } from "../utils/apiError";
 
 export default function AdminReports() {
   const { user } = useAuth();
@@ -25,7 +26,8 @@ export default function AdminReports() {
       const { data } = await adminApi.listReports({ status, limit: 80 });
       setItems(data.reports || []);
     } catch (e) {
-      setError(e?.response?.data?.message || "Impossible de charger les signalements.");
+      const out = extractApiError(e, "Impossible de charger les signalements.");
+      setError(out.message);
     } finally {
       setLoading(false);
     }
@@ -104,7 +106,17 @@ export default function AdminReports() {
                     <td className="small text-muted" style={{ maxWidth: "28rem" }}>
                       {r.description || "—"}
                     </td>
-                    <td className="small text-muted">{String(r.projectId)}</td>
+                    <td className="small text-muted">
+                      <div className="text-truncate" style={{ maxWidth: "14rem" }}>
+                        {String(r.projectId)}
+                      </div>
+                      {r.commentId ? (
+                        <div className="text-truncate" style={{ maxWidth: "14rem" }}>
+                          <span className="badge bg-light text-dark border">COMMENT</span>{" "}
+                          {String(r.commentId)}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="small text-muted">
                       {r.createdAt ? new Date(r.createdAt).toLocaleString("fr-FR") : "—"}
                     </td>
@@ -136,9 +148,19 @@ export default function AdminReports() {
                             setActionById((p) => ({ ...p, [r._id]: e.target.value }))
                           }
                         >
-                          <option value="">Aucune action sur le projet</option>
-                          <option value="WARNING">Avertissement</option>
-                          <option value="DEACTIVATE">Suspendre le projet</option>
+                          {r.commentId ? (
+                            <>
+                              <option value="">Aucune action sur le commentaire</option>
+                              <option value="HIDE_COMMENT">Masquer le commentaire</option>
+                              <option value="DELETE_COMMENT">Supprimer le commentaire</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="">Aucune action sur le projet</option>
+                              <option value="WARNING">Avertissement</option>
+                              <option value="DEACTIVATE">Suspendre le projet</option>
+                            </>
+                          )}
                         </select>
                       </td>
                     )}
@@ -154,12 +176,14 @@ export default function AdminReports() {
                             try {
                               await adminApi.resolveReport(r._id, {
                                 resolution: resolutionById[r._id],
-                                actionOnProject: actionById[r._id] || undefined,
+                                actionOnProject: r.commentId ? undefined : actionById[r._id] || undefined,
+                                actionOnComment: r.commentId ? actionById[r._id] || undefined : undefined,
                                 status: decisionById[r._id] || "RESOLVED",
                               });
                               await load();
                             } catch (e) {
-                              setError(e?.response?.data?.message || "Action impossible.");
+                              const out = extractApiError(e, "Action impossible.");
+                              setError(out.message);
                             } finally {
                               setBusyId(null);
                             }

@@ -6,14 +6,15 @@ const AuditLog = require("../models/AuditLog");
 const HttpError = require("../utils/HttpError");
 const { enqueueEmailForNotifications } = require("../integrations/emailQueue");
 const User = require("../models/User");
-const { ProjectStatus, canSuspendProject } = require("../config/projectLifecycle");
+const Comment = require("../models/Comment");
+const { ProjectStatus, canSuspendProject, transitionProjectStatus } = require("../config/projectLifecycle");
 
 async function createReport({ reporterId, projectId, type, description = "" }) {
-  if (!mongoose.isValidObjectId(projectId)) throw new HttpError(400, "Invalid project id");
+  if (!mongoose.isValidObjectId(projectId)) throw new HttpError(400, "Identifiant de projet invalide.");
   const project = await Project.findById(projectId).lean();
-  if (!project) throw new HttpError(404, "Project not found");
+  if (!project) throw new HttpError(404, "Projet introuvable.");
   if (String(project.creatorId) === String(reporterId)) {
-    throw new HttpError(400, "You cannot report your own project");
+    throw new HttpError(400, "Vous ne pouvez pas signaler votre propre projet.");
   }
 
   const existing = await Report.findOne({
@@ -25,7 +26,7 @@ async function createReport({ reporterId, projectId, type, description = "" }) {
   if (existing) {
     throw new HttpError(
       409,
-      "You already have a pending or resolved report of this type for this project"
+      "Vous avez déjà un signalement en cours (ou déjà traité) de ce type pour ce projet."
     );
   }
 
@@ -38,7 +39,8 @@ async function createReport({ reporterId, projectId, type, description = "" }) {
     status: "PENDING",
   });
 
-  // Notify admins (conception): admins must see new reports even without opening the reports screen.
+  // Notifier les admins (conception): les admins doivent voir les nouveaux signalements
+  // même sans ouvrir l’écran dédié aux signalements.
   const admins = await User.find({ role: "ADMIN" }).select("_id email").lean();
   const notifs = await Notification.insertMany(
     admins.map((a) => ({
@@ -46,6 +48,59 @@ async function createReport({ reporterId, projectId, type, description = "" }) {
       type: "NEW_REPORT",
       title: "Nouveau signalement",
       message: "Un utilisateur a signalé un projet. Ouvrez l’onglet Signalements pour traiter le cas.",
+      relatedEntityId: report._id,
+      relatedEntityType: "REPORT",
+    }))
+  );
+  await enqueueEmailForNotifications(notifs);
+
+  return report.toObject();
+}
+
+async function createCommentReport({ reporterId, projectId, commentId, type, description = "" }) {
+  if (!mongoose.isValidObjectId(projectId)) throw new HttpError(400, "Identifiant de projet invalide.");
+  if (!mongoose.isValidObjectId(commentId)) throw new HttpError(400, "Identifiant de commentaire invalide.");
+
+  const project = await Project.findById(projectId).lean();
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+
+  const comment = await Comment.findOne({
+    _id: commentId,
+    projectId,
+    deletedAt: { $exists: false },
+  }).lean();
+  if (!comment) throw new HttpError(404, "Commentaire introuvable.");
+  if (String(comment.userId) === String(reporterId)) {
+    throw new HttpError(400, "Vous ne pouvez pas signaler votre propre commentaire.");
+  }
+
+  const existing = await Report.findOne({
+    reporterId,
+    commentId,
+    type,
+    status: { $in: ["PENDING", "RESOLVED"] },
+  }).lean();
+  if (existing) {
+    throw new HttpError(409, "Vous avez déjà un signalement en cours (ou déjà traité) pour ce commentaire.");
+  }
+
+  const report = await Report.create({
+    reporterId,
+    projectId,
+    commentId,
+    type,
+    description: String(description || "").trim(),
+    status: "PENDING",
+  });
+
+  const admins = await User.find({ role: "ADMIN" }).select("_id email").lean();
+  const notifs = await Notification.insertMany(
+    admins.map((a) => ({
+      userId: a._id,
+      type: "NEW_REPORT",
+      title: "Nouveau signalement",
+      message:
+        "Un utilisateur a signalé un commentaire. Ouvrez l’onglet Signalements pour traiter le cas.",
       relatedEntityId: report._id,
       relatedEntityType: "REPORT",
     }))
@@ -72,15 +127,22 @@ async function listAdminReports({ status, limit = 40 } = {}) {
   return Report.find(query).sort({ createdAt: -1 }).limit(safeLimit).lean();
 }
 
-async function resolveReport({ adminId, reportId, resolution, actionOnProject, status = "RESOLVED" }) {
-  if (!mongoose.isValidObjectId(reportId)) throw new HttpError(400, "Invalid report id");
+async function resolveReport({
+  adminId,
+  reportId,
+  resolution,
+  actionOnProject,
+  actionOnComment,
+  status = "RESOLVED",
+}) {
+  if (!mongoose.isValidObjectId(reportId)) throw new HttpError(400, "Identifiant de signalement invalide.");
   const report = await Report.findById(reportId);
-  if (!report) throw new HttpError(404, "Report not found");
-  if (report.status !== "PENDING") throw new HttpError(400, "Report already resolved");
+  if (!report) throw new HttpError(404, "Signalement introuvable.");
+  if (report.status !== "PENDING") throw new HttpError(400, "Signalement déjà traité.");
 
   const normalizedStatus = String(status || "RESOLVED").toUpperCase();
   if (!["RESOLVED", "DISMISSED"].includes(normalizedStatus)) {
-    throw new HttpError(400, "status must be RESOLVED or DISMISSED");
+    throw new HttpError(400, "status doit être RESOLVED ou DISMISSED.");
   }
   report.status = normalizedStatus;
   report.resolvedBy = adminId;
@@ -97,11 +159,11 @@ async function resolveReport({ adminId, reportId, resolution, actionOnProject, s
       if (!canSuspendProject(project.status)) {
         throw new HttpError(
           400,
-          `Cannot suspend project from status ${String(project.status || "")}`
+          `Suspension impossible depuis le statut ${String(project.status || "")}.`
         );
       }
-      project.status = ProjectStatus.SUSPENDED;
-      project.rejectionReason = "Reported fraud";
+      transitionProjectStatus(project, ProjectStatus.SUSPENDED, { action: "ADMIN_SUSPEND_FROM_REPORT" });
+      project.rejectionReason = "Suspendu suite à un signalement (modération)";
       project.rejectedBy = adminId;
       project.rejectedAt = new Date();
       await project.save();
@@ -134,6 +196,26 @@ async function resolveReport({ adminId, reportId, resolution, actionOnProject, s
     }
   }
 
+  // Optional comment action (DELETE_COMMENT / HIDE_COMMENT)
+  if (report.commentId && actionOnComment) {
+    if (!["DELETE_COMMENT", "HIDE_COMMENT"].includes(String(actionOnComment))) {
+      throw new HttpError(400, "actionOnComment doit être DELETE_COMMENT ou HIDE_COMMENT.");
+    }
+    const c = await Comment.findById(report.commentId);
+    if (c && !c.deletedAt) {
+      c.isHidden = true;
+      c.hiddenReason = "Masqué par un administrateur (signalement)";
+      c.hiddenAt = new Date();
+      c.hiddenBy = adminId;
+      if (String(actionOnComment) === "DELETE_COMMENT") {
+        c.deletedAt = new Date();
+        c.deletedBy = adminId;
+        c.deletedByRole = "ADMIN";
+      }
+      await c.save();
+    }
+  }
+
   // Notify reporter
   notifs.push(
     await Notification.create({
@@ -155,7 +237,12 @@ async function resolveReport({ adminId, reportId, resolution, actionOnProject, s
     action: "RESOLVE_REPORT",
     targetType: "Report",
     targetId: report._id,
-    details: { actionOnProject: actionOnProject || null },
+    details: {
+      status: normalizedStatus,
+      actionOnProject: actionOnProject || null,
+      actionOnComment: actionOnComment || null,
+      hasCommentTarget: Boolean(report.commentId),
+    },
   });
 
   await enqueueEmailForNotifications(notifs);
@@ -164,6 +251,7 @@ async function resolveReport({ adminId, reportId, resolution, actionOnProject, s
 
 module.exports = {
   createReport,
+  createCommentReport,
   listMyReports,
   listAdminReports,
   resolveReport,

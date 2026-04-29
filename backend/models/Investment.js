@@ -53,14 +53,13 @@ investmentSchema.index({ status: 1, updatedAt: 1 });
 investmentSchema.index({ status: 1, cancellingStartedAt: 1 });
 investmentSchema.index({ scheduledForDeactivation: 1, updatedAt: 1 });
 
-investmentSchema.pre("validate", function (next) {
+investmentSchema.pre("validate", function () {
   if (this.status === "CANCELLING" && !this.cancellingStartedAt) {
     this.cancellingStartedAt = new Date();
   }
   if (this.status !== "CANCELLING") {
     this.cancellingStartedAt = undefined;
   }
-  next();
 });
 
 module.exports = mongoose.model("Investment", investmentSchema);

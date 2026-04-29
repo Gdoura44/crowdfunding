@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
 import { useUnreadNotifications } from "../hooks/useUnreadNotifications.js";
+import { useUnreadAdminNotifications } from "../hooks/useUnreadAdminNotifications.js";
 
 function navClass({ isActive }) {
   return ["nav-link py-2 py-md-1 d-inline-flex align-items-center gap-2", isActive ? "active" : ""]
@@ -8,9 +9,14 @@ function navClass({ isActive }) {
     .join(" ");
 }
 
+// Layout global: navbar + routage. Affiche un badge +N sur “Notifications” (user/admin) en temps réel.
 export default function Layout() {
   const { user, loading, logout, isAuthenticated } = useAuth();
-  const unread = useUnreadNotifications({ enabled: Boolean(isAuthenticated && user?._id) });
+  const isAdmin = user?.role === "ADMIN";
+  const userKey = user?.id || user?._id;
+  const unreadUser = useUnreadNotifications({ enabled: Boolean(isAuthenticated && userKey && !isAdmin) });
+  const unreadAdmin = useUnreadAdminNotifications({ enabled: Boolean(isAuthenticated && userKey && isAdmin) });
+  const unread = isAdmin ? unreadAdmin : unreadUser;
   const displayName =
     user?.profile?.firstName?.trim() ||
     user?.email?.split("@")[0] ||
@@ -101,6 +107,11 @@ export default function Layout() {
                             </NavLink>
                           </li>
                           <li>
+                            <NavLink className="dropdown-item" to="/admin/comments">
+                              Commentaires
+                            </NavLink>
+                          </li>
+                          <li>
                             <NavLink className="dropdown-item" to="/admin/payouts">
                               Payouts
                             </NavLink>
@@ -108,11 +119,6 @@ export default function Layout() {
                           <li>
                             <NavLink className="dropdown-item" to="/admin/ops">
                               Ops
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink className="dropdown-item" to="/admin/notifications">
-                              Notifications
                             </NavLink>
                           </li>
                         </ul>
@@ -127,20 +133,22 @@ export default function Layout() {
                       </li>
                     )}
                     <li className="nav-item">
-                      <NavLink className={navClass} to="/notifications">
+                      <NavLink className={navClass} to={isAdmin ? "/admin/notifications" : "/notifications"}>
                         <span className="position-relative d-inline-flex align-items-center">
                           <i className="fa-regular fa-bell fa-fw" aria-hidden="true" />
+                        </span>
+                        <span className="d-inline-flex align-items-center gap-2">
+                          <span>Notifications</span>
                           {unread > 0 && (
                             <span
-                              className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                              style={{ fontSize: "0.65rem" }}
+                              className="badge rounded-pill bg-danger"
+                              style={{ fontSize: "0.7rem" }}
                               aria-label={`${unread} notifications non lues`}
                             >
-                              {unread}
+                              +{unread}
                             </span>
                           )}
                         </span>
-                        <span>Notifications</span>
                       </NavLink>
                     </li>
                     {user?.role !== "ADMIN" && (
@@ -164,14 +172,6 @@ export default function Layout() {
                           </NavLink>
                         </li>
                       </>
-                    )}
-                    {user?.role !== "ADMIN" && (
-                      <li className="nav-item">
-                        <NavLink className={navClass} to="/projects/new">
-                          <i className="fa-solid fa-circle-plus fa-fw" aria-hidden="true" />
-                          <span>Nouveau</span>
-                        </NavLink>
-                      </li>
                     )}
                     <li className="nav-item dropdown ms-md-2">
                       <button

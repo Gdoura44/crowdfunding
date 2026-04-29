@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { projectsApi } from "../api/projects";
+import { extractApiError } from "../utils/apiError";
 
 export function useMyProjects({ enabled = true } = {}) {
   const [projects, setProjects] = useState([]);
@@ -17,7 +18,8 @@ export function useMyProjects({ enabled = true } = {}) {
       setProjects(data.projects || []);
     } catch (e) {
       if (seq !== loadSeq.current) return;
-      setError(e?.response?.data?.message || "Impossible de charger vos projets.");
+      const out = extractApiError(e, "Impossible de charger vos projets.");
+      setError(out.message);
     } finally {
       if (seq === loadSeq.current) setLoading(false);
     }
@@ -35,11 +37,11 @@ export function useMyProjects({ enabled = true } = {}) {
       try {
         await projectsApi.remove(projectId);
       } catch (e) {
-        // Restore by reloading from server to avoid inconsistent UI.
+        // Recharger depuis le serveur pour éviter une UI incohérente après échec.
         await reload();
         throw e;
       }
-      // Ensure we're synced (covers edge cases where backend blocks deletion).
+      // Garantir la synchronisation (couvre les cas où le backend refuse la suppression).
       await reload();
     },
     [reload]

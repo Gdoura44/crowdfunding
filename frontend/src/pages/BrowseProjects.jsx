@@ -5,6 +5,8 @@ import ProjectCard from "../components/project/ProjectCard.jsx";
 import PageHeader from "../components/ui/PageHeader.jsx";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
+import { extractApiError } from "../utils/apiError";
+import { PROJECT_CATEGORIES } from "../config/categories.js";
 
 const RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"];
 
@@ -15,6 +17,7 @@ export default function BrowseProjects() {
   const [category, setCategory] = useState("");
   const [riskLevel, setRiskLevel] = useState("");
   const [status, setStatus] = useState("ACTIVE");
+  const [includeUpcoming, setIncludeUpcoming] = useState(true);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -34,8 +37,9 @@ export default function BrowseProjects() {
     if (category.trim()) p.category = category.trim();
     if (riskLevel) p.riskLevel = riskLevel;
     if (status) p.status = status;
+    if (status === "ACTIVE") p.includeUpcoming = includeUpcoming ? "true" : "false";
     return p;
-  }, [q, category, riskLevel, status]);
+  }, [q, category, riskLevel, status, includeUpcoming]);
 
   async function load() {
     // Public browse/search. We debounce text fields for a smoother UX.
@@ -55,9 +59,8 @@ export default function BrowseProjects() {
         await load();
       } catch (err) {
         if (!cancelled) {
-          setError(
-            err.response?.data?.message || "Impossible de charger les projets."
-          );
+          const out = extractApiError(err, "Impossible de charger les projets.");
+          setError(out.message);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -96,12 +99,18 @@ export default function BrowseProjects() {
             </div>
             <div className="col-md-3">
               <label className="form-label small text-muted mb-1">Catégorie</label>
-              <input
-                className="form-control"
-                placeholder="Ex. social, tech…"
+              <select
+                className="form-select"
                 value={categoryDraft}
                 onChange={(e) => setCategoryDraft(e.target.value)}
-              />
+              >
+                <option value="">Toutes</option>
+                {PROJECT_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="col-md-2">
               <label className="form-label small text-muted mb-1">Risque</label>
@@ -130,10 +139,25 @@ export default function BrowseProjects() {
               </select>
             </div>
           </div>
+          {status === "ACTIVE" && (
+            <div className="form-check form-switch mt-3">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                role="switch"
+                id="includeUpcoming"
+                checked={includeUpcoming}
+                onChange={(e) => setIncludeUpcoming(e.target.checked)}
+              />
+              <label className="form-check-label small text-muted" htmlFor="includeUpcoming">
+                Inclure les campagnes à venir (date de démarrage future)
+              </label>
+            </div>
+          )}
           <div className="small text-muted mt-3 d-flex align-items-start gap-2">
             <i className="fa-solid fa-circle-info mt-1" aria-hidden="true" />
             <span>
-              Campagnes <strong>publiques</strong>, non archivées, dont la date de démarrage est atteinte.
+              Campagnes <strong>publiques</strong> et non archivées.
             </span>
           </div>
           <div className="small text-muted mt-2 d-flex align-items-start gap-2">

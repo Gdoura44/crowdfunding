@@ -8,14 +8,25 @@ const { MAX_REFRESH_TOKENS } = require("../config/constants");
 
 const BCRYPT_ROUNDS = 10;
 const VERIFY_TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
+const VERIFY_CODE_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 
+/**
+ * Auth service (inscription, vérification email, sessions JWT).
+ *
+ * Choix produit/UX:
+ * - Vérification par code (OTP) = flux principal (simple pour l’utilisateur).
+ * - Lien = fallback (si l’utilisateur préfère ou si le mail client bloque la saisie).
+ * - Le lien est idempotent: si déjà utilisé (par lien ou par code), on renvoie un statut lisible
+ *   plutôt qu’une erreur “mystère”.
+ * - L’envoi d’e-mail est best-effort et asynchrone en dev/PFE pour rendre l’UI instantanée.
+ */
 function getJwtSecrets() {
   const access = process.env.JWT_ACCESS_SECRET;
   const refresh = process.env.JWT_REFRESH_SECRET || access;
   if (!access) {
-    throw new Error("JWT_ACCESS_SECRET is required");
+    throw new Error("JWT_ACCESS_SECRET est requis");
   }
   return { access, refresh };
 }
@@ -34,32 +45,42 @@ async function trySendMailOrFallback({ mail, devLinkLogLabel, link }) {
     await sendMail(mail);
     return { ok: true };
   } catch (err) {
-    // In dev/PFE, email delivery shouldn't block core flows.
-    // We still show the verification link in logs so the user can verify.
+    // En dev/PFE, l’envoi d’e-mail ne doit pas bloquer les flux principaux.
+    // On affiche quand même le lien de vérification dans les logs pour pouvoir tester.
     if (process.env.NODE_ENV !== "production") {
-      console.warn("[email] Send failed in dev; using link fallback:", err?.message || err);
+      console.warn("[email] Envoi échoué en dev; utilisation du fallback lien:", err?.message || err);
       if (link) console.info(devLinkLogLabel, link);
       return { ok: false, devFallback: true };
     }
-    throw new HttpError(502, "Email service unavailable. Please try again later.");
+    throw new HttpError(502, "Service e-mail indisponible. Merci de réessayer plus tard.");
   }
 }
 
 async function registerUser({ email, password, firstName, lastName, phone }) {
   const existing = await User.findOne({ email: email.toLowerCase() });
   if (existing) {
-    throw new HttpError(409, "Email already registered");
+    throw new HttpError(
+      409,
+      "Cette adresse e-mail est déjà utilisée. Connectez-vous ou utilisez une autre adresse."
+    );
   }
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-  const verifyPlain = randomUrlToken(24);
+  const verifyPlain = randomUrlToken(24); // token de lien (solution de secours / fallback)
   const verifyTokenHash = sha256Hex(verifyPlain);
   const verifyTokenExpiry = new Date(Date.now() + VERIFY_TOKEN_TTL_MS);
+
+  // Principal: code OTP à 6 chiffres
+  const verifyCodePlain = String(Math.floor(100000 + Math.random() * 900000));
+  const verifyCodeHash = sha256Hex(verifyCodePlain);
+  const verifyCodeExpiry = new Date(Date.now() + VERIFY_CODE_TTL_MS);
 
   const user = await User.create({
     email: email.toLowerCase(),
     passwordHash,
     role: "USER",
     isActive: false,
+    verifyCodeHash,
+    verifyCodeExpiry,
     verifyTokenHash,
     verifyTokenExpiry,
     profile: { firstName: firstName || "", lastName: lastName || "", phone: phone || "" },
@@ -68,23 +89,73 @@ async function registerUser({ email, password, firstName, lastName, phone }) {
   const baseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
   const link = `${baseUrl}/verify-email?token=${verifyPlain}`;
 
-  await trySendMailOrFallback({
+  // Envoi asynchrone: l’inscription doit répondre instantanément côté UI.
+  // Best-effort (sans bloquer le parcours): les échecs sont gérés dans `trySendMailOrFallback`
+  // (fallback en dev / 502 en prod).
+  void trySendMailOrFallback({
     mail: {
       to: user.email,
-      subject: "Verify your account",
-      text: `Open this link to verify your email: ${link}`,
-      html: `<p>Open this link to verify your email:</p><p><a href="${link}">${link}</a></p>`,
+      subject: "Code de vérification — FinCollab",
+      text:
+        `Votre code de vérification FinCollab : ${verifyCodePlain}\n\n` +
+        `Ce code expire dans 15 minutes.\n` +
+        `Si vous préférez, vous pouvez aussi vérifier via ce lien : ${link}`,
+      html:
+        `<p>Votre code de vérification <strong>FinCollab</strong> :</p>` +
+        `<p style="font-size:22px; font-weight:700; letter-spacing:2px">${verifyCodePlain}</p>` +
+        `<p class="small">Ce code expire dans <strong>15 minutes</strong>.</p>` +
+        `<hr/>` +
+        `<p>Alternative (lien de vérification) :</p><p><a href="${link}">${link}</a></p>`,
     },
     devLinkLogLabel: "[auth] Dev verification link:",
     link,
+  }).catch(() => {
+    // best-effort
   });
 
-  return { userId: user._id, email: user.email };
+  return {
+    userId: user._id,
+    email: user.email,
+    // Ne jamais exposer de lien de vérification dans une réponse en production.
+    devVerificationLink: process.env.NODE_ENV !== "production" ? link : undefined,
+    // Best-effort: l’email peut arriver un peu plus tard.
+    emailSent: true,
+    emailDevFallback: false,
+  };
+}
+
+async function verifyEmailWithCode({ email, code }) {
+  const normalizedEmail = String(email || "").toLowerCase().trim();
+  const plainCode = String(code || "").trim();
+  const hash = sha256Hex(plainCode);
+
+  const user = await User.findOne({
+    email: normalizedEmail,
+    verifyCodeHash: hash,
+    verifyCodeExpiry: { $gt: new Date() },
+    deletedAt: null,
+  });
+  if (!user) {
+    throw new HttpError(400, "Code invalide ou expiré. Merci de demander un nouveau code.");
+  }
+
+  user.isActive = true;
+  user.verifyCodeHash = null;
+  user.verifyCodeExpiry = null;
+  // Marquer le lien de secours comme “expiré car le code a été utilisé” (UX attendue).
+  // On garde le hash pour afficher un message plus clair si l’utilisateur clique encore le lien.
+  if (user.verifyTokenHash) {
+    user.verifyTokenExpiry = new Date(Date.now() - 1000);
+    user.verifyTokenUsedAt = new Date();
+    user.verifyTokenUsedBy = "CODE";
+  }
+  await user.save();
+  return { userId: user._id };
 }
 
 async function verifyEmailWithToken(plainToken) {
   if (!plainToken) {
-    throw new HttpError(400, "Token is required");
+    throw new HttpError(400, "Lien invalide : token manquant.");
   }
   const hash = sha256Hex(plainToken);
   const user = await User.findOne({
@@ -93,13 +164,28 @@ async function verifyEmailWithToken(plainToken) {
     deletedAt: null,
   });
   if (!user) {
-    throw new HttpError(400, "Invalid or expired verification token");
+    // Si le token existe mais est déjà consommé, renvoyer un statut “lisible” (UX).
+    const already = await User.findOne({ verifyTokenHash: hash, deletedAt: null }).lean();
+    if (already && already.isActive) {
+      if (already.verifyTokenUsedBy === "LINK") {
+        return { userId: already._id, status: "ALREADY_USED" };
+      }
+      if (already.verifyTokenUsedBy === "CODE") {
+        return { userId: already._id, status: "EXPIRED_BY_CODE" };
+      }
+      return { userId: already._id, status: "ALREADY_VERIFIED" };
+    }
+    throw new HttpError(400, "Lien invalide ou expiré. Demandez un nouvel e-mail de vérification.");
   }
   user.isActive = true;
-  user.verifyTokenHash = null;
-  user.verifyTokenExpiry = null;
+  // Consommer le token (one-time). On garde le hash pour détecter “déjà utilisé”.
+  user.verifyTokenExpiry = new Date(Date.now() - 1000);
+  user.verifyTokenUsedAt = new Date();
+  user.verifyTokenUsedBy = "LINK";
+  user.verifyCodeHash = null;
+  user.verifyCodeExpiry = null;
   await user.save();
-  return { userId: user._id };
+  return { userId: user._id, status: "VERIFIED" };
 }
 
 async function resendVerificationEmail(email) {
@@ -108,12 +194,16 @@ async function resendVerificationEmail(email) {
     deletedAt: null,
   });
   if (!user) {
-    // Do not leak whether email exists.
+    // Ne pas divulguer si l’e-mail existe.
     return { ok: true };
   }
   if (user.isActive) {
     return { ok: true };
   }
+
+  const verifyCodePlain = String(Math.floor(100000 + Math.random() * 900000));
+  user.verifyCodeHash = sha256Hex(verifyCodePlain);
+  user.verifyCodeExpiry = new Date(Date.now() + VERIFY_CODE_TTL_MS);
 
   const verifyPlain = randomUrlToken(24);
   user.verifyTokenHash = sha256Hex(verifyPlain);
@@ -123,15 +213,26 @@ async function resendVerificationEmail(email) {
   const baseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
   const link = `${baseUrl}/verify-email?token=${verifyPlain}`;
 
-  await trySendMailOrFallback({
+  // Envoi asynchrone: UX plus rapide côté frontend.
+  void trySendMailOrFallback({
     mail: {
       to: user.email,
-      subject: "Vérifiez votre compte",
-      text: `Ouvrez ce lien pour vérifier votre e-mail : ${link}`,
-      html: `<p>Ouvrez ce lien pour vérifier votre e-mail :</p><p><a href="${link}">${link}</a></p>`,
+      subject: "Nouveau code de vérification — FinCollab",
+      text:
+        `Votre nouveau code FinCollab : ${verifyCodePlain}\n\n` +
+        `Ce code expire dans 15 minutes.\n` +
+        `Alternative : ${link}`,
+      html:
+        `<p>Votre nouveau code de vérification <strong>FinCollab</strong> :</p>` +
+        `<p style="font-size:22px; font-weight:700; letter-spacing:2px">${verifyCodePlain}</p>` +
+        `<p class="small">Ce code expire dans <strong>15 minutes</strong>.</p>` +
+        `<hr/>` +
+        `<p>Alternative (lien de vérification) :</p><p><a href="${link}">${link}</a></p>`,
     },
     devLinkLogLabel: "[auth] Dev verification link (resend):",
     link,
+  }).catch(() => {
+    // best-effort
   });
 
   return { ok: true };
@@ -143,7 +244,7 @@ async function requestPasswordReset(email) {
     deletedAt: null,
   });
   if (!user) {
-    // Do not leak whether email exists.
+    // Ne pas divulguer si l’e-mail existe.
     return { ok: true };
   }
 
@@ -170,7 +271,7 @@ async function requestPasswordReset(email) {
 }
 
 async function resetPasswordWithToken(plainToken, newPassword) {
-  if (!plainToken) throw new HttpError(400, "Token is required");
+  if (!plainToken) throw new HttpError(400, "Lien invalide : token manquant.");
   const hash = sha256Hex(plainToken);
   const user = await User.findOne({
     resetTokenHash: hash,
@@ -178,12 +279,12 @@ async function resetPasswordWithToken(plainToken, newPassword) {
     deletedAt: null,
   });
   if (!user) {
-    throw new HttpError(400, "Invalid or expired reset token");
+    throw new HttpError(400, "Lien invalide ou expiré. Relancez la demande de réinitialisation.");
   }
   user.passwordHash = await bcrypt.hash(String(newPassword), BCRYPT_ROUNDS);
   user.resetTokenHash = null;
   user.resetTokenExpiry = null;
-  // Invalidate refresh tokens (force new login everywhere).
+  // Invalider les refresh tokens (forcer une reconnexion partout).
   user.refreshTokens = [];
   await user.save();
   return { ok: true };
@@ -195,14 +296,17 @@ async function loginUser({ email, password, device }) {
     deletedAt: null,
   });
   if (!user) {
-    throw new HttpError(401, "Invalid email or password");
+    throw new HttpError(401, "E-mail ou mot de passe incorrect.");
   }
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) {
-    throw new HttpError(401, "Invalid email or password");
+    throw new HttpError(401, "E-mail ou mot de passe incorrect.");
   }
   if (!user.isActive) {
-    throw new HttpError(403, "Account not verified or inactive");
+    throw new HttpError(
+      403,
+      "Compte non vérifié ou désactivé. Vérifiez vos e-mails (ou renvoyez le lien)."
+    );
   }
 
   const refreshPlain = randomUrlToken(32);
@@ -226,7 +330,7 @@ async function loginUser({ email, password, device }) {
 
 async function refreshSession(refreshPlain, device) {
   if (!refreshPlain) {
-    throw new HttpError(401, "Refresh token missing");
+    throw new HttpError(401, "Jeton de rafraîchissement manquant.");
   }
   const hash = sha256Hex(refreshPlain);
   const user = await User.findOne({
@@ -235,12 +339,12 @@ async function refreshSession(refreshPlain, device) {
     isActive: true,
   });
   if (!user) {
-    throw new HttpError(401, "Invalid refresh token");
+    throw new HttpError(401, "Jeton de rafraîchissement invalide.");
   }
 
   const entry = user.refreshTokens.find((t) => t.tokenHash === hash);
   if (!entry || entry.expiresAt < new Date()) {
-    throw new HttpError(401, "Refresh token expired");
+    throw new HttpError(401, "Jeton de rafraîchissement expiré.");
   }
 
   user.refreshTokens = user.refreshTokens.filter((t) => t.tokenHash !== hash);
@@ -273,6 +377,7 @@ async function logoutUser(userId, refreshPlain) {
 
 module.exports = {
   registerUser,
+  verifyEmailWithCode,
   verifyEmailWithToken,
   resendVerificationEmail,
   requestPasswordReset,

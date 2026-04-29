@@ -19,19 +19,19 @@ function anonymizedEmailFor(userId) {
  * Account deletion (conception: `code_delet_account_diag.txt`).
  * We keep it synchronous + blocking to avoid leaving orphan financial states.
  *
- * NOTE (intentional improvement vs conception):
+ * NOTE (amélioration intentionnelle vs conception) :
  * - We clear payout `bankDetails` only for non-COMPLETED payouts.
  *   For COMPLETED payouts, keeping bankDetails preserves traceability (audit / dispute).
  */
 async function deleteAccount({ userId }) {
-  if (!mongoose.isValidObjectId(userId)) throw new HttpError(400, "Invalid user id");
+  if (!mongoose.isValidObjectId(userId)) throw new HttpError(400, "Identifiant utilisateur invalide.");
 
   const user = await User.findById(userId);
   if (!user || user.deletedAt) {
-    throw new HttpError(400, "Account already deleted or cannot delete");
+    throw new HttpError(400, "Compte déjà supprimé (ou suppression impossible).");
   }
   if (user.role === "ADMIN") {
-    throw new HttpError(403, "Admin accounts cannot be deleted from the platform");
+    throw new HttpError(403, "Les comptes administrateur ne peuvent pas être supprimés via l’application.");
   }
 
   // 1) Block if pending payouts exist for creator.
@@ -42,7 +42,7 @@ async function deleteAccount({ userId }) {
   if (pendingCreatorPayout) {
     throw new HttpError(
       400,
-      "Cannot delete account: you have pending payouts. Contact support."
+      "Suppression impossible : un retrait est encore en attente. Merci d’attendre sa résolution ou de contacter le support."
     );
   }
 
@@ -54,7 +54,7 @@ async function deleteAccount({ userId }) {
   if (blockingCreatorProject) {
     throw new HttpError(
       400,
-      "Cannot delete account: you have active projects. Close or suspend them first."
+      "Suppression impossible : vous avez encore des projets actifs/en cours. Archivez-les ou clôturez-les avant de supprimer le compte."
     );
   }
 
@@ -66,7 +66,7 @@ async function deleteAccount({ userId }) {
   if (activeInvestment) {
     throw new HttpError(
       400,
-      "Cannot delete account: you have active or cancelling investments. Cancel them first or contact support."
+      "Suppression impossible : vous avez un investissement en cours (ou en annulation). Annulez-le d’abord, ou contactez le support."
     );
   }
 
@@ -85,7 +85,7 @@ async function deleteAccount({ userId }) {
     if (!tx || tx.refundStatus !== "SUCCEEDED") {
       throw new HttpError(
         400,
-        "Cannot delete account: you have successful investments that are not fully refunded. Wait for refunds to complete or contact support."
+        "Suppression impossible : un remboursement est encore en cours. Merci d’attendre la fin du remboursement ou de contacter le support."
       );
     }
   }
@@ -125,7 +125,7 @@ async function deleteAccount({ userId }) {
     details: {},
   });
 
-  // Best-effort notification (account is deleted, but we keep an internal record).
+  // Notification best-effort (le compte est supprimé, mais on garde une trace interne).
   try {
     await Notification.create({
       userId: user._id,

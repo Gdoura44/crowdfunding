@@ -1,18 +1,72 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { notificationsApi } from "../api/notifications";
+import { projectsApi } from "../api/projects";
 import PageHeader from "../components/ui/PageHeader.jsx";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
+import { extractApiError } from "../utils/apiError";
+import { useAuth } from "../hooks/useAuth";
+import { emitNotificationsChanged } from "../utils/notificationsEvents";
+import { labelNotificationType } from "../utils/notificationLabels";
 
 export default function Notifications() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
+  const [projectTitleCache, setProjectTitleCache] = useState({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
-  async function load() {
+  const enrichProjectTitles = useCallback(async (notifs) => {
+    const missing = (notifs || []).filter((n) => {
+      const isProject = String(n.relatedEntityType || "").toUpperCase() === "PROJECT";
+      const id = String(n.relatedEntityId || "");
+      if (!isProject || !id) return false;
+      if (projectTitleCache[id]) return false;
+      const t = String(n.title || "");
+      // If backend already includes "— <title>", skip.
+      if (t.includes("—")) return false;
+      return true;
+    });
+    if (missing.length === 0) return;
+
+    const pairs = await Promise.all(
+      missing.map(async (n) => {
+        const id = String(n.relatedEntityId || "");
+        try {
+          const { data } = await projectsApi.byId(id);
+          const title = String(data?.project?.title || "").trim();
+          return title ? [id, title] : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+    const next = {};
+    for (const p of pairs) {
+      if (!p) continue;
+      const [id, title] = p;
+      next[id] = title;
+    }
+    if (Object.keys(next).length > 0) {
+      setProjectTitleCache((prev) => ({ ...prev, ...next }));
+    }
+  }, [projectTitleCache]);
+
+  useEffect(() => {
+    if (user?.role === "ADMIN") {
+      navigate("/admin/notifications", { replace: true });
+    }
+  }, [user, navigate]);
+
+  const load = useCallback(async () => {
     const { data } = await notificationsApi.list({ limit: 30 });
-    setItems(data.notifications || []);
-  }
+    const notifs = data.notifications || [];
+    setItems(notifs);
+    // Enrichissement best-effort pour les anciennes notifications sans titre de projet.
+    await enrichProjectTitles(notifs);
+  }, [enrichProjectTitles]);
 
   useEffect(() => {
     let cancelled = false;
@@ -22,7 +76,8 @@ export default function Notifications() {
         await load();
       } catch (err) {
         if (!cancelled) {
-          setError(err.response?.data?.message || "Impossible de charger.");
+          const out = extractApiError(err, "Impossible de charger.");
+          setError(out.message);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -31,14 +86,16 @@ export default function Notifications() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user, navigate, load]);
 
   async function markRead(id) {
     try {
       await notificationsApi.markRead(id);
+      emitNotificationsChanged();
       await load();
     } catch (err) {
-      setError(err.response?.data?.message || "Action impossible.");
+      const out = extractApiError(err, "Action impossible.");
+      setError(out.message);
     }
   }
 
@@ -80,10 +137,22 @@ export default function Notifications() {
                   <div className="min-w-0">
                     <div className="d-flex flex-wrap align-items-center gap-2 mb-1">
                       {!n.read && <span className="badge bg-primary">Nouveau</span>}
-                      <span className="badge bg-light text-dark text-truncate">{n.type}</span>
+                      {labelNotificationType(n.type) ? (
+                        <span className="badge bg-light text-dark text-truncate">
+                          {labelNotificationType(n.type)}
+                        </span>
+                      ) : null}
                     </div>
                     <div className="fw-semibold text-dark">{n.title}</div>
                     <div className="small text-muted">{n.message}</div>
+                    {String(n.relatedEntityType || "").toUpperCase() === "PROJECT" &&
+                      String(n.relatedEntityId || "") &&
+                      projectTitleCache[String(n.relatedEntityId || "")] &&
+                      !String(n.title || "").includes("—") && (
+                        <div className="small text-muted mt-1">
+                          Projet : <strong>{projectTitleCache[String(n.relatedEntityId || "")]}</strong>
+                        </div>
+                      )}
                     <div className="small text-muted mt-2 d-inline-flex align-items-center gap-2">
                       <i className="fa-regular fa-clock" aria-hidden="true" />
                       {n.createdAt ? new Date(n.createdAt).toLocaleString("fr-FR") : ""}

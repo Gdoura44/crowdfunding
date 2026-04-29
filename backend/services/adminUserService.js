@@ -19,9 +19,9 @@ async function listUsers({ limit = 40 } = {}) {
 
 async function setUserActive({ userId, isActive }) {
   const user = await User.findById(userId);
-  if (!user || user.deletedAt) throw new HttpError(404, "User not found");
+  if (!user || user.deletedAt) throw new HttpError(404, "Utilisateur introuvable.");
   if (user.role === "ADMIN") {
-    throw new HttpError(403, "Cannot change active state for admin accounts");
+    throw new HttpError(403, "Action interdite : vous ne pouvez pas modifier l’état d’un compte administrateur.");
   }
   user.isActive = Boolean(isActive);
   await user.save();
@@ -30,9 +30,9 @@ async function setUserActive({ userId, isActive }) {
 
 async function reactivateUser({ adminId, userId }) {
   const user = await User.findById(userId);
-  if (!user || user.deletedAt) throw new HttpError(404, "User not found");
+  if (!user || user.deletedAt) throw new HttpError(404, "Utilisateur introuvable.");
   if (user.role === "ADMIN") {
-    throw new HttpError(403, "Cannot reactivate admin accounts");
+    throw new HttpError(403, "Action interdite : vous ne pouvez pas réactiver un compte administrateur.");
   }
   if (user.isActive) {
     return user.toObject();

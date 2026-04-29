@@ -12,7 +12,7 @@ function extractText(resp) {
 async function generateGeminiText(prompt) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new HttpError(503, "GEMINI_API_KEY is not configured on backend");
+    throw new HttpError(503, "Configuration manquante : GEMINI_API_KEY n’est pas défini sur le backend.");
   }
 
   const body = {
@@ -45,7 +45,7 @@ async function generateGeminiText(prompt) {
       });
       const text = extractText(resp).trim();
       if (!text) {
-        throw new HttpError(502, "Gemini returned an empty response");
+        throw new HttpError(502, "Réponse Gemini vide. Merci de réessayer.");
       }
       return text;
     } catch (err) {
@@ -58,10 +58,10 @@ async function generateGeminiText(prompt) {
   }
 
   const status = lastErr?.response?.status;
-  const msg = lastErr?.message || "Gemini request failed";
+  const msg = lastErr?.message || "Requête Gemini échouée";
   throw new HttpError(
     502,
-    `Gemini model not available (last status ${status ?? "?"}): ${msg}`
+    `Modèle Gemini indisponible (dernier statut ${status ?? "?"}) : ${msg}`
   );
 }
 

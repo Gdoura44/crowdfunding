@@ -13,8 +13,9 @@ async function expireInitiatedInvestments({ olderThanMinutes = 30, limit = 200 }
 
   let expired = 0;
   for (const inv of list) {
-    // Conception alignment: only expire INITIATED investments that never created a transaction.
-    // If a transaction exists, reconciliation (provider status) decides the final state.
+    // Alignement avec la conception: on n’expire que les investissements INITIATED qui n’ont jamais
+    // déclenché de transaction. Si une transaction existe, c’est la réconciliation (statut provider)
+    // qui détermine l’état final.
     // eslint-disable-next-line no-await-in-loop
     const anyTx = await Transaction.findOne({ investmentId: inv._id })
       .select("_id")

@@ -38,8 +38,8 @@ async function listFailedNotifications({ resolved, limit = 50 } = {}) {
 
 async function retryNotificationOnce({ adminId, eventId }) {
   const ev = await FailedWorkflowEvent.findById(eventId);
-  if (!ev) throw new HttpError(404, "Failed notification event not found");
-  if (ev.resolved) throw new HttpError(400, "Already resolved");
+  if (!ev) throw new HttpError(404, "Événement introuvable.");
+  if (ev.resolved) throw new HttpError(400, "Événement déjà clôturé.");
 
   const notificationId = ev.payload?.notificationId;
   if (!notificationId) {
@@ -47,7 +47,7 @@ async function retryNotificationOnce({ adminId, eventId }) {
     ev.resolvedAt = new Date();
     ev.resolvedBy = adminId;
     await ev.save();
-    return { ok: true, queued: false, reason: "missing notificationId" };
+    return { ok: true, queued: false, reason: "notificationId manquant" };
   }
 
   const notif = await Notification.findById(notificationId).lean();
@@ -56,11 +56,11 @@ async function retryNotificationOnce({ adminId, eventId }) {
     ev.resolvedAt = new Date();
     ev.resolvedBy = adminId;
     await ev.save();
-    return { ok: true, queued: false, reason: "notification missing" };
+    return { ok: true, queued: false, reason: "notification introuvable" };
   }
 
-  // Best-effort requeue.
-  await enqueueEmailForNotification(notificationId);
+  // Relance best-effort (ne doit pas bloquer le flux admin).
+  await enqueueEmailForNotification(notif);
 
   ev.resolved = true;
   ev.resolvedAt = new Date();

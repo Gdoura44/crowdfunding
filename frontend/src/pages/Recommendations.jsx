@@ -1,17 +1,48 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { confirmAlert } from "react-confirm-alert";
 import PageHeader from "../components/ui/PageHeader.jsx";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import ProjectCard from "../components/project/ProjectCard.jsx";
 import { recommendationsApi } from "../api/recommendations";
 import { useAuth } from "../hooks/useAuth.js";
+import { extractApiError } from "../utils/apiError";
 
 export default function Recommendations() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!user || user?.role === "ADMIN") return;
+    const prefs = user?.profile?.preferredCategories || [];
+    const hasPrefs = Array.isArray(prefs) && prefs.length > 0;
+    if (hasPrefs) return;
+
+    const key = "fc:recommendations-prefs-prompted:v1";
+    try {
+      if (window.localStorage.getItem(key) === "1") return;
+      window.localStorage.setItem(key, "1");
+    } catch {
+      // ignorer
+    }
+
+    confirmAlert({
+      title: "Personnaliser vos recommandations ?",
+      message:
+        "Les recommandations se basent surtout sur vos catégories préférées (profil) et le niveau de risque indicatif des projets. Pour de meilleurs résultats, choisissez au moins une catégorie.",
+      buttons: [
+        { label: "Plus tard", onClick: () => {} },
+        {
+          label: "Oui, aller au profil",
+          onClick: () => navigate("/profile", { replace: false }),
+        },
+      ],
+    });
+  }, [user, navigate]);
 
   useEffect(() => {
     if (user?.role === "ADMIN") return;
@@ -23,8 +54,10 @@ export default function Recommendations() {
         const { data } = await recommendationsApi.list({ limit: 12 });
         if (!cancelled) setItems(data.projects || []);
       } catch (e) {
-        if (!cancelled)
-          setError(e?.response?.data?.message || "Impossible de charger les recommandations.");
+        if (!cancelled) {
+          const out = extractApiError(e, "Impossible de charger les recommandations.");
+          setError(out.message);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -38,7 +71,7 @@ export default function Recommendations() {
     <div>
       <PageHeader
         title="Recommandations"
-        subtitle="Mode démo: sélection de projets actifs. Plus tard, on peut personnaliser selon votre profil et vos intérêts."
+        subtitle="Sélection de projets actifs, adaptée selon vos catégories préférées et votre préférence de risque (profil)."
         actions={
           <Link to="/projects" className="btn btn-outline-secondary btn-sm">
             Explorer tout

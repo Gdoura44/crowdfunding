@@ -21,6 +21,7 @@ const failedRefundEventSchema = new mongoose.Schema(
       enum: [
         "OVERFUNDING",
         "EXPIRY",
+        "USER_REQUESTED",
         "USER_DEACTIVATED",
         "ACCOUNT_DELETION",
         "PROJECT_DEACTIVATED",

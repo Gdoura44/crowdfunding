@@ -4,6 +4,7 @@ import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import { adminApi } from "../api/admin";
 import { useAuth } from "../hooks/useAuth.js";
+import { extractApiError } from "../utils/apiError";
 
 export default function AdminOps() {
   const { user } = useAuth();
@@ -30,7 +31,8 @@ export default function AdminOps() {
         setPayouts(data.failedPayouts || []);
       }
     } catch (e) {
-      setError(e?.response?.data?.message || "Impossible de charger les opérations.");
+      const out = extractApiError(e, "Impossible de charger les opérations.");
+      setError(out.message);
     } finally {
       setLoading(false);
     }
@@ -50,7 +52,8 @@ export default function AdminOps() {
       else await adminApi.opsRetryPayouts({ limit: 50 });
       await refresh();
     } catch (e) {
-      setError(e?.response?.data?.message || "Retry failed.");
+      const out = extractApiError(e, "Relance impossible pour le moment.");
+      setError(out.message);
     } finally {
       setBusy(false);
     }

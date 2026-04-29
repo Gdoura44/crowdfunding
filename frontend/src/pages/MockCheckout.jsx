@@ -1,6 +1,8 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { investmentsApi } from "../api/investments";
+import { extractApiError } from "../utils/apiError";
+import Guidance from "../components/ui/Guidance.jsx";
 
 function useQuery() {
   const { search } = useLocation();
@@ -30,7 +32,8 @@ export default function MockCheckout() {
       });
       setStatus(nextStatus);
     } catch (e) {
-      setError(e?.response?.data?.message || "Impossible de confirmer le paiement.");
+      const out = extractApiError(e, "Impossible de confirmer le paiement.");
+      setError(out.message);
     } finally {
       setLoading(false);
     }
@@ -76,6 +79,10 @@ export default function MockCheckout() {
           </div>
 
           <hr className="my-3" />
+          <Guidance title="Guidance" variant="info">
+            Cliquez sur <strong>Simuler succès</strong> ou <strong>Simuler échec</strong>. En cas de succès, vous serez
+            redirigé vers la campagne avec votre contribution enregistrée.
+          </Guidance>
 
           <div className="row g-3 small">
             <div className="col-sm-6">

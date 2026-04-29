@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { authApi } from "../api/auth";
+import { extractApiError } from "../utils/apiError";
+import Guidance from "../components/ui/Guidance.jsx";
 
 function useQuery() {
   const { search } = useLocation();
@@ -32,7 +34,8 @@ export default function ResetPassword() {
       setMessage(data.message || "Mot de passe mis à jour.");
       setTimeout(() => navigate("/login", { replace: true }), 800);
     } catch (err) {
-      setError(err.response?.data?.message || "Réinitialisation impossible.");
+      const out = extractApiError(err, "Réinitialisation impossible.");
+      setError(out.message);
     } finally {
       setLoading(false);
     }
@@ -44,9 +47,10 @@ export default function ResetPassword() {
         <div className="card auth-card">
           <div className="card-body p-4 p-md-5">
             <h1 className="h4 mb-1 fw-bold text-dark">Réinitialiser le mot de passe</h1>
-            <p className="text-muted small mb-4">
-              Choisissez un nouveau mot de passe. Le lien est valide pendant une durée limitée.
-            </p>
+            <Guidance title="Conseil" variant="info">
+              Choisissez un nouveau mot de passe (8+ caractères, avec lettres et chiffres si possible). Le lien de
+              réinitialisation est valide pendant une durée limitée.
+            </Guidance>
 
             {!token && (
               <div className="alert alert-warning small">

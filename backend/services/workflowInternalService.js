@@ -2,7 +2,11 @@ const Project = require("../models/Project");
 const FailedWorkflowEvent = require("../models/FailedWorkflowEvent");
 const HttpError = require("../utils/HttpError");
 const notificationService = require("./notificationService");
+const Notification = require("../models/Notification");
+const User = require("../models/User");
 const { ProjectStatus, AIStatus, transitionProjectStatus } = require("../config/projectLifecycle");
+const { enqueueEmailForNotifications } = require("../integrations/emailQueue");
+const { searchWebSources } = require("./webSearchService");
 
 function buildRiskPayload(project) {
   return {
@@ -21,7 +25,7 @@ function buildRiskPayload(project) {
 async function updateAiAnalysisFromWorkflow(input) {
   const project = await Project.findById(input.projectId);
   if (!project) {
-    throw new HttpError(404, "Project not found");
+    throw new HttpError(404, "Projet introuvable.");
   }
 
   if (
@@ -34,34 +38,76 @@ async function updateAiAnalysisFromWorkflow(input) {
   if (project.status !== ProjectStatus.AWAITING_AI) {
     throw new HttpError(
       409,
-      "Project must be in AWAITING_AI state to apply AI analysis"
+      "État invalide : le projet doit être en attente d’analyse (AWAITING_AI)."
     );
   }
 
   const analyzedAt = input.analyzedAt || new Date();
+  const sp = Number(input.successProbability ?? project.aiAnalysis?.successProbability);
+  const baseReport = input.report || project.aiAnalysis?.report || {};
+  const improvements = Array.isArray(baseReport.improvements) ? baseReport.improvements : [];
+
+  // Keep some room for user interaction:
+  // - If successProbability > 75%: do not provide "improvements" tips.
+  // - If successProbability >= 70%: keep only 1–2 improvements.
+  // - Else: keep up to 6 improvements (avoid over-perfect reports).
+  let cappedImprovements = improvements;
+  if (Number.isFinite(sp) && sp > 75) cappedImprovements = [];
+  else if (Number.isFinite(sp) && sp >= 70) cappedImprovements = improvements.slice(0, 2);
+  else cappedImprovements = improvements.slice(0, 6);
+
   project.aiAnalysis = {
     riskScore: input.riskScore,
     riskLevel: input.riskLevel,
     successProbability:
       input.successProbability ?? project.aiAnalysis?.successProbability,
     analyzedAt,
+    report: {
+      ...baseReport,
+      improvements: cappedImprovements,
+    },
+    sourcesUsed: Array.isArray(input.sourcesUsed) ? input.sourcesUsed : project.aiAnalysis?.sourcesUsed,
+    meta: input.meta || project.aiAnalysis?.meta,
   };
   project.aiStatus = AIStatus.COMPLETED;
   project.aiLastError = "";
   transitionProjectStatus(project, ProjectStatus.UNDER_REVIEW, { action: "AI_ANALYSIS_SUCCESS" });
   await project.save();
 
-  if (input.riskLevel === "HIGH") {
-    await notificationService.createInAppNotification({
-      userId: project.creatorId,
-      type: "PROJECT_WARNING",
-      title: "Alerte risque (IA)",
-      message:
-        "L’analyse IA indique un niveau de risque élevé. Votre projet passera en revue manuelle.",
-      relatedEntityId: project._id,
-      relatedEntityType: "PROJECT",
-    });
+  // Notifier le créateur et les admins avec le résumé (court) du rapport pour assurer la transparence.
+  const summary = String(input?.report?.summary || "").trim();
+  const riskLabel =
+    input.riskLevel === "HIGH" ? "élevé" : input.riskLevel === "MEDIUM" ? "moyen" : "faible";
+
+  const creatorNotif = await notificationService.createInAppNotification({
+    userId: project.creatorId,
+    type: "PROJECT_AI_REPORT_READY",
+    title: `Rapport d’analyse IA — ${project.title}`,
+    message: summary
+      ? `Projet: “${project.title}”. Niveau de risque: ${riskLabel}. ${summary}`
+      : `Projet: “${project.title}”. Niveau de risque: ${riskLabel}. Consultez le rapport dans votre projet.`,
+    relatedEntityId: project._id,
+    relatedEntityType: "PROJECT",
+  });
+
+  const admins = await User.find({ role: "ADMIN" }).select("_id").lean();
+  let adminNotifs = [];
+  if (admins.length) {
+    adminNotifs = await Notification.insertMany(
+      admins.map((a) => ({
+        userId: a._id,
+        type: "PROJECT_AI_REPORT_READY",
+        title: `Analyse IA prête — ${project.title}`,
+        message: summary
+          ? `Projet: “${project.title}”. Risque: ${riskLabel}. ${summary}`
+          : `Projet: “${project.title}”. Risque: ${riskLabel}. Un rapport IA est disponible.`,
+        relatedEntityId: project._id,
+        relatedEntityType: "PROJECT",
+      }))
+    );
   }
+
+  await enqueueEmailForNotifications([creatorNotif, ...adminNotifs]);
 
   return { project, idempotent: false };
 }
@@ -72,13 +118,13 @@ async function updateAiAnalysisFromWorkflow(input) {
 async function markAiAnalysisFailed(input) {
   const project = await Project.findById(input.projectId);
   if (!project) {
-    throw new HttpError(404, "Project not found");
+    throw new HttpError(404, "Projet introuvable.");
   }
 
   if (project.status !== ProjectStatus.AWAITING_AI) {
     throw new HttpError(
       409,
-      "Project must be in AWAITING_AI state to record AI failure"
+      "État invalide : le projet doit être en attente d’analyse (AWAITING_AI)."
     );
   }
 
@@ -102,4 +148,6 @@ module.exports = {
   updateAiAnalysisFromWorkflow,
   markAiAnalysisFailed,
   buildRiskPayload,
+  // Re-export for queue producers / routes
+  searchWebSources,
 };

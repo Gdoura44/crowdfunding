@@ -33,9 +33,15 @@ router.put(
   requireNotAdmin,
   asyncHandler(async (req, res) => {
     const { bankDetails } = req.body || {};
-    if (!bankDetails) throw new HttpError(400, "bankDetails is required");
+    if (!bankDetails) {
+      throw new HttpError(400, "Veuillez renseigner vos coordonnées bancaires.");
+    }
     const payout = await payoutService.provideBankDetails(req.user.id, req.params.id, bankDetails);
-    res.json({ payout, message: "Bank details saved" });
+    res.json({
+      payout,
+      message:
+        "Coordonnées enregistrées. Un administrateur validera le retrait, puis vous serez notifié(e).",
+    });
   })
 );
 

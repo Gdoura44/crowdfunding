@@ -10,7 +10,7 @@
  */
 export function getApiBaseUrl() {
   // In dev, always prefer same-origin + Vite proxy (`/api` → backend).
-  // This avoids cross-site cookie issues (SameSite) with httpOnly sessions.
+  // Évite les problèmes de cookies cross-site (SameSite) avec les sessions httpOnly.
   if (import.meta.env.DEV) return "";
 
   const explicit = import.meta.env.VITE_API_URL?.trim();

@@ -6,6 +6,28 @@ const aiAnalysisSchema = new mongoose.Schema(
     riskLevel: { type: String, enum: ["LOW", "MEDIUM", "HIGH"] },
     successProbability: { type: Number },
     analyzedAt: { type: Date },
+    // Rapport lisible (stocké pour transparence vis-à-vis du créateur et de l’admin).
+    report: {
+      summary: { type: String, default: "" },
+      advantages: [{ type: String }],
+      disadvantages: [{ type: String }],
+      improvements: [{ type: String }],
+      removals: [{ type: String }],
+      questionsToClarify: [{ type: String }],
+    },
+    // Sources éventuellement utilisées par l’analyse (URLs).
+    sourcesUsed: [
+      {
+        url: { type: String },
+        title: { type: String },
+        domain: { type: String },
+      },
+    ],
+    // Traçabilité (modèle utilisé + méthode d’analyse).
+    meta: {
+      method: { type: String, default: "" }, // ex. "web+llm" | "llm-only"
+      model: { type: String, default: "" },
+    },
   },
   { _id: false }
 );
@@ -37,10 +59,12 @@ const projectSchema = new mongoose.Schema(
       enum: ["PENDING", "COMPLETED", "FAILED"],
       default: "PENDING",
     },
-    // Workflow visibility (BullMQ/n8n). Helps creators/admins understand what happened.
+    // Visibilité du workflow IA (BullMQ/n8n) : aide les créateurs/admins à comprendre l’état d’avancement.
     aiJobId: { type: String, default: "" },
     aiQueuedAt: { type: Date },
+    aiNextRetryAt: { type: Date },
     aiLastError: { type: String, default: "" },
+    aiAutoRetryCount: { type: Number, default: 0, min: 0 },
     aiAnalysisRetries: { type: Number, default: 0, min: 0, max: 3 },
     creatorId: {
       type: mongoose.Schema.Types.ObjectId,

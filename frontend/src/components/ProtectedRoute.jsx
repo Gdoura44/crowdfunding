@@ -3,7 +3,7 @@ import { useAuth } from "../hooks/useAuth.js";
 import PageLoader from "./ui/PageLoader.jsx";
 
 /**
- * Requires a valid session (cookies). Visitors are sent to login with return URL.
+ * Nécessite une session valide (cookies). Les visiteurs sont redirigés vers la page de connexion avec une URL de retour.
  */
 export default function ProtectedRoute() {
   const { user, loading } = useAuth();

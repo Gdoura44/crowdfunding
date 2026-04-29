@@ -2,6 +2,13 @@ const mongoose = require("mongoose");
 const Notification = require("../models/Notification");
 const HttpError = require("../utils/HttpError");
 
+function isTruthyQueryFlag(value) {
+  if (value === true) return true;
+  if (value === false || value == null) return false;
+  const s = String(value).trim().toLowerCase();
+  return ["1", "true", "yes", "y", "on"].includes(s);
+}
+
 async function createInAppNotification({
   userId,
   type,
@@ -11,7 +18,7 @@ async function createInAppNotification({
   relatedEntityType = null,
 }) {
   if (!mongoose.isValidObjectId(userId)) {
-    throw new HttpError(400, "Invalid user id");
+    throw new HttpError(400, "Identifiant utilisateur invalide.");
   }
   return Notification.create({
     userId,
@@ -35,10 +42,14 @@ async function listUserNotifications(userId, { limit = 20 } = {}) {
 /**
  * Recent notifications across all users (admin read-only overview).
  */
-async function listAllNotificationsForAdmin({ limit = 50 } = {}) {
+async function listAllNotificationsForAdmin({ limit = 50, unreadOnly = false } = {}) {
   const n = Number(limit);
   const safeLimit = Number.isFinite(n) ? Math.min(Math.max(n, 1), 100) : 50;
-  return Notification.find({})
+  const query = {};
+  if (isTruthyQueryFlag(unreadOnly)) {
+    query.adminRead = { $ne: true };
+  }
+  return Notification.find(query)
     .sort({ createdAt: -1 })
     .limit(safeLimit)
     .lean();
@@ -51,7 +62,22 @@ async function markAsRead(userId, notificationId) {
     { new: true }
   ).lean();
   if (!updated) {
-    throw new HttpError(404, "Notification not found");
+    throw new HttpError(404, "Notification introuvable.");
+  }
+  return updated;
+}
+
+async function markAdminRead(notificationId) {
+  if (!mongoose.isValidObjectId(notificationId)) {
+    throw new HttpError(400, "Identifiant de notification invalide.");
+  }
+  const updated = await Notification.findOneAndUpdate(
+    { _id: notificationId },
+    { $set: { adminRead: true } },
+    { new: true }
+  ).lean();
+  if (!updated) {
+    throw new HttpError(404, "Notification introuvable.");
   }
   return updated;
 }
@@ -61,5 +87,6 @@ module.exports = {
   listUserNotifications,
   listAllNotificationsForAdmin,
   markAsRead,
+  markAdminRead,
 };
 

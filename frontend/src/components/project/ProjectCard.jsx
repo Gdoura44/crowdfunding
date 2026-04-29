@@ -15,7 +15,7 @@ function statusBadge(project) {
     FUNDED: { label: "Objectif atteint", cls: "badge bg-info text-dark rounded-pill px-3" },
     SUSPENDED: { label: "Suspendue", cls: "badge bg-warning text-dark rounded-pill px-3" },
     UNDER_REVIEW: { label: "En revue", cls: "badge bg-warning text-dark rounded-pill px-3" },
-    APPROVED: { label: "Approuvée", cls: "badge bg-primary rounded-pill px-3" },
+    APPROVED: { label: "Approuvée (non publiée)", cls: "badge bg-primary rounded-pill px-3" },
     REJECTED: { label: "Rejetée", cls: "badge bg-danger rounded-pill px-3" },
     AWAITING_AI: { label: "Analyse en cours", cls: "badge bg-primary rounded-pill px-3" },
     DRAFT: { label: "Brouillon", cls: "badge bg-light text-dark border rounded-pill px-3" },

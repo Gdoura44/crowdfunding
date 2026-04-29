@@ -25,7 +25,7 @@ router.patch(
   requireAuth,
   asyncHandler(async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) {
-      throw new HttpError(400, "Invalid notification id");
+      throw new HttpError(400, "Identifiant de notification invalide.");
     }
     const notification = await notificationService.markAsRead(
       req.user.id,
@@ -35,13 +35,13 @@ router.patch(
   })
 );
 
-// Conception alignment: some sequence diagrams use PUT for the same action.
+// Alignement avec la conception: certains diagrammes de séquence utilisent PUT pour la même action.
 router.put(
   "/:id/read",
   requireAuth,
   asyncHandler(async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) {
-      throw new HttpError(400, "Invalid notification id");
+      throw new HttpError(400, "Identifiant de notification invalide.");
     }
     const notification = await notificationService.markAsRead(
       req.user.id,

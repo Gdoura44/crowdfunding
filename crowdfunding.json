@@ -1,0 +1,178 @@
+{
+  "name": "crowdfunding",
+  "nodes": [
+    {
+      "parameters": {
+        "queueSource": "custom",
+        "queueName": "risk-analysis",
+        "respondType": "useRespondNode",
+        "options": {
+          "lockDuration": 60000
+        }
+      },
+      "type": "n8n-nodes-bullmq.bullmqTrigger",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        128
+      ],
+      "id": "db756de2-cf1f-4b58-8c30-d33dd503ef0c",
+      "name": "BullMQ Trigger",
+      "credentials": {
+        "redis": {
+          "id": "kahdPyQ7MuGYLhWh",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "dc82773e-fb06-4be7-b60d-15185f62f685",
+              "name": "projectId",
+              "value": "={{$json.data.projectId}}",
+              "type": "string"
+            },
+            {
+              "id": "e32e2e71-fe95-4d1d-8713-bc46880a6859",
+              "name": "title",
+              "value": "={{$json.data.title}}",
+              "type": "string"
+            },
+            {
+              "id": "d3dc2e8f-3557-4ab6-b1bc-e18fb7a026d2",
+              "name": "description",
+              "value": "={{$json.data.description}}",
+              "type": "string"
+            },
+            {
+              "id": "d630665f-a061-4925-b3a7-188f6da63ee4",
+              "name": "category",
+              "value": "={{$json.data.category}}",
+              "type": "string"
+            },
+            {
+              "id": "7adbdbe7-83a3-4d36-8f0c-2b3b2d235c4c",
+              "name": "fundingGoal",
+              "value": "={{$json.data.fundingGoal}}",
+              "type": "number"
+            },
+            {
+              "id": "b1b85a55-86c2-43b4-9d45-67f6c1d3cdb8",
+              "name": "deadline",
+              "value": "={{$json.data.deadline}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -336,
+        128
+      ],
+      "id": "1beb3b08-1eac-4896-b3a5-5e591be33a6f",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/internal/run-risk-analysis",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer change-me-internal-secret-for-n8n"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "projectId",
+              "value": "={{$json.projectId}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.title}}"
+            },
+            {
+              "name": "description",
+              "value": "={{$json.description}}"
+            },
+            {
+              "name": "category",
+              "value": "={{$json.category}}"
+            },
+            {
+              "name": "fundingGoal",
+              "value": "={{$json.fundingGoal}}"
+            },
+            {
+              "name": "deadline",
+              "value": "={{$json.deadline}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -128,
+        64
+      ],
+      "id": "cb99697b-c8b8-48c0-8e02-881e224c7030",
+      "name": "HTTP Request",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "BullMQ Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "151df05a-3a1e-485a-a530-eb05e5c7401d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "39c3be7d35037e644bac802cadc809bf3178868cba89fa68a0523996a5a562fd"
+  },
+  "id": "29bPvwCwB7HL5WGV",
+  "tags": []
+}

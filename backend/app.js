@@ -19,13 +19,16 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 
-/** Architecture: rate limiting on `/api/*` (not on `/internal/*` used by n8n/cron). */
+/** Architecture: rate limiting sur `/api/*` (pas sur `/internal/*` utilisé par n8n/cron). */
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.API_RATE_LIMIT_MAX || 400),
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: "Too many requests, please try again later." },
+  message: {
+    message:
+      "Trop de requêtes en peu de temps. Merci de réessayer dans quelques instants.",
+  },
 });
 
 app.get("/api/health", (req, res) => {

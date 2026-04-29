@@ -1,13 +1,40 @@
 const { z } = require("zod");
 const { FUNDING_GOAL_MIN, FUNDING_GOAL_MAX } = require("../config/businessRules");
+const { MIN_PROJECT_DURATION_DAYS } = require("../config/constants");
+const { PROJECT_CATEGORIES } = require("../config/categories");
+
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
 
 const createDraftSchema = z.object({
   title: z.string().trim().min(3).max(200),
   description: z.string().max(20000).optional().default(""),
-  category: z.string().trim().max(100).optional().default(""),
+  category: z.string().trim().min(1).max(100),
   fundingGoal: z.coerce.number().int().min(FUNDING_GOAL_MIN).max(FUNDING_GOAL_MAX),
   startAt: z.coerce.date(),
   deadline: z.coerce.date(),
+}).superRefine((o, ctx) => {
+  if (o.category && !PROJECT_CATEGORIES.includes(o.category)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["category"],
+      message: "Catégorie invalide. Merci de choisir une catégorie de la liste.",
+    });
+  }
+  const startAt = startOfDay(o.startAt);
+  const deadline = startOfDay(o.deadline);
+  const minDeadline = startOfDay(new Date(startAt));
+  minDeadline.setDate(minDeadline.getDate() + MIN_PROJECT_DURATION_DAYS);
+  if (deadline < minDeadline) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["deadline"],
+      message: `La campagne doit durer au moins ${MIN_PROJECT_DURATION_DAYS} jours (≈ 1 mois) après le démarrage.`,
+    });
+  }
 });
 
 const updateProjectSchema = z

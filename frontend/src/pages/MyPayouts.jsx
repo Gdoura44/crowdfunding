@@ -5,6 +5,7 @@ import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import { payoutsApi } from "../api/payouts";
 import { useAuth } from "../hooks/useAuth.js";
+import { extractApiError } from "../utils/apiError";
 
 function statusBadge(status) {
   const map = {
@@ -33,7 +34,10 @@ export default function MyPayouts() {
         const { data } = await payoutsApi.mine({ limit: 50 });
         if (!cancelled) setItems(data.payouts || []);
       } catch (e) {
-        if (!cancelled) setError(e?.response?.data?.message || "Impossible de charger vos paiements.");
+        if (!cancelled) {
+          const out = extractApiError(e, "Impossible de charger vos paiements.");
+          setError(out.message);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -47,7 +51,7 @@ export default function MyPayouts() {
     <div>
       <PageHeader
         title="Mes paiements (payouts)"
-        subtitle="Quand un projet atteint son objectif, vous pouvez fournir vos coordonnées bancaires puis un admin valide le virement (mode démo)."
+        subtitle="Quand un projet atteint son objectif, vous pouvez fournir vos coordonnées bancaires puis un administrateur valide le virement."
       />
 
       {user?.role === "ADMIN" && (

@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { authApi } from "../api/auth";
+import { extractApiError } from "../utils/apiError";
+import { suggestEmailTypo } from "../utils/formHints";
+import Guidance from "../components/ui/Guidance.jsx";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [hint, setHint] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e) {
@@ -13,11 +17,13 @@ export default function ForgotPassword() {
     setLoading(true);
     setError("");
     setMessage("");
+    setHint("");
     try {
       const { data } = await authApi.forgotPassword({ email });
       setMessage(data.message || "Demande envoyée.");
     } catch (err) {
-      setError(err.response?.data?.message || "Action impossible.");
+      const out = extractApiError(err, "Action impossible.");
+      setError(out.message);
     } finally {
       setLoading(false);
     }
@@ -29,12 +35,13 @@ export default function ForgotPassword() {
         <div className="card auth-card">
           <div className="card-body p-4 p-md-5">
             <h1 className="h4 mb-1 fw-bold text-dark">Mot de passe oublié</h1>
-            <p className="text-muted small mb-4">
-              Entrez votre e-mail. Si un compte existe, vous recevrez un lien de
-              réinitialisation (ou il sera affiché dans la console serveur en mode dev).
-            </p>
+            <Guidance title="Comment ça marche ?" variant="info">
+              Entrez votre e‑mail. Si un compte existe, un lien de réinitialisation sera envoyé{" "}
+              <strong>dans quelques instants</strong>. (Pensez à vérifier le spam.)
+            </Guidance>
             {message && <div className="alert alert-success small">{message}</div>}
             {error && <div className="alert alert-danger small">{error}</div>}
+            {hint && <div className="alert alert-warning small mb-3">{hint}</div>}
 
             <form onSubmit={onSubmit} className="vstack gap-3">
               <div>
@@ -45,7 +52,11 @@ export default function ForgotPassword() {
                   required
                   autoComplete="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setEmail(v);
+                    setHint(suggestEmailTypo(v));
+                  }}
                 />
               </div>
               <button className="btn btn-fc-primary text-white" type="submit" disabled={loading}>

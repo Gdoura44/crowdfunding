@@ -4,6 +4,7 @@ import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import { adminApi } from "../api/admin";
 import { useAuth } from "../hooks/useAuth.js";
+import { extractApiError } from "../utils/apiError";
 
 function badge(status) {
   const map = {
@@ -35,7 +36,8 @@ export default function AdminPayouts() {
       const { data } = await adminApi.listPayouts(params);
       setItems(data.payouts || []);
     } catch (e) {
-      setError(e?.response?.data?.message || "Impossible de charger les payouts.");
+      const out = extractApiError(e, "Impossible de charger les payouts.");
+      setError(out.message);
     } finally {
       setLoading(false);
     }
@@ -54,7 +56,8 @@ export default function AdminPayouts() {
       await adminApi.approvePayout(id, { notes: notes[id] || "" });
       await refresh();
     } catch (e) {
-      setError(e?.response?.data?.message || "Approval failed.");
+      const out = extractApiError(e, "Approbation impossible pour le moment.");
+      setError(out.message);
     } finally {
       setBusyId("");
     }
@@ -72,7 +75,7 @@ export default function AdminPayouts() {
     <div>
       <PageHeader
         title="Admin · Payouts"
-        subtitle="Valider les virements (mode démo)."
+        subtitle="Valider les virements."
         actions={
           <div className="btn-group btn-group-sm">
             {["READY", "PENDING", "COMPLETED", "FAILED", "CANCELLED"].map((k) => (

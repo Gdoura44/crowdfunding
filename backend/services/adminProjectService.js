@@ -8,7 +8,14 @@ const { withOptionalTransaction } = require("../utils/withOptionalTransaction");
 const { enqueueRiskAnalysisJob } = require("../integrations/riskAnalysisQueue");
 const FailedRefundEvent = require("../models/FailedRefundEvent");
 const Investment = require("../models/Investment");
-const { ProjectStatus, AIStatus, canAdminRetryAi, transitionProjectStatus } = require("../config/projectLifecycle");
+const {
+  ProjectStatus,
+  AIStatus,
+  canAdminRetryAi,
+  canSuspendProject,
+  transitionProjectStatus,
+} = require("../config/projectLifecycle");
+const payoutService = require("./payoutService");
 
 function isAiAnalysisFresh(project, { maxAgeDays = 30 } = {}) {
   const analyzedAt = project?.aiAnalysis?.analyzedAt;
@@ -33,32 +40,38 @@ async function validateProject({
   feedback = "",
 }) {
   if (!mongoose.isValidObjectId(projectId)) {
-    throw new HttpError(400, "Invalid project id");
+    throw new HttpError(400, "Identifiant de projet invalide.");
   }
   const normalizedDecision = String(decision || "").toUpperCase();
   if (!["APPROVED", "REJECTED"].includes(normalizedDecision)) {
-    throw new HttpError(400, "Decision must be APPROVED or REJECTED");
+    throw new HttpError(400, "Décision invalide. Valeurs attendues : APPROVED ou REJECTED.");
   }
 
   const project = await Project.findById(projectId);
-  if (!project) throw new HttpError(404, "Project not found");
+  if (!project) throw new HttpError(404, "Projet introuvable.");
 
   if (project.status !== "UNDER_REVIEW") {
     throw new HttpError(
       409,
-      "Project not in review state",
+      "État invalide : le projet doit être en cours de revue (UNDER_REVIEW).",
       { expected: ProjectStatus.UNDER_REVIEW, actual: project.status },
       "INVALID_PROJECT_STATE"
     );
   }
   if (project.aiStatus !== AIStatus.COMPLETED || !project.aiAnalysis) {
-    throw new HttpError(400, "AI analysis not complete or project not ready");
+    throw new HttpError(
+      400,
+      "Analyse IA non terminée. Merci d’attendre la fin de l’analyse (ou relancer en cas d’échec)."
+    );
   }
   if (!isAiAnalysisFresh(project, { maxAgeDays: 30 })) {
-    throw new HttpError(400, "AI analysis outdated, please retry");
+    throw new HttpError(400, "Analyse IA trop ancienne. Relancez l’analyse avant la validation.");
   }
   if (project.deadline && new Date(project.deadline) < new Date()) {
-    throw new HttpError(400, "Project deadline passed");
+    throw new HttpError(
+      400,
+      "Date limite dépassée. Vous ne pouvez plus valider ce projet dans l’état actuel."
+    );
   }
 
   let createdNotifications = [];
@@ -86,9 +99,9 @@ async function validateProject({
           {
             userId: project.creatorId,
             type: "PROJECT_APPROVED",
-            title: "Votre projet est approuvé",
+            title: `Projet approuvé — ${project.title}`,
             message:
-              "Bonne nouvelle : votre projet a été approuvé. Un administrateur peut maintenant le publier pour l’ouvrir aux investissements.",
+              `Bonne nouvelle : votre projet “${project.title}” a été approuvé. Un administrateur peut maintenant le publier pour l’ouvrir aux investissements.`,
             relatedEntityId: project._id,
             relatedEntityType: "PROJECT",
           },
@@ -121,9 +134,9 @@ async function validateProject({
           {
             userId: project.creatorId,
             type: "PROJECT_REJECTED",
-            title: "Votre projet a besoin de corrections",
+            title: `Projet à corriger — ${project.title}`,
             message:
-              "Votre projet n’a pas été validé pour le moment. Vous pouvez le modifier puis le renvoyer pour révision." +
+              `Votre projet “${project.title}” n’a pas été validé pour le moment. Vous pouvez le modifier puis le renvoyer pour révision.` +
               (project.rejectionReason ? ` Raison: ${project.rejectionReason}` : ""),
             relatedEntityId: project._id,
             relatedEntityType: "PROJECT",
@@ -141,14 +154,14 @@ async function validateProject({
 
 async function publishProject({ adminId, projectId }) {
   if (!mongoose.isValidObjectId(projectId)) {
-    throw new HttpError(400, "Invalid project id");
+    throw new HttpError(400, "Identifiant de projet invalide.");
   }
   const project = await Project.findById(projectId);
-  if (!project) throw new HttpError(404, "Project not found");
+  if (!project) throw new HttpError(404, "Projet introuvable.");
   if (project.status !== "APPROVED") {
     throw new HttpError(
       409,
-      "Project not in approved state",
+      "État invalide : le projet doit être approuvé (APPROVED) pour être publié.",
       { expected: ProjectStatus.APPROVED, actual: project.status },
       "INVALID_PROJECT_STATE"
     );
@@ -179,9 +192,9 @@ async function publishProject({ adminId, projectId }) {
         {
           userId: project.creatorId,
           type: "PROJECT_PUBLISHED",
-          title: "Votre projet est en ligne",
+          title: `Projet en ligne — ${project.title}`,
           message:
-            "Votre projet est maintenant visible publiquement et ouvert aux investissements.",
+            `Votre projet “${project.title}” est maintenant visible publiquement et ouvert aux investissements.`,
           relatedEntityId: project._id,
           relatedEntityType: "PROJECT",
         },
@@ -195,21 +208,88 @@ async function publishProject({ adminId, projectId }) {
   return updatedProject;
 }
 
-async function retryAiAnalysis({ adminId, projectId }) {
+async function revokeApproval({ adminId, projectId, reason = "" }) {
   if (!mongoose.isValidObjectId(projectId)) {
-    throw new HttpError(400, "Invalid project id");
+    throw new HttpError(400, "Identifiant de projet invalide.");
   }
   const project = await Project.findById(projectId);
-  if (!project) throw new HttpError(404, "Project not found");
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  if (project.status !== "APPROVED") {
+    throw new HttpError(
+      409,
+      "État invalide : le projet doit être approuvé (APPROVED) pour annuler l’approbation.",
+      { expected: ProjectStatus.APPROVED, actual: project.status },
+      "INVALID_PROJECT_STATE"
+    );
+  }
+
+  const r = String(reason || "").trim();
+  if (!r) {
+    throw new HttpError(
+      400,
+      "Veuillez indiquer ce qui doit être corrigé (motif obligatoire) avant de renvoyer le projet."
+    );
+  }
+
+  let createdNotifications = [];
+  const updatedProject = await withOptionalTransaction(async (session) => {
+    transitionProjectStatus(project, ProjectStatus.REJECTED, { action: "ADMIN_REVOKE_APPROVAL" });
+    project.rejectionReason = r;
+    project.rejectedBy = adminId;
+    project.rejectedAt = new Date();
+    await project.save(session ? { session } : undefined);
+
+    await AuditLog.create(
+      [
+        {
+          actorId: adminId,
+          actorRole: "ADMIN",
+          action: "REVOKE_APPROVAL",
+          targetType: "Project",
+          targetId: project._id,
+          details: { reason: r },
+        },
+      ],
+      session ? { session } : undefined
+    );
+
+    createdNotifications = await Notification.create(
+      [
+        {
+          userId: project.creatorId,
+          type: "PROJECT_REJECTED",
+          title: `Corrections requises — ${project.title}`,
+          message:
+            `Votre projet “${project.title}” nécessite des corrections avant publication.\n\nMotif: ${r}\n\nMerci de modifier le projet puis de le renvoyer pour revue.`,
+          relatedEntityId: project._id,
+          relatedEntityType: "PROJECT",
+        },
+      ],
+      session ? { session } : undefined
+    );
+
+    return project.toObject();
+  });
+
+  await enqueueEmailForNotifications(createdNotifications);
+  return updatedProject;
+}
+
+async function retryAiAnalysis({ adminId, projectId }) {
+  if (!mongoose.isValidObjectId(projectId)) {
+    throw new HttpError(400, "Identifiant de projet invalide.");
+  }
+  const project = await Project.findById(projectId);
+  if (!project) throw new HttpError(404, "Projet introuvable.");
 
   if (project.aiAnalysisRetries >= 3) {
-    throw new HttpError(400, "AI retry limit reached");
+    throw new HttpError(400, "Limite de relance atteinte (3 tentatives).");
   }
 
   if (!canAdminRetryAi(project)) {
     throw new HttpError(
       409,
-      "Project is not eligible for AI retry in its current state",
+      "Relance impossible dans l’état actuel du projet.",
       { actual: project.status },
       "INVALID_PROJECT_STATE"
     );
@@ -230,7 +310,7 @@ async function retryAiAnalysis({ adminId, projectId }) {
       await project.save();
     }
   } catch {
-    // enqueue is best-effort (stub if REDIS_URL missing)
+    // Mise en file best-effort (mode stub si REDIS_URL manquant)
   }
 
   await AuditLog.create({
@@ -245,26 +325,111 @@ async function retryAiAnalysis({ adminId, projectId }) {
   return project.toObject();
 }
 
-async function reactivateProject({ adminId, projectId }) {
+async function deactivateProject({ adminId, projectId, reason = "" }) {
   if (!mongoose.isValidObjectId(projectId)) {
-    throw new HttpError(400, "Invalid project id");
+    throw new HttpError(400, "Identifiant de projet invalide.");
   }
   const project = await Project.findById(projectId);
-  if (!project) throw new HttpError(404, "Project not found");
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  if (project.isArchived) {
+    throw new HttpError(400, "Projet archivé : suspension impossible.");
+  }
+  if (!canSuspendProject(project.status)) {
+    throw new HttpError(
+      409,
+      "Suspension impossible dans l’état actuel du projet.",
+      { actual: project.status },
+      "INVALID_PROJECT_STATE"
+    );
+  }
+
+  const scheduled = await Investment.findOne({
+    projectId: project._id,
+    scheduledForDeactivation: true,
+  }).lean();
+  if (scheduled) {
+    throw new HttpError(400, "Action impossible : des investissements sont encore en cours de traitement.");
+  }
+
+  const normalizedReason = String(reason || "").trim();
+  const suspensionMessage = normalizedReason
+    ? `Votre projet a été suspendu par un administrateur. Motif : ${normalizedReason}`
+    : "Votre projet a été suspendu par un administrateur. Un administrateur vous contactera si besoin.";
+
+  let createdNotifications = [];
+  const updated = await withOptionalTransaction(async (session) => {
+    transitionProjectStatus(project, ProjectStatus.SUSPENDED, { action: "ADMIN_DEACTIVATE_PROJECT" });
+    project.rejectionReason = normalizedReason || "Suspendu par un administrateur";
+    project.rejectedBy = adminId;
+    project.rejectedAt = new Date();
+    await project.save(session ? { session } : undefined);
+
+    await AuditLog.create(
+      [
+        {
+          actorId: adminId,
+          actorRole: "ADMIN",
+          action: "DEACTIVATE_PROJECT",
+          targetType: "Project",
+          targetId: project._id,
+          details: { reason: project.rejectionReason },
+        },
+      ],
+      session ? { session } : undefined
+    );
+
+    createdNotifications = await Notification.create(
+      [
+        {
+          userId: project.creatorId,
+          type: "PROJECT_SUSPENDED",
+          title: "Projet suspendu",
+          message: suspensionMessage,
+          relatedEntityId: project._id,
+          relatedEntityType: "PROJECT",
+        },
+      ],
+      session ? { session } : undefined
+    );
+
+    return project.toObject();
+  });
+
+  // Best-effort (sans bloquer): annuler un payout ouvert lié à ce projet (workflow démo).
+  try {
+    await payoutService.cancelOpenPayoutForProject({
+      adminId,
+      projectId: project._id,
+      reason: `Projet suspendu${normalizedReason ? ` : ${normalizedReason}` : ""}`,
+    });
+  } catch {
+    // ignorer
+  }
+
+  await enqueueEmailForNotifications(createdNotifications);
+  return updated;
+}
+
+async function reactivateProject({ adminId, projectId }) {
+  if (!mongoose.isValidObjectId(projectId)) {
+    throw new HttpError(400, "Identifiant de projet invalide.");
+  }
+  const project = await Project.findById(projectId);
+  if (!project) throw new HttpError(404, "Projet introuvable.");
 
   if (project.isArchived) {
-    throw new HttpError(400, "Archived projects cannot be reactivated");
+    throw new HttpError(400, "Projet archivé : réactivation impossible.");
   }
   if (project.status !== "SUSPENDED") {
     throw new HttpError(
       409,
-      "Project must be SUSPENDED to reactivate",
+      "Réactivation impossible : le projet doit être suspendu (SUSPENDED).",
       { expected: ProjectStatus.SUSPENDED, actual: project.status },
       "INVALID_PROJECT_STATE"
     );
   }
   if (Number(project.currentFunding || 0) >= Number(project.fundingGoal || 0)) {
-    throw new HttpError(400, "Project already reached its funding goal");
+    throw new HttpError(400, "Réactivation impossible : l’objectif de financement est déjà atteint.");
   }
 
   const unresolvedOverfunding = await FailedRefundEvent.findOne({
@@ -273,7 +438,7 @@ async function reactivateProject({ adminId, projectId }) {
     resolved: false,
   }).lean();
   if (unresolvedOverfunding) {
-    throw new HttpError(400, "Project has unresolved overfunding refunds");
+    throw new HttpError(400, "Réactivation impossible : remboursements de surfinancement encore en attente.");
   }
 
   const scheduled = await Investment.findOne({
@@ -281,7 +446,7 @@ async function reactivateProject({ adminId, projectId }) {
     scheduledForDeactivation: true,
   }).lean();
   if (scheduled) {
-    throw new HttpError(400, "Project has investments scheduled for deactivation");
+    throw new HttpError(400, "Réactivation impossible : des investissements sont encore en traitement.");
   }
 
   const aiFresh = isAiAnalysisFresh(project, { maxAgeDays: 30 });
@@ -347,7 +512,9 @@ module.exports = {
   listAdminProjects,
   validateProject,
   publishProject,
+  revokeApproval,
   retryAiAnalysis,
+  deactivateProject,
   reactivateProject,
 };
 

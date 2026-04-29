@@ -5,6 +5,7 @@ const {
   registerSchema,
   loginSchema,
   verifyEmailSchema,
+  verifyEmailCodeSchema,
   resendVerificationSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
@@ -38,9 +39,12 @@ router.post(
     const out = await authService.registerUser(data);
     res.status(201).json({
       message:
-        "Account created. Check your email for the verification link (or server console in development).",
+        "Compte créé. Vérifiez votre e-mail pour le code de vérification.",
       userId: out.userId,
       email: out.email,
+      devVerificationLink: out.devVerificationLink,
+      emailSent: out.emailSent,
+      emailDevFallback: out.emailDevFallback,
     });
   })
 );
@@ -49,7 +53,25 @@ router.get(
   "/verify-email",
   asyncHandler(async (req, res) => {
     const data = parseBody(verifyEmailSchema, { token: req.query.token });
-    await authService.verifyEmailWithToken(data.token);
+    const out = await authService.verifyEmailWithToken(data.token);
+    const status = out?.status || "VERIFIED";
+    const msg =
+      status === "ALREADY_USED"
+        ? "Ce lien a déjà été utilisé. Votre compte est déjà vérifié."
+        : status === "EXPIRED_BY_CODE"
+          ? "Ce lien a expiré car votre compte a déjà été vérifié avec un code."
+          : status === "ALREADY_VERIFIED"
+            ? "Votre compte est déjà vérifié. Vous pouvez vous connecter."
+            : "E-mail vérifié. Vous pouvez vous connecter.";
+    res.json({ message: msg, status });
+  })
+);
+
+router.post(
+  "/verify-email-code",
+  asyncHandler(async (req, res) => {
+    const data = parseBody(verifyEmailCodeSchema, req.body);
+    await authService.verifyEmailWithCode({ email: data.email, code: data.code });
     res.json({ message: "E-mail vérifié. Vous pouvez vous connecter." });
   })
 );
@@ -61,7 +83,7 @@ router.post(
     await authService.resendVerificationEmail(data.email);
     res.json({
       message:
-        "Si un compte existe et n’est pas encore vérifié, un nouvel e-mail de vérification a été envoyé (ou affiché dans la console en mode dev).",
+        "Si un compte existe et n’est pas encore vérifié, un e-mail de vérification sera envoyé dans quelques instants.",
     });
   })
 );
@@ -73,7 +95,7 @@ router.post(
     await authService.requestPasswordReset(data.email);
     res.json({
       message:
-        "Si un compte existe, vous recevrez un lien de réinitialisation (ou il sera affiché dans la console en mode dev).",
+        "Si un compte existe, vous recevrez un lien de réinitialisation dans quelques instants.",
     });
   })
 );
@@ -119,7 +141,7 @@ router.post(
     );
     res.cookie(ACCESS_TOKEN_COOKIE, accessToken, accessTokenCookieOptions());
     res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, refreshTokenCookieOptions());
-    res.json({ message: "Session refreshed" });
+    res.json({ message: "Session prolongée." });
   })
 );
 
@@ -131,7 +153,7 @@ router.post(
     await authService.logoutUser(req.user.id, refreshPlain);
     res.clearCookie(ACCESS_TOKEN_COOKIE, { path: "/" });
     res.clearCookie(REFRESH_TOKEN_COOKIE, { path: "/" });
-    res.json({ message: "Signed out" });
+    res.json({ message: "Déconnecté." });
   })
 );
 
@@ -144,7 +166,7 @@ router.get(
       .select("email role profile isActive createdAt deletedAt")
       .lean();
     if (!user || user.deletedAt) {
-      throw new HttpError(404, "User not found");
+      throw new HttpError(404, "Utilisateur introuvable.");
     }
     res.json({
       user: {

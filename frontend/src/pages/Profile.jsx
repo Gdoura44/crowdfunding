@@ -4,6 +4,8 @@ import { usersApi } from "../api/users";
 import { useAuth } from "../hooks/useAuth.js";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import PageHeader from "../components/ui/PageHeader.jsx";
+import { extractApiError } from "../utils/apiError";
+import { PROJECT_CATEGORIES } from "../config/categories.js";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -40,7 +42,7 @@ export default function Profile() {
     phoneCountry: "TN",
     phoneNational: "",
     riskPreference: "MEDIUM",
-    preferredCategories: "",
+    preferredCategories: [],
   });
 
   useEffect(() => {
@@ -68,12 +70,13 @@ export default function Profile() {
             phoneCountry: country,
             phoneNational: national,
             riskPreference: p.riskPreference || "MEDIUM",
-            preferredCategories: (p.preferredCategories || []).join(", "),
+            preferredCategories: Array.isArray(p.preferredCategories) ? p.preferredCategories : [],
           });
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err.response?.data?.message || "Impossible de charger le profil.");
+          const out = extractApiError(err, "Impossible de charger le profil.");
+          setError(out.message);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -90,12 +93,12 @@ export default function Profile() {
     setError("");
     setMessage("");
     try {
-      const preferredCategories = (user?.role === "ADMIN"
-        ? []
-        : form.preferredCategories
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean));
+      const preferredCategories =
+        user?.role === "ADMIN"
+          ? []
+          : Array.isArray(form.preferredCategories)
+            ? form.preferredCategories.filter(Boolean)
+            : [];
       const calling = callingCodeFor(form.phoneCountry);
       const phoneE164 =
         form.phoneNational && normalizeDigits(form.phoneNational)
@@ -113,7 +116,8 @@ export default function Profile() {
       await refreshUser();
       setMessage("Profil mis à jour.");
     } catch (err) {
-      setError(err.response?.data?.message || "Mise à jour impossible.");
+      const out = extractApiError(err, "Mise à jour impossible.");
+      setError(out.message);
     } finally {
       setSaving(false);
     }
@@ -132,11 +136,12 @@ export default function Profile() {
       try {
         await logout();
       } catch {
-        // ignore
+        // ignorer
       }
       navigate("/", { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || "Suppression impossible.");
+      const out = extractApiError(err, "Suppression impossible.");
+      setError(out.message);
     } finally {
       setDeleting(false);
     }
@@ -229,15 +234,34 @@ export default function Profile() {
                     <label className="form-label small text-muted mb-1">
                       Catégories préférées
                     </label>
-                    <input
-                      className="form-control"
-                      placeholder="social, tech, énergie…"
-                      value={form.preferredCategories}
-                      onChange={(e) =>
-                        setForm({ ...form, preferredCategories: e.target.value })
-                      }
-                    />
-                    <div className="form-text">Séparées par des virgules.</div>
+                    <div className="border rounded-3 p-2" style={{ maxHeight: 170, overflow: "auto" }}>
+                      {PROJECT_CATEGORIES.filter((c) => c !== "Autre").map((c) => {
+                        const checked = form.preferredCategories.includes(c);
+                        return (
+                          <div key={c} className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              id={`pref-cat-${c}`}
+                              checked={checked}
+                              onChange={(e) => {
+                                const on = e.target.checked;
+                                setForm((f) => {
+                                  const next = new Set(f.preferredCategories || []);
+                                  if (on) next.add(c);
+                                  else next.delete(c);
+                                  return { ...f, preferredCategories: Array.from(next) };
+                                });
+                              }}
+                            />
+                            <label className="form-check-label" htmlFor={`pref-cat-${c}`}>
+                              {c}
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="form-text">Choisissez 2–5 catégories pour personnaliser les recommandations.</div>
                   </div>
                 </div>
               )}

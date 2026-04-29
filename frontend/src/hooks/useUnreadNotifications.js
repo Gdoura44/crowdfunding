@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { notificationsApi } from "../api/notifications";
+import { NOTIFICATIONS_CHANGED_EVENT } from "../utils/notificationsEvents";
 
 export function useUnreadNotifications({
   enabled = true,
@@ -26,16 +27,24 @@ export function useUnreadNotifications({
         const n = list.filter((x) => !x.read).length;
         if (alive) setUnread(n);
       } catch {
-        // best-effort
+        // Sans bloquer : l’affichage de l’UI continue même si le polling échoue ponctuellement.
       } finally {
         if (alive) t = setTimeout(tick, opts.pollMs);
       }
     };
 
+    const onChanged = () => {
+      if (!alive) return;
+      if (t) clearTimeout(t);
+      tick();
+    };
+
     tick();
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged);
     return () => {
       alive = false;
       if (t) clearTimeout(t);
+      window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged);
     };
   }, [opts]);
 

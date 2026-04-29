@@ -8,6 +8,7 @@ const NOTIFICATION_TYPES = [
   "PROJECT_DELETED",
   "PROJECT_APPROVED",
   "PROJECT_REJECTED",
+  "PROJECT_AUTO_REJECTED",
   "PROJECT_PUBLISHED",
   "PROJECT_FUNDED",
   "PROJECT_WARNING",
@@ -34,6 +35,7 @@ const NOTIFICATION_TYPES = [
   "PAYOUT_FAILED",
   "USER_REACTIVATED",
   "PASSWORD_RESET_REQUESTED",
+  "PROJECT_AI_REPORT_READY",
 ];
 
 const RELATED_ENTITY_TYPES = ["PROJECT", "INVESTMENT", "REPORT", "PAYOUT", "USER"];
@@ -50,6 +52,8 @@ const notificationSchema = new mongoose.Schema(
     title: { type: String, required: true },
     message: { type: String, required: true },
     read: { type: Boolean, default: false },
+    // Tri admin: distinct du flag `read` du destinataire (utilisé pour la file admin).
+    adminRead: { type: Boolean, default: false },
     relatedEntityId: { type: mongoose.Schema.Types.ObjectId, default: null },
     relatedEntityType: {
       type: String,
@@ -62,5 +66,6 @@ const notificationSchema = new mongoose.Schema(
 
 notificationSchema.index({ userId: 1, createdAt: -1 });
 notificationSchema.index({ read: 1 });
+notificationSchema.index({ adminRead: 1 });
 
 module.exports = mongoose.model("Notification", notificationSchema);

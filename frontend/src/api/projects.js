@@ -8,6 +8,10 @@ export const projectsApi = {
   public: (params) => http.get(paths.projects.public, { params }),
   search: (params) => http.get(paths.projects.search, { params }),
   byId: (id) => http.get(paths.projects.byId(id)),
+  listComments: (id) => http.get(paths.projects.comments(id)),
+  createComment: (id, body) => http.post(paths.projects.comments(id), body),
+  deleteComment: (projectId, commentId) =>
+    http.delete(paths.projects.deleteComment(projectId, commentId)),
   edit: (id) => http.get(paths.projects.edit(id)),
   update: (id, body) => http.put(paths.projects.update(id), body),
   resubmit: (id, body) => http.put(paths.projects.resubmit(id), body),

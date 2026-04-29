@@ -1,12 +1,12 @@
 /**
- * Business rules/constants centralized for low coupling.
- * Frontend may mirror some of these for UX, but backend is the source of truth.
+ * Règles métier / constantes centralisées (faible couplage).
+ * Le frontend peut en miroiter certaines pour l’UX, mais le backend reste la source de vérité.
  */
 
 const FUNDING_GOAL_MIN = 10_000;
 const FUNDING_GOAL_MAX = 10_000_000;
 
-// Creator may delete before the campaign goes live.
+// Le créateur peut supprimer son projet uniquement avant que la campagne ne soit en ligne.
 const PROJECT_NON_DELETABLE_STATUSES = ["ACTIVE", "FUNDED", "CLOSED", "SUSPENDED"];
 
 module.exports = {

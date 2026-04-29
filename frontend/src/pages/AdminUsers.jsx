@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import PageHeader from "../components/ui/PageHeader.jsx";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
+import { extractApiError } from "../utils/apiError";
 
 export default function AdminUsers() {
   const { user } = useAuth();
@@ -29,7 +30,10 @@ export default function AdminUsers() {
         const { data } = await adminApi.listUsers({ limit: 60 });
         if (!cancelled) setItems(data.users || []);
       } catch (e) {
-        if (!cancelled) setError(e?.response?.data?.message || "Impossible de charger les utilisateurs.");
+        if (!cancelled) {
+          const out = extractApiError(e, "Impossible de charger les utilisateurs.");
+          setError(out.message);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -103,7 +107,8 @@ export default function AdminUsers() {
                                   await adminApi.reactivateUser(u._id);
                                   await reload();
                                 } catch (e) {
-                                  setError(e?.response?.data?.message || "Action impossible.");
+                                  const out = extractApiError(e, "Action impossible.");
+                                  setError(out.message);
                                 } finally {
                                   setBusyId(null);
                                 }
@@ -123,7 +128,8 @@ export default function AdminUsers() {
                                   await adminApi.setUserActive(u._id, { isActive: false });
                                   await reload();
                                 } catch (e) {
-                                  setError(e?.response?.data?.message || "Action impossible.");
+                                  const out = extractApiError(e, "Action impossible.");
+                                  setError(out.message);
                                 } finally {
                                   setBusyId(null);
                                 }

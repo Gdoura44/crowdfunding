@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { authApi } from "../api/auth";
 import { useAuth } from "../hooks/useAuth.js";
+import { extractApiError } from "../utils/apiError";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -26,7 +27,8 @@ export default function Login() {
       await refreshUser();
       navigate(from, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || "Connexion impossible");
+      const out = extractApiError(err, "Connexion impossible.");
+      setError(out.message);
     } finally {
       setLoading(false);
     }
@@ -107,12 +109,9 @@ export default function Login() {
                 )}
               </button>
             </form>
-            <div className="d-flex justify-content-between gap-2 mt-3 small">
+            <div className="d-flex justify-content-center mt-3 small">
               <Link to="/forgot-password" className="text-decoration-none fw-semibold">
                 Mot de passe oublié ?
-              </Link>
-              <Link to="/resend-verification" className="text-decoration-none fw-semibold">
-                Renvoyer vérification
               </Link>
             </div>
             <p className="mt-4 mb-0 small text-center text-muted">

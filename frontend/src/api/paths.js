@@ -1,6 +1,6 @@
 /**
- * Single source of truth for REST paths (matches backend `routes/api/*`).
- * When you add routes on the server, add the path here and use it via `authApi` / `projectsApi`.
+ * Source unique de vérité pour les chemins REST (aligné avec le backend `routes/api/*`).
+ * Quand tu ajoutes une route côté serveur, ajoute le chemin ici et utilise-le via `authApi` / `projectsApi`.
  */
 
 export const paths = {
@@ -12,6 +12,7 @@ export const paths = {
     refresh: "/api/auth/refresh",
     me: "/api/auth/me",
     verifyEmail: "/api/auth/verify-email",
+    verifyEmailCode: "/api/auth/verify-email-code",
     resendVerification: "/api/auth/resend-verification",
     forgotPassword: "/api/auth/forgot-password",
     resetPassword: "/api/auth/reset-password",
@@ -22,6 +23,8 @@ export const paths = {
     public: "/api/projects/public",
     search: "/api/projects/search",
     byId: (id) => `/api/projects/${id}`,
+    comments: (id) => `/api/projects/${id}/comments`,
+    deleteComment: (projectId, commentId) => `/api/projects/${projectId}/comments/${commentId}`,
     edit: (id) => `/api/projects/${id}/edit`,
     update: (id) => `/api/projects/${id}`,
     resubmit: (id) => `/api/projects/${id}/resubmit`,
@@ -41,14 +44,20 @@ export const paths = {
     projects: "/api/admin/projects",
     users: "/api/admin/users",
     notifications: "/api/admin/notifications",
+    markAdminNotificationRead: (id) => `/api/admin/notifications/${id}/read`,
     setUserActive: (id) => `/api/admin/users/${id}/active`,
     reactivateUser: (id) => `/api/admin/users/${id}/reactivate`,
     reports: "/api/admin/reports",
     resolveReport: (id) => `/api/admin/reports/${id}/resolve`,
     validateProject: (id) => `/api/admin/projects/${id}/validate`,
     publishProject: (id) => `/api/admin/projects/${id}/publish`,
+    revokeApproval: (id) => `/api/admin/projects/${id}/revoke-approval`,
     retryAi: (id) => `/api/admin/projects/${id}/retry-ai`,
+    deactivateProject: (id) => `/api/admin/projects/${id}/deactivate`,
     reactivateProject: (id) => `/api/admin/projects/${id}/reactivate`,
+    comments: "/api/admin/comments",
+    hideComment: (id) => `/api/admin/comments/${id}/hide`,
+    unhideComment: (id) => `/api/admin/comments/${id}/unhide`,
     payouts: "/api/admin/payouts",
     approvePayout: (id) => `/api/admin/payouts/${id}/approve`,
     failedNotifications: "/api/admin/failed-notifications",
@@ -67,6 +76,7 @@ export const paths = {
   },
   reports: {
     create: "/api/reports",
+    createComment: "/api/reports/comments",
     mine: "/api/reports/mine",
   },
   payouts: {

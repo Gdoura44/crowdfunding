@@ -22,14 +22,14 @@ function requireInternalBearer(req, res, next) {
   if (!secret) {
     return res.status(503).json({
       message:
-        "INTERNAL_API_SECRET is not configured (required for /internal/*).",
+        "Configuration manquante : INTERNAL_API_SECRET est requis pour les routes internes (/internal/*).",
     });
   }
   const header = req.headers.authorization || "";
   const match = /^Bearer\s+(.+)$/i.exec(header);
   const token = match ? match[1].trim() : "";
   if (!token || !timingSafeStringEqual(token, secret)) {
-    return res.status(401).json({ message: "Unauthorized" });
+    return res.status(401).json({ message: "Accès non autorisé (jeton interne invalide)." });
   }
   next();
 }

@@ -42,8 +42,13 @@ const userSchema = new mongoose.Schema(
       default: "USER",
     },
     isActive: { type: Boolean, default: false },
+    // Vérification e-mail : code OTP (principal) + lien (secours).
+    verifyCodeHash: { type: String, default: null },
+    verifyCodeExpiry: { type: Date, default: null },
     verifyTokenHash: { type: String, default: null },
     verifyTokenExpiry: { type: Date, default: null },
+    verifyTokenUsedAt: { type: Date, default: null },
+    verifyTokenUsedBy: { type: String, enum: ["CODE", "LINK"], default: null },
     resetTokenHash: { type: String, default: null },
     resetTokenExpiry: { type: Date, default: null },
     deletedAt: { type: Date, default: null },
@@ -56,5 +61,8 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ isActive: 1 });
 userSchema.index({ deletedAt: 1 });
+// Verification lookups should be instant (used on public endpoints).
+userSchema.index({ verifyTokenHash: 1 });
+userSchema.index({ verifyCodeHash: 1 });
 
 module.exports = mongoose.model("User", userSchema);

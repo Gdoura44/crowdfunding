@@ -5,6 +5,7 @@ import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import { reportsApi } from "../api/reports";
 import { useAuth } from "../hooks/useAuth.js";
+import { extractApiError } from "../utils/apiError";
 
 function badge(status) {
   const map = {
@@ -34,7 +35,8 @@ export default function MyReports() {
         if (!cancelled) setItems(data.reports || []);
       } catch (e) {
         if (!cancelled) {
-          setError(e?.response?.data?.message || "Impossible de charger vos signalements.");
+          const out = extractApiError(e, "Impossible de charger vos signalements.");
+          setError(out.message);
         }
       } finally {
         if (!cancelled) setLoading(false);

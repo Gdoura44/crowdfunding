@@ -10,6 +10,7 @@ const { enqueueEmailForNotifications } = require("../integrations/emailQueue");
 const FailedCancellationEvent = require("../models/FailedCancellationEvent");
 const FailedRefundEvent = require("../models/FailedRefundEvent");
 const { ProjectStatus, transitionProjectStatus } = require("../config/projectLifecycle");
+const { withOptionalTransaction } = require("../utils/withOptionalTransaction");
 
 function nowStartOfDay(d) {
   const x = new Date(d);
@@ -19,19 +20,21 @@ function nowStartOfDay(d) {
 
 function requirePositiveAmount(amount) {
   const n = Number(amount);
-  if (!Number.isFinite(n) || n <= 0) throw new HttpError(400, "Amount must be positive");
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new HttpError(400, "Le montant doit être supérieur à 0.");
+  }
   return Math.round(n * 100) / 100;
 }
 
 async function createInvestment({ investorId, projectId, amount }) {
   if (!mongoose.isValidObjectId(projectId)) {
-    throw new HttpError(400, "Invalid project id");
+    throw new HttpError(400, "Identifiant de projet invalide.");
   }
 
   const amt = requirePositiveAmount(amount);
 
   const project = await Project.findById(projectId).lean();
-  if (!project) throw new HttpError(404, "Project not found");
+  if (!project) throw new HttpError(404, "Projet introuvable.");
 
   const today = nowStartOfDay(new Date());
   const startAt = project.startAt ? nowStartOfDay(project.startAt) : null;
@@ -45,14 +48,14 @@ async function createInvestment({ investorId, projectId, amount }) {
     Number(project.currentFunding || 0) < Number(project.fundingGoal || 0);
 
   if (!isInvestable) {
-    throw new HttpError(400, "Project not available for investment");
+    throw new HttpError(400, "Projet non disponible pour investissement.");
   }
 
   if (String(project.creatorId) === String(investorId)) {
-    throw new HttpError(400, "You cannot invest in your own project");
+    throw new HttpError(400, "Vous ne pouvez pas investir dans votre propre projet.");
   }
 
-  // Conception: generate idempotency key BEFORE any provider call.
+  // Conception: générer la clé d’idempotence AVANT tout appel au provider.
   const investmentId = new mongoose.Types.ObjectId();
 
   const providerResp = mockProvider.createPaymentLink({
@@ -61,10 +64,7 @@ async function createInvestment({ investorId, projectId, amount }) {
     referenceId: String(investmentId),
   });
 
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-
+  return await withOptionalTransaction(async (session) => {
     const investment = await Investment.create(
       [
         {
@@ -76,7 +76,7 @@ async function createInvestment({ investorId, projectId, amount }) {
           paymentAttempts: 1,
         },
       ],
-      { session }
+      session ? { session } : undefined
     );
 
     await Transaction.create(
@@ -90,25 +90,15 @@ async function createInvestment({ investorId, projectId, amount }) {
           attemptNumber: 1,
         },
       ],
-      { session }
+      session ? { session } : undefined
     );
 
-    await session.commitTransaction();
     return {
       investment: investment[0].toObject(),
       paymentUrl: providerResp.paymentUrl,
       providerPaymentId: providerResp.providerPaymentId,
     };
-  } catch (err) {
-    try {
-      await session.abortTransaction();
-    } catch {
-      // ignore
-    }
-    throw err;
-  } finally {
-    session.endSession();
-  }
+  });
 }
 
 function verifyMockSignature(req) {
@@ -116,224 +106,187 @@ function verifyMockSignature(req) {
   const raw = typeof req.body === "string" ? req.body : JSON.stringify(req.body || {});
   const expected = mockProvider.signPayload(raw);
   if (!signature || signature !== expected) {
-    throw new HttpError(401, "Invalid webhook signature");
+    throw new HttpError(401, "Signature webhook invalide.");
   }
 }
 
 async function handleMockWebhookPayload(payload) {
   const { providerPaymentId, status, paymentMethod } = payload || {};
-  if (!providerPaymentId) throw new HttpError(400, "providerPaymentId is required");
+  if (!providerPaymentId) {
+    throw new HttpError(400, "providerPaymentId est requis.");
+  }
   const normalized = String(status || "").toUpperCase();
   if (!["SUCCEEDED", "FAILED"].includes(normalized)) {
-    throw new HttpError(400, "status must be SUCCEEDED or FAILED");
+    throw new HttpError(400, "status doit être SUCCEEDED ou FAILED.");
   }
 
   const tx = await Transaction.findOne({ providerPaymentId });
-  if (!tx) throw new HttpError(404, "Transaction not found");
+  if (!tx) throw new HttpError(404, "Transaction introuvable.");
   if (tx.status !== "PENDING") {
     return { ok: true, idempotent: true };
   }
 
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
+  // En dev/PFE, MongoDB est souvent en standalone (sans transactions).
+  // Ici on exécute en “best effort” sans session, car le provider est mocké et la priorité est la robustesse locale.
+  const investment = await Investment.findById(tx.investmentId);
+  if (!investment) throw new HttpError(404, "Investissement introuvable.");
 
-    const investment = await Investment.findById(tx.investmentId).session(session);
-    if (!investment) throw new HttpError(404, "Investment not found");
+  const project = await Project.findById(investment.projectId);
+  if (!project) throw new HttpError(404, "Projet introuvable.");
 
-    const project = await Project.findById(investment.projectId).session(session);
-    if (!project) throw new HttpError(404, "Project not found");
-
-    if (normalized === "FAILED") {
-      tx.status = "FAILED";
-      tx.paymentMethod = paymentMethod || tx.paymentMethod;
-      await tx.save({ session });
-
-      investment.status = "FAILED";
-      await investment.save({ session });
-
-      const notifs = await Notification.create(
-        [
-          {
-            userId: investment.investorId,
-            type: "PAYMENT_FAILED",
-            title: "Paiement échoué",
-            message:
-              "Votre paiement n’a pas été confirmé. Vous pouvez réessayer en relançant un investissement.",
-            relatedEntityId: investment._id,
-            relatedEntityType: "INVESTMENT",
-          },
-        ],
-        { session }
-      );
-
-      await session.commitTransaction();
-      await enqueueEmailForNotifications(notifs);
-      return { ok: true, idempotent: false };
-    }
-
-    // SUCCEEDED path — atomic overfunding detection.
-    const updateResult = await Project.updateOne(
-      {
-        _id: project._id,
-        status: ProjectStatus.ACTIVE,
-        isArchived: false,
-        $expr: { $lte: [{ $add: ["$currentFunding", investment.amount] }, "$fundingGoal"] },
-      },
-      { $inc: { currentFunding: investment.amount } },
-      { session }
-    );
-
-    if (updateResult.modifiedCount === 0) {
-      // Overfunding detected: refund and do not increment.
-      // Demo provider call: keep structure close to real integrations.
-      const refundResp = mockProvider.refundPayment({
-        provider: tx.provider,
-        providerPaymentId: tx.providerPaymentId,
-        amount: tx.amount,
-        reason: "OVERFUNDING",
-      });
-
-      const refunded = Boolean(refundResp && refundResp.ok);
-      tx.status = refunded ? "REFUNDED" : "SUCCEEDED";
-      tx.refundStatus = refunded ? "SUCCEEDED" : "FAILED";
-      tx.refundedAt = refunded ? new Date() : undefined;
-      tx.paymentMethod = paymentMethod || tx.paymentMethod;
-      await tx.save({ session });
-
-      investment.status = refunded ? "REFUNDED" : "SUCCESS";
-      await investment.save({ session });
-
-      await AuditLog.create(
-        [
-          {
-            actorId: investment.investorId,
-            actorRole: "USER",
-            action: "REFUND_INVESTMENT",
-            targetType: "Investment",
-            targetId: investment._id,
-            details: { amount: investment.amount, projectId: project._id, reason: "OVERFUNDING" },
-          },
-        ],
-        { session }
-      );
-
-      if (!refunded) {
-        await FailedRefundEvent.create(
-          [
-            {
-              investmentId: investment._id,
-              projectId: project._id,
-              error: "Provider refund failed",
-              retryCount: 0,
-              reason: "OVERFUNDING",
-              resolved: false,
-            },
-          ],
-          { session }
-        );
-      }
-
-      const notifs = await Notification.create(
-        [
-          {
-            userId: investment.investorId,
-            type: refunded ? "OVERFUND_REFUNDED" : "REFUND_FAILED",
-            title: refunded ? "Paiement remboursé" : "Remboursement en attente",
-            message: refunded
-              ? "Le projet a atteint son objectif au même moment. Votre paiement est donc remboursé automatiquement."
-              : "Le projet a atteint son objectif au même moment. Votre remboursement est en cours de traitement ; si besoin un administrateur interviendra.",
-            relatedEntityId: project._id,
-            relatedEntityType: "PROJECT",
-          },
-        ],
-        { session }
-      );
-
-      await session.commitTransaction();
-      await enqueueEmailForNotifications(notifs);
-      return { ok: true, idempotent: false, refunded: true };
-    }
-
-    // Normal success.
-    tx.status = "SUCCEEDED";
+  if (normalized === "FAILED") {
+    tx.status = "FAILED";
     tx.paymentMethod = paymentMethod || tx.paymentMethod;
-    await tx.save({ session });
+    await tx.save();
 
-    investment.status = "SUCCESS";
-    await investment.save({ session });
+    investment.status = "FAILED";
+    await investment.save();
 
-    await AuditLog.create(
-      [
-        {
-          actorId: investment.investorId,
-          actorRole: "USER",
-          action: "CREATE_INVESTMENT",
-          targetType: "Investment",
-          targetId: investment._id,
-          details: { amount: investment.amount, projectId: project._id, status: "SUCCESS" },
-        },
-      ],
-      { session }
-    );
+    const notifs = await Notification.create([
+      {
+        userId: investment.investorId,
+        type: "PAYMENT_FAILED",
+        title: "Paiement échoué",
+        message:
+          "Votre paiement n’a pas été confirmé. Vous pouvez réessayer en relançant un investissement.",
+        relatedEntityId: investment._id,
+        relatedEntityType: "INVESTMENT",
+      },
+    ]);
 
-    const notifs = await Notification.create(
-      [
-        {
-          userId: investment.investorId,
-          type: "PAYMENT_SUCCESS",
-          title: "Paiement confirmé",
-          message: "Merci ! Votre investissement a bien été enregistré.",
-          relatedEntityId: investment._id,
-          relatedEntityType: "INVESTMENT",
-        },
-        {
-          userId: project.creatorId,
-          type: "NEW_INVESTMENT",
-          title: "Nouveau soutien",
-          message: "Vous avez reçu un nouvel investissement sur votre projet.",
-          relatedEntityId: project._id,
-          relatedEntityType: "PROJECT",
-        },
-      ],
-      { session }
-    );
-
-    const updated = await Project.findById(project._id).session(session);
-    if (updated && Number(updated.currentFunding) >= Number(updated.fundingGoal)) {
-      transitionProjectStatus(updated, ProjectStatus.FUNDED, { action: "FUNDING_GOAL_REACHED" });
-      updated.fundedAt = new Date();
-      await updated.save({ session });
-
-      await Notification.create(
-        [
-          {
-            userId: updated.creatorId,
-            type: "PROJECT_FUNDED",
-            title: "Objectif atteint",
-            message:
-              "Félicitations ! Votre projet a atteint son objectif de financement.",
-            relatedEntityId: updated._id,
-            relatedEntityType: "PROJECT",
-          },
-        ],
-        { session }
-      );
-    }
-
-    await session.commitTransaction();
     await enqueueEmailForNotifications(notifs);
-    return { ok: true, idempotent: false, refunded: false };
-  } catch (err) {
-    try {
-      await session.abortTransaction();
-    } catch {
-      // ignore
-    }
-    throw err;
-  } finally {
-    session.endSession();
+    return { ok: true, idempotent: false };
   }
+
+  // Cas SUCCEEDED — détection atomique du sur-financement.
+  const updateResult = await Project.updateOne(
+    {
+      _id: project._id,
+      status: ProjectStatus.ACTIVE,
+      isArchived: false,
+      $expr: { $lte: [{ $add: ["$currentFunding", investment.amount] }, "$fundingGoal"] },
+    },
+    { $inc: { currentFunding: investment.amount } }
+  );
+
+  if (updateResult.modifiedCount === 0) {
+    // Sur-financement détecté: rembourser et ne pas incrémenter le total.
+    const refundResp = mockProvider.refundPayment({
+      provider: tx.provider,
+      providerPaymentId: tx.providerPaymentId,
+      amount: tx.amount,
+      reason: "OVERFUNDING",
+    });
+
+    const refunded = Boolean(refundResp && refundResp.ok);
+    tx.status = refunded ? "REFUNDED" : "SUCCEEDED";
+    tx.refundStatus = refunded ? "SUCCEEDED" : "FAILED";
+    tx.refundedAt = refunded ? new Date() : undefined;
+    tx.paymentMethod = paymentMethod || tx.paymentMethod;
+    await tx.save();
+
+    investment.status = refunded ? "REFUNDED" : "SUCCESS";
+    await investment.save();
+
+    await AuditLog.create([
+      {
+        actorId: investment.investorId,
+        actorRole: "USER",
+        action: "REFUND_INVESTMENT",
+        targetType: "Investment",
+        targetId: investment._id,
+        details: { amount: investment.amount, projectId: project._id, reason: "OVERFUNDING" },
+      },
+    ]);
+
+    if (!refunded) {
+      await FailedRefundEvent.create([
+        {
+          investmentId: investment._id,
+          projectId: project._id,
+          error: "Échec remboursement côté provider",
+          retryCount: 0,
+          reason: "OVERFUNDING",
+          resolved: false,
+        },
+      ]);
+    }
+
+    const notifs = await Notification.create([
+      {
+        userId: investment.investorId,
+        type: refunded ? "OVERFUND_REFUNDED" : "REFUND_FAILED",
+        title: refunded ? "Paiement remboursé" : "Remboursement en attente",
+        message: refunded
+          ? "Le projet a atteint son objectif au même moment. Votre paiement est donc remboursé automatiquement."
+          : "Le projet a atteint son objectif au même moment. Votre remboursement est en cours de traitement ; si besoin un administrateur interviendra.",
+        relatedEntityId: project._id,
+        relatedEntityType: "PROJECT",
+      },
+    ]);
+
+    await enqueueEmailForNotifications(notifs);
+    return { ok: true, idempotent: false, refunded };
+  }
+
+  // Cas nominal: paiement réussi.
+  tx.status = "SUCCEEDED";
+  tx.paymentMethod = paymentMethod || tx.paymentMethod;
+  await tx.save();
+
+  investment.status = "SUCCESS";
+  await investment.save();
+
+  await AuditLog.create([
+    {
+      actorId: investment.investorId,
+      actorRole: "USER",
+      action: "CREATE_INVESTMENT",
+      targetType: "Investment",
+      targetId: investment._id,
+      details: { amount: investment.amount, projectId: project._id, status: "SUCCESS" },
+    },
+  ]);
+
+  const notifs = await Notification.create([
+    {
+      userId: investment.investorId,
+      type: "PAYMENT_SUCCESS",
+      title: "Paiement confirmé",
+      message: "Merci ! Votre investissement a bien été enregistré.",
+      relatedEntityId: investment._id,
+      relatedEntityType: "INVESTMENT",
+    },
+    {
+      userId: project.creatorId,
+      type: "NEW_INVESTMENT",
+      title: "Nouveau soutien",
+      message: "Vous avez reçu un nouvel investissement sur votre projet.",
+      relatedEntityId: project._id,
+      relatedEntityType: "PROJECT",
+    },
+  ]);
+
+  const updated = await Project.findById(project._id);
+  if (updated && Number(updated.currentFunding) >= Number(updated.fundingGoal)) {
+    transitionProjectStatus(updated, ProjectStatus.FUNDED, { action: "FUNDING_GOAL_REACHED" });
+    updated.fundedAt = new Date();
+    await updated.save();
+
+    await Notification.create([
+      {
+        userId: updated.creatorId,
+        type: "PROJECT_FUNDED",
+        title: "Objectif atteint",
+        message: "Félicitations ! Votre projet a atteint son objectif de financement.",
+        relatedEntityId: updated._id,
+        relatedEntityType: "PROJECT",
+      },
+    ]);
+  }
+
+  await enqueueEmailForNotifications(notifs);
+  return { ok: true, idempotent: false, refunded: false };
 }
 
 async function handleMockWebhook(req) {
@@ -343,21 +296,21 @@ async function handleMockWebhook(req) {
 
 async function confirmMockPaymentFromClient(payload) {
   if (process.env.NODE_ENV === "production") {
-    throw new HttpError(404, "Not found");
+    throw new HttpError(404, "Indisponible en production.");
   }
   return handleMockWebhookPayload(payload || {});
 }
 
 async function cancelInvestment({ investorId, investmentId }) {
   if (!mongoose.isValidObjectId(investmentId)) {
-    throw new HttpError(400, "Invalid investment id");
+    throw new HttpError(400, "Identifiant d’investissement invalide.");
   }
 
   const investment = await Investment.findOne({ _id: investmentId, investorId });
-  if (!investment) throw new HttpError(404, "Investment not found");
+  if (!investment) throw new HttpError(404, "Investissement introuvable.");
 
   const tx = await Transaction.findOne({ investmentId: investment._id }).sort({ attemptNumber: -1 });
-  if (!tx) throw new HttpError(400, "Transaction not found for investment");
+  if (!tx) throw new HttpError(400, "Transaction introuvable pour cet investissement.");
 
   const eligibleInitiated = investment.status === "INITIATED" && tx.status === "PENDING";
   const eligibleSuccess =
@@ -369,45 +322,62 @@ async function cancelInvestment({ investorId, investmentId }) {
   if (!eligibleInitiated && !eligibleSuccess) {
     throw new HttpError(
       400,
-      "Cannot cancel: payment already processed or cancellation window expired"
+      "Annulation impossible : paiement déjà traité ou délai d’annulation dépassé."
     );
   }
 
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
+  await withOptionalTransaction(async (session) => {
     investment.status = "CANCELLING";
-    await investment.save({ session });
-    await session.commitTransaction();
-  } finally {
-    session.endSession();
-  }
+    await investment.save(session ? { session } : undefined);
+  });
 
   const providerResp = mockProvider.cancelPayment();
   if (!providerResp.ok) {
     await FailedCancellationEvent.create({
       investmentId: investment._id,
-      error: "Provider cancellation failed",
+      error: "Échec d’annulation côté provider",
       retryCount: 0,
       reason: "CANCELLATION_FAILED",
       resolved: false,
     });
-    throw new HttpError(500, "Cancellation failed, contact support");
+    // Notifier l’investisseur: l’annulation a échoué immédiatement (traçabilité in-app).
+    try {
+      const notifs = await Notification.create([
+        {
+          userId: investorId,
+          type: "CANCELLATION_FAILED",
+          title: "Annulation en échec",
+          message:
+            "L’annulation n’a pas pu être confirmée pour le moment. Merci de réessayer plus tard. Si le problème persiste, contactez le support.",
+          relatedEntityId: investment._id,
+          relatedEntityType: "INVESTMENT",
+        },
+      ]);
+      await enqueueEmailForNotifications(notifs);
+    } catch {
+      // ignorer
+    }
+    throw new HttpError(500, "Annulation échouée. Merci de réessayer ou de contacter le support.");
   }
 
-  const session2 = await mongoose.startSession();
-  try {
-    session2.startTransaction();
+  return await withOptionalTransaction(async (session2) => {
+    const freshInvestment = session2
+      ? await Investment.findById(investment._id).session(session2)
+      : await Investment.findById(investment._id);
+    const freshTx = session2
+      ? await Transaction.findById(tx._id).session(session2)
+      : await Transaction.findById(tx._id);
+    if (!freshInvestment || !freshTx) throw new HttpError(404, "Investissement introuvable.");
 
-    const freshInvestment = await Investment.findById(investment._id).session(session2);
-    const freshTx = await Transaction.findById(tx._id).session(session2);
-    if (!freshInvestment || !freshTx) throw new HttpError(404, "Investment not found");
+    const project = session2
+      ? await Project.findById(freshInvestment.projectId).session(session2)
+      : await Project.findById(freshInvestment.projectId);
+    if (!project) throw new HttpError(404, "Projet introuvable.");
 
-    const project = await Project.findById(freshInvestment.projectId).session(session2);
-    if (!project) throw new HttpError(404, "Project not found");
-
-    // If payment already succeeded, cancellation acts like a refund (and must update funding totals).
-    const wasSucceeded = freshInvestment.status === "SUCCESS" && freshTx.status === "SUCCEEDED";
+    // Si le paiement était déjà confirmé au moment de la demande d’annulation,
+    // l’annulation agit comme un remboursement (et doit mettre à jour les totaux).
+    // Note: on ne peut pas se fier à `freshInvestment.status` ici car on l’a déjà passé en CANCELLING.
+    const wasSucceeded = Boolean(eligibleSuccess) && freshTx.status === "SUCCEEDED";
     if (wasSucceeded) {
       const refundResp = mockProvider.refundPayment({
         provider: freshTx.provider,
@@ -422,37 +392,80 @@ async function cancelInvestment({ investorId, investmentId }) {
             {
               investmentId: freshInvestment._id,
               projectId: project._id,
-              error: "Provider refund failed",
+              error: "Échec remboursement côté provider",
               retryCount: 0,
-              reason: "USER_DEACTIVATED",
+              reason: "USER_REQUESTED",
               resolved: false,
             },
           ],
-          { session: session2 }
+          session2 ? { session: session2 } : undefined
         );
-        throw new HttpError(500, "Refund failed, contact support");
+        throw new HttpError(
+          500,
+          "Remboursement échoué. Merci de réessayer plus tard ou de contacter le support."
+        );
       }
 
-      // Decrement funding safely (never below zero).
-      const nextFunding = Math.max(0, Number(project.currentFunding || 0) - Number(freshInvestment.amount || 0));
-      project.currentFunding = nextFunding;
-      // Rollback FUNDED if the goal is no longer reached.
-      const wasFunded = project.status === ProjectStatus.FUNDED;
-      if (wasFunded && nextFunding < Number(project.fundingGoal || 0)) {
-        transitionProjectStatus(project, ProjectStatus.ACTIVE, { action: "FUNDING_GOAL_LOST" });
+      // Recalculer le total “effectif” à partir des transactions (plus robuste que currentFunding -= amount).
+      // Règle: ne compter que les investissements SUCCESS dont la dernière transaction a refundStatus ∈ ["NOT_ATTEMPTED","SUCCEEDED"].
+      const successInvsQuery = Investment.find({
+        projectId: project._id,
+        status: "SUCCESS",
+      }).select("_id amount");
+      if (session2) successInvsQuery.session(session2);
+      const successInvs = await successInvsQuery.lean();
+      const successIds = successInvs.map((x) => x._id);
+      let txs = [];
+      if (successIds.length) {
+        const txsQuery = Transaction.find({ investmentId: { $in: successIds } }).select(
+          "investmentId attemptNumber refundStatus status"
+        );
+        if (session2) txsQuery.session(session2);
+        txs = await txsQuery.lean();
       }
-      await project.save({ session: session2 });
+      const latestTxByInv = new Map();
+      for (const t of txs) {
+        const key = String(t.investmentId);
+        const existing = latestTxByInv.get(key);
+        if (!existing || Number(t.attemptNumber || 1) > Number(existing.attemptNumber || 1)) {
+          latestTxByInv.set(key, t);
+        }
+      }
+      let effective = 0;
+      for (const inv2 of successInvs) {
+        // Cet investissement est en cours de remboursement (annulation) : ne pas le compter dans le total effectif.
+        if (String(inv2._id) === String(freshInvestment._id)) continue;
+        const last = latestTxByInv.get(String(inv2._id));
+        if (!last) continue;
+        if (String(last.status || "") !== "SUCCEEDED") continue;
+        const rs = String(last.refundStatus || "NOT_ATTEMPTED");
+        if (!["NOT_ATTEMPTED", "SUCCEEDED"].includes(rs)) continue;
+        effective += Number(inv2.amount || 0);
+      }
+      const nextFunding = Math.max(0, Math.round(effective * 100) / 100);
+      const wasFundedBefore = project.status === ProjectStatus.FUNDED;
+      project.currentFunding = nextFunding;
+      const goal = Number(project.fundingGoal || 0);
+      // Normaliser le statut selon le total effectif (cohérence métier):
+      // - si on perd l’objectif => FUNDED -> ACTIVE
+      // - si on retrouve l’objectif (rare, mais possible) => ACTIVE -> FUNDED
+      if (project.status === ProjectStatus.FUNDED && nextFunding < goal) {
+        transitionProjectStatus(project, ProjectStatus.ACTIVE, { action: "FUNDING_GOAL_LOST" });
+      } else if (project.status === ProjectStatus.ACTIVE && nextFunding >= goal) {
+        transitionProjectStatus(project, ProjectStatus.FUNDED, { action: "FUNDING_GOAL_REACHED" });
+      }
+      await project.save(session2 ? { session: session2 } : undefined);
 
       freshInvestment.status = "REFUNDED";
       freshInvestment.cancelReason = "USER_REQUESTED";
       freshInvestment.cancelledAt = new Date();
-      await freshInvestment.save({ session: session2 });
+      await freshInvestment.save(session2 ? { session: session2 } : undefined);
 
       freshTx.status = "REFUNDED";
       freshTx.refundStatus = "SUCCEEDED";
       freshTx.refundedAt = new Date();
       freshTx.cancelledAt = new Date();
-      await freshTx.save({ session: session2 });
+      await freshTx.save(session2 ? { session: session2 } : undefined);
 
       await Notification.create(
         [
@@ -460,11 +473,11 @@ async function cancelInvestment({ investorId, investmentId }) {
             userId: investorId,
             type: "PAYMENT_REFUNDED",
             title: "Paiement remboursé",
-            message: "Votre investissement a été annulé et remboursé (mode démo).",
+            message: "Votre investissement a été annulé et remboursé.",
             relatedEntityId: freshInvestment._id,
             relatedEntityType: "INVESTMENT",
           },
-          ...(wasFunded && project.status === "ACTIVE"
+          ...(wasFundedBefore && project.status === "ACTIVE"
             ? [
                 {
                   userId: project.creatorId,
@@ -478,18 +491,18 @@ async function cancelInvestment({ investorId, investmentId }) {
               ]
             : []),
         ],
-        { session: session2 }
+        session2 ? { session: session2 } : undefined
       );
     } else {
-      // INITIATED cancellation: no funding impact.
+      // Annulation depuis INITIATED: aucun impact sur le financement.
       freshInvestment.status = "CANCELLED";
       freshInvestment.cancelReason = "USER_REQUESTED";
       freshInvestment.cancelledAt = new Date();
-      await freshInvestment.save({ session: session2 });
+      await freshInvestment.save(session2 ? { session: session2 } : undefined);
 
       freshTx.status = "CANCELLED";
       freshTx.cancelledAt = new Date();
-      await freshTx.save({ session: session2 });
+      await freshTx.save(session2 ? { session: session2 } : undefined);
 
       await Notification.create(
         [
@@ -502,7 +515,7 @@ async function cancelInvestment({ investorId, investmentId }) {
             relatedEntityType: "INVESTMENT",
           },
         ],
-        { session: session2 }
+        session2 ? { session: session2 } : undefined
       );
     }
 
@@ -517,21 +530,11 @@ async function cancelInvestment({ investorId, investmentId }) {
           details: {},
         },
       ],
-      { session: session2 }
+      session2 ? { session: session2 } : undefined
     );
 
-    await session2.commitTransaction();
     return freshInvestment.toObject();
-  } catch (err) {
-    try {
-      await session2.abortTransaction();
-    } catch {
-      // ignore
-    }
-    throw err;
-  } finally {
-    session2.endSession();
-  }
+  });
 }
 
 async function listMyInvestments(investorId, { limit = 30 } = {}) {
@@ -565,17 +568,17 @@ async function listMyInvestments(investorId, { limit = 30 } = {}) {
 
 async function retryInvestmentPayment({ investorId, investmentId }) {
   if (!mongoose.isValidObjectId(investmentId)) {
-    throw new HttpError(400, "Invalid investment id");
+    throw new HttpError(400, "Identifiant d’investissement invalide.");
   }
 
   const investment = await Investment.findOne({ _id: investmentId, investorId });
-  if (!investment) throw new HttpError(404, "Investment not found");
+  if (!investment) throw new HttpError(404, "Investissement introuvable.");
   if (investment.status !== "FAILED") {
-    throw new HttpError(400, "Only failed investments can be retried");
+    throw new HttpError(400, "Relance impossible : seul un investissement en échec peut être relancé.");
   }
 
   const project = await Project.findById(investment.projectId).lean();
-  if (!project) throw new HttpError(404, "Project not found");
+  if (!project) throw new HttpError(404, "Projet introuvable.");
 
   const today = nowStartOfDay(new Date());
   const startAt = project.startAt ? nowStartOfDay(project.startAt) : null;
@@ -586,7 +589,7 @@ async function retryInvestmentPayment({ investorId, investmentId }) {
     (!startAt || startAt <= today) &&
     (!deadline || deadline >= today) &&
     Number(project.currentFunding || 0) < Number(project.fundingGoal || 0);
-  if (!isInvestable) throw new HttpError(400, "Project not available for investment");
+  if (!isInvestable) throw new HttpError(400, "Projet non disponible pour investissement.");
 
   const lastTx = await Transaction.findOne({ investmentId: investment._id }).sort({ attemptNumber: -1 }).lean();
   const nextAttempt = (lastTx?.attemptNumber || 1) + 1;
@@ -597,13 +600,10 @@ async function retryInvestmentPayment({ investorId, investmentId }) {
     referenceId: String(investment._id),
   });
 
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-
+  return await withOptionalTransaction(async (session) => {
     investment.status = "INITIATED";
     investment.paymentAttempts = Number(investment.paymentAttempts || 0) + 1;
-    await investment.save({ session });
+    await investment.save(session ? { session } : undefined);
 
     await Transaction.create(
       [
@@ -616,25 +616,15 @@ async function retryInvestmentPayment({ investorId, investmentId }) {
           attemptNumber: nextAttempt,
         },
       ],
-      { session }
+      session ? { session } : undefined
     );
 
-    await session.commitTransaction();
     return {
       investment: investment.toObject(),
       paymentUrl: providerResp.paymentUrl,
       providerPaymentId: providerResp.providerPaymentId,
     };
-  } catch (err) {
-    try {
-      await session.abortTransaction();
-    } catch {
-      // ignore
-    }
-    throw err;
-  } finally {
-    session.endSession();
-  }
+  });
 }
 
 module.exports = {

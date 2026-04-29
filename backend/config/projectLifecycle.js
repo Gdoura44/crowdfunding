@@ -19,25 +19,28 @@ const AIStatus = Object.freeze({
 });
 
 const PROJECT_STATUS_TRANSITIONS = Object.freeze({
-  // Creator lifecycle
+  // Cycle créateur
   [ProjectStatus.DRAFT]: [ProjectStatus.AWAITING_AI],
   [ProjectStatus.REJECTED]: [ProjectStatus.DRAFT, ProjectStatus.AWAITING_AI],
 
-  // AI workflow
-  [ProjectStatus.AWAITING_AI]: [ProjectStatus.UNDER_REVIEW],
+  // Workflow IA
+  // Si l’analyse détecte une incohérence bloquante (règle automatique), on peut rejeter sans revue admin.
+  [ProjectStatus.AWAITING_AI]: [ProjectStatus.UNDER_REVIEW, ProjectStatus.REJECTED],
 
-  // Admin review lifecycle
-  [ProjectStatus.UNDER_REVIEW]: [ProjectStatus.APPROVED, ProjectStatus.REJECTED],
-  [ProjectStatus.APPROVED]: [ProjectStatus.ACTIVE],
+  // Cycle revue admin
+  // Le créateur peut modifier pendant la revue → on relance l’IA puis on revient.
+  [ProjectStatus.UNDER_REVIEW]: [ProjectStatus.APPROVED, ProjectStatus.REJECTED, ProjectStatus.AWAITING_AI],
+  // Si une approbation a été prématurée, les admins peuvent l’annuler et demander des corrections.
+  [ProjectStatus.APPROVED]: [ProjectStatus.ACTIVE, ProjectStatus.REJECTED],
 
-  // Funding / closure lifecycle
+  // Cycle financement / clôture
   [ProjectStatus.ACTIVE]: [ProjectStatus.FUNDED, ProjectStatus.CLOSED, ProjectStatus.SUSPENDED],
   [ProjectStatus.FUNDED]: [ProjectStatus.ACTIVE, ProjectStatus.CLOSED, ProjectStatus.SUSPENDED],
 
-  // Moderation lifecycle
+  // Cycle modération
   [ProjectStatus.SUSPENDED]: [ProjectStatus.UNDER_REVIEW, ProjectStatus.AWAITING_AI],
 
-  // Terminal (no forward transitions expected via APIs)
+  // Terminal (pas de transition sortante via les API)
   [ProjectStatus.CLOSED]: [],
 });
 
@@ -52,11 +55,11 @@ function canTransitionProjectStatus(fromStatus, toStatus) {
 
 function assertTransition({ fromStatus, toStatus, action }) {
   if (!canTransitionProjectStatus(fromStatus, toStatus)) {
-    // 409 makes it explicit: the resource exists, but state conflicts with the requested action.
+    // 409 explicite: la ressource existe mais l’état est incompatible avec l’action demandée.
     const HttpError = require("../utils/HttpError");
     throw new HttpError(
       409,
-      "Invalid project state transition",
+      "Transition de statut invalide pour ce projet.",
       { action: action || null, from: fromStatus, to: toStatus },
       "INVALID_PROJECT_STATE"
     );
@@ -70,7 +73,7 @@ function transitionProjectStatus(project, toStatus, { action } = {}) {
 }
 
 function isEditableByCreator(status) {
-  return [ProjectStatus.DRAFT, ProjectStatus.AWAITING_AI, ProjectStatus.REJECTED].includes(
+  return [ProjectStatus.DRAFT, ProjectStatus.UNDER_REVIEW, ProjectStatus.REJECTED].includes(
     String(status)
   );
 }
@@ -97,7 +100,7 @@ function canCreatorDeleteProject(project) {
 
 function canAdminRetryAi(project) {
   if (!project) return false;
-  // “Safe” retry: only when AI is failed or outdated and the project is not live.
+  // Relance « sûre »: uniquement si l’IA est en échec ou périmée et le projet n’est pas en ligne.
   const nonLiveStatuses = [
     ProjectStatus.AWAITING_AI,
     ProjectStatus.UNDER_REVIEW,
@@ -111,7 +114,7 @@ function canAdminRetryAi(project) {
 }
 
 function canSuspendProject(status) {
-  // Keep it simple and consistent with “public-facing campaign” states.
+  // Cohérent avec les états « campagne visible publiquement ».
   return [ProjectStatus.ACTIVE, ProjectStatus.FUNDED].includes(String(status));
 }
 

@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 
 const objectIdString = z
   .string()
-  .refine((v) => mongoose.isValidObjectId(v), { message: "Invalid project id" });
+  .refine((v) => mongoose.isValidObjectId(v), { message: "Identifiant de projet invalide." });
 
 const updateAiAnalysisSchema = z.object({
   projectId: objectIdString,
@@ -13,7 +13,7 @@ const updateAiAnalysisSchema = z.object({
     (v) => String(v || "").toUpperCase(),
     z.enum(["LOW", "MEDIUM", "HIGH"])
   ),
-  // WHY: Conception + UI treat successProbability as a percentage (0..100).
+  // Pourquoi: conception + UI traitent successProbability comme un pourcentage (0..100).
   // Accept percent to avoid workflow validation failures.
   successProbability: z.coerce.number().min(0).max(100).optional(),
   analyzedAt: z.coerce.date().optional(),

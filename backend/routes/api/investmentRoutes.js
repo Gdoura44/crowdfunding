@@ -13,8 +13,9 @@ router.post(
   requireNotAdmin,
   asyncHandler(async (req, res) => {
     const { projectId, amount } = req.body || {};
-    if (!projectId) throw new HttpError(400, "projectId is required");
-    if (amount == null) throw new HttpError(400, "amount is required");
+    if (!projectId) throw new HttpError(400, "projectId est requis.");
+    if (amount == null) throw new HttpError(400, "amount est requis.");
+    if (Number(amount) <= 0) throw new HttpError(400, "Le montant doit être supérieur à 0.");
 
     const result = await investmentService.createInvestment({
       investorId: req.user.id,
@@ -38,7 +39,7 @@ router.get(
   })
 );
 
-// Dev-only helper: simulate provider callback from the client UI.
+// Aide de développement : simuler la confirmation du paiement depuis l’UI.
 router.post(
   "/mock/confirm",
   requireAuth,
@@ -58,7 +59,7 @@ router.post(
       investorId: req.user.id,
       investmentId: req.params.id,
     });
-    res.json({ investment, message: "Investment cancelled" });
+    res.json({ investment, message: "Investissement annulé." });
   })
 );
 

@@ -4,7 +4,7 @@ const investmentService = require("../../services/investmentService");
 
 const router = express.Router();
 
-// Mock payment provider webhook (simulate signature like a real gateway).
+// Webhook de paiement simulé (mock) : signature similaire à un vrai prestataire.
 router.post(
   "/mock-payments",
   asyncHandler(async (req, res) => {

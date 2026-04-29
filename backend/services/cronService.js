@@ -10,10 +10,11 @@ const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const mockProvider = require("../integrations/mockPaymentProvider");
 const payoutService = require("./payoutService");
-const { ProjectStatus } = require("../config/projectLifecycle");
+const { ProjectStatus, AIStatus, transitionProjectStatus } = require("../config/projectLifecycle");
+const { enqueueRiskAnalysisJob } = require("../integrations/riskAnalysisQueue");
 
-// WHY: Cron-like services make lifecycle rules reliable even if n8n is down temporarily.
-// n8n can call these endpoints later via `/internal/*`, but the logic lives here (testable, reusable).
+// Pourquoi: des services “cron-like” rendent les règles de cycle de vie fiables même si n8n est temporairement indisponible.
+// n8n peut appeler ces endpoints plus tard via `/internal/*`, mais la logique vit ici (testable, réutilisable).
 
 async function adminIds() {
   const admins = await User.find({ role: "ADMIN" }).select("_id").lean();
@@ -55,29 +56,28 @@ async function expireProjects({ now = new Date(), limit = 50 } = {}) {
       continue;
     }
 
-    // Close project (idempotent).
-    const closed = await Project.updateOne(
-      { _id: p._id, status: ProjectStatus.ACTIVE },
-      { $set: { status: ProjectStatus.CLOSED } }
-    );
-    if (closed.modifiedCount > 0) {
+    // Clôture du projet (opération idempotente) avec respect des transitions du cycle de vie.
+    const projectDoc = await Project.findById(p._id);
+    if (projectDoc && projectDoc.status === ProjectStatus.ACTIVE) {
+      transitionProjectStatus(projectDoc, ProjectStatus.CLOSED, { action: "EXPIRE_PROJECT" });
+      await projectDoc.save();
       summary.closed += 1;
       await AuditLog.create({
         actorId: "000000000000000000000001",
         actorRole: "ADMIN",
         action: "EXPIRE_PROJECT",
         targetType: "Project",
-        targetId: p._id,
-        details: { deadline: p.deadline, currentFunding: p.currentFunding },
+        targetId: projectDoc._id,
+        details: { deadline: projectDoc.deadline, currentFunding: projectDoc.currentFunding },
       });
 
       await Notification.create({
-        userId: p.creatorId,
+        userId: projectDoc.creatorId,
         type: "PROJECT_EXPIRED",
-        title: "Projet expiré",
+        title: `Projet expiré — ${String(projectDoc.title || "").trim() || "Campagne"}`,
         message:
-          "La date limite est dépassée. Le projet est clôturé et les remboursements éventuels seront traités.",
-        relatedEntityId: p._id,
+          `La date limite est dépassée. Le projet “${String(projectDoc.title || "").trim() || "ce projet"}” est clôturé et les remboursements éventuels seront traités.`,
+        relatedEntityId: projectDoc._id,
         relatedEntityType: "PROJECT",
       });
     }
@@ -103,7 +103,7 @@ async function expireProjects({ now = new Date(), limit = 50 } = {}) {
       });
     }
 
-    // Refund successful investments (best-effort, create FailedRefundEvent on failure).
+    // Rembourser les investissements SUCCESS (best-effort, créer FailedRefundEvent en cas d’échec).
     const successes = await Investment.find({ projectId: p._id, status: "SUCCESS" }).lean();
     for (const inv of successes) {
       const tx = await Transaction.findOne({ investmentId: inv._id }).sort({ attemptNumber: -1 }).lean();
@@ -144,7 +144,7 @@ async function expireProjects({ now = new Date(), limit = 50 } = {}) {
           userId: inv.investorId,
           type: "PAYMENT_REFUNDED",
           title: "Remboursement effectué",
-          message: "Le projet a été clôturé. Votre paiement a été remboursé (mode démo).",
+          message: "Le projet a été clôturé. Votre paiement a été remboursé.",
           relatedEntityId: inv._id,
           relatedEntityType: "INVESTMENT",
         });
@@ -154,7 +154,7 @@ async function expireProjects({ now = new Date(), limit = 50 } = {}) {
         await FailedRefundEvent.create({
           investmentId: inv._id,
           projectId: p._id,
-          error: "Provider refund failed",
+          error: "Échec remboursement côté provider",
           retryCount: 0,
           reason: "EXPIRY",
           resolved: false,
@@ -212,8 +212,8 @@ async function closeFundedProjects({ now = new Date(), limit = 50 } = {}) {
       continue;
     }
 
-    // Conception alignment: close only when ALL successful investments are outside their
-    // cancellation grace period (per-investment `cancellationGracePeriodMinutes`).
+    // Alignement conception: clôturer uniquement quand TOUS les investissements SUCCESS sont hors
+    // période de grâce d’annulation (par investissement `cancellationGracePeriodMinutes`).
     const successInvestments = await Investment.find({
       projectId: p._id,
       status: "SUCCESS",
@@ -230,12 +230,12 @@ async function closeFundedProjects({ now = new Date(), limit = 50 } = {}) {
         .lean();
 
       if (!tx) continue;
-      // If the success payment has a refund failure, closing should not proceed.
+      // Si le paiement SUCCESS a un échec de remboursement, on ne doit pas clôturer.
       if (tx.refundStatus === "FAILED") {
         canClose = false;
         break;
       }
-      // If transaction isn't succeeded, grace logic isn't satisfied.
+      // Si la transaction n’est pas SUCCEEDED, la logique de grâce n’est pas satisfaite.
       if (tx.status !== "SUCCEEDED") {
         canClose = false;
         break;
@@ -254,11 +254,10 @@ async function closeFundedProjects({ now = new Date(), limit = 50 } = {}) {
       continue;
     }
 
-    const res = await Project.updateOne(
-      { _id: p._id, status: ProjectStatus.FUNDED },
-      { $set: { status: ProjectStatus.CLOSED } }
-    );
-    if (res.modifiedCount === 0) continue;
+    const projectDoc = await Project.findById(p._id);
+    if (!projectDoc || projectDoc.status !== ProjectStatus.FUNDED) continue;
+    transitionProjectStatus(projectDoc, ProjectStatus.CLOSED, { action: "CLOSE_FUNDED_PROJECT" });
+    await projectDoc.save();
     summary.closed += 1;
 
     await AuditLog.create({
@@ -266,15 +265,15 @@ async function closeFundedProjects({ now = new Date(), limit = 50 } = {}) {
       actorRole: "ADMIN",
       action: "CLOSE_FUNDED_PROJECT",
       targetType: "Project",
-      targetId: p._id,
-      details: { fundedAt: p.fundedAt, rule: "per-investment-grace" },
+      targetId: projectDoc._id,
+      details: { fundedAt: projectDoc.fundedAt, rule: "per-investment-grace" },
     });
 
     try {
       const payoutRes = await payoutService.ensurePayoutForFundedProject(p._id);
       if (payoutRes?.created) summary.payoutsCreated += 1;
     } catch {
-      // payout creation must not break closure cron
+      // La création de payout ne doit pas casser le cron de clôture.
     }
   }
 
@@ -322,7 +321,7 @@ async function retryFailedRefunds({ limit = 30 } = {}) {
     } else {
       await FailedRefundEvent.updateOne(
         { _id: ev._id },
-        { $inc: { retryCount: 1 }, $set: { error: "Provider refund failed" } }
+        { $inc: { retryCount: 1 }, $set: { error: "Échec remboursement côté provider" } }
       );
       summary.failed += 1;
     }
@@ -353,8 +352,11 @@ async function retryFailedPayouts({ limit = 30 } = {}) {
       await payout.save();
       summary.movedToReady += 1;
     }
-    // Conception: each retry increments retryCount; event remains unresolved until success/cancel.
-    await FailedPayoutEvent.updateOne({ _id: ev._id }, { $inc: { retryCount: 1 } });
+    // Alignement conception: la relance incrémente retryCount et marque l’événement comme “pris en charge”.
+    await FailedPayoutEvent.updateOne(
+      { _id: ev._id },
+      { $inc: { retryCount: 1 }, $set: { resolved: true, resolvedAt: new Date() } }
+    );
     summary.retried += 1;
   }
   return summary;
@@ -413,11 +415,74 @@ async function cleanupStuckStates({ now = new Date(), limit = 200 } = {}) {
   return summary;
 }
 
+/**
+ * Relancer l’analyse IA pour les projets bloqués en AWAITING_AI.
+ *
+ * Pourquoi:
+ * - Les jobs BullMQ ont un nombre d’essais limité et peuvent échouer pendant une panne/quota Gemini.
+ * - Sans “rescan” périodique, un projet peut rester AWAITING_AI indéfiniment.
+ *
+ * Stratégie:
+ * - Cibler AWAITING_AI avec aiStatus=PENDING/FAILED et aiQueuedAt plus ancien que le cutoff.
+ * - Ne relancer que si aiNextRetryAt est atteinte (backoff) pour éviter le spam quota.
+ * - Ré-enfiler le job risk-analysis (best-effort) et rafraîchir aiQueuedAt/aiJobId.
+ * - Garder une limite conservatrice pour éviter les bursts.
+ */
+async function retryStuckAiAnalyses({
+  now = new Date(),
+  olderThanMinutes = 20,
+  limit = 30,
+} = {}) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 200);
+  // Allow 0 for manual/debug triggers (requeue immediately).
+  const mins = Math.max(Number(olderThanMinutes) || 20, 0);
+  const cutoff = new Date(now.getTime() - mins * 60 * 1000);
+
+  const stuck = await Project.find({
+    status: ProjectStatus.AWAITING_AI,
+    aiStatus: { $in: [AIStatus.PENDING, AIStatus.FAILED] },
+    aiQueuedAt: { $lte: cutoff },
+    $or: [{ aiNextRetryAt: null }, { aiNextRetryAt: { $lte: now } }],
+  })
+    .sort({ aiQueuedAt: 1 })
+    .limit(safeLimit);
+
+  const summary = { scanned: stuck.length, requeued: 0, movedToPending: 0, skipped: 0 };
+
+  for (const project of stuck) {
+    try {
+      if (project.aiStatus !== AIStatus.PENDING) {
+        project.aiStatus = AIStatus.PENDING;
+        summary.movedToPending += 1;
+      }
+      project.aiQueuedAt = new Date();
+      project.aiJobId = "";
+      project.aiLastError = "";
+      project.aiNextRetryAt = null;
+      await project.save();
+
+      // eslint-disable-next-line no-await-in-loop
+      const enq = await enqueueRiskAnalysisJob(project);
+      if (enq && enq.queued && enq.jobId) {
+        project.aiJobId = String(enq.jobId);
+        // eslint-disable-next-line no-await-in-loop
+        await project.save();
+      }
+      summary.requeued += 1;
+    } catch {
+      summary.skipped += 1;
+    }
+  }
+
+  return summary;
+}
+
 module.exports = {
   expireProjects,
   closeFundedProjects,
   retryFailedRefunds,
   retryFailedPayouts,
   cleanupStuckStates,
+  retryStuckAiAnalyses,
 };
 

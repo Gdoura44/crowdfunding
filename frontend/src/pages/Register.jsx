@@ -1,8 +1,12 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { authApi } from "../api/auth";
+import { extractApiError } from "../utils/apiError";
+import { passwordChecklist, suggestEmailTypo } from "../utils/formHints";
+import Guidance from "../components/ui/Guidance.jsx";
 
 export default function Register() {
+  const navigate = useNavigate();
   const COUNTRIES = useMemo(
     () => [
       { iso2: "TN", name: "Tunisie", calling: "+216" },
@@ -36,6 +40,7 @@ export default function Register() {
   });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState([]);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e) {
@@ -43,6 +48,7 @@ export default function Register() {
     setLoading(true);
     setError("");
     setMessage("");
+    setFieldErrors([]);
     try {
       const calling = callingCodeFor(form.phoneCountry);
       const phone =
@@ -58,17 +64,26 @@ export default function Register() {
         phone,
       };
       const { data } = await authApi.register(payload);
-      setMessage(data.message || "Compte créé.");
+      // Rediriger immédiatement vers l’écran de vérification (code OTP).
+      navigate(`/verify-email?email=${encodeURIComponent(String(form.email || ""))}`, {
+        replace: true,
+        state: {
+          flash:
+            data?.message ||
+            "Compte créé. Nous vous avons envoyé un code de vérification par e-mail.",
+        },
+      });
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          err.response?.data?.details?.fieldErrors ||
-          "Erreur lors de l’inscription"
-      );
+      const out = extractApiError(err, "Erreur lors de l’inscription.");
+      setError(out.message);
+      setFieldErrors(out.fieldMessages);
     } finally {
       setLoading(false);
     }
   }
+
+  const pw = passwordChecklist(form.password);
+  const emailHint = suggestEmailTypo(form.email);
 
   return (
     <div className="row justify-content-center py-4">
@@ -99,8 +114,23 @@ export default function Register() {
             )}
             {error && (
               <div className="alert alert-danger small">
-                {typeof error === "string" ? error : JSON.stringify(error)}
+                <div>{String(error)}</div>
+                {fieldErrors?.length > 0 && (
+                  <ul className="mb-0 mt-2">
+                    {fieldErrors.map((e, idx) => (
+                      <li key={`${e.field}-${idx}`}>
+                        <strong>{e.field}</strong> : {e.message}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
+            )}
+            {!message && !error && (
+              <Guidance title="Astuce" variant="info">
+                Après l’inscription, vous recevrez un <strong>code de vérification</strong> par e‑mail pour activer
+                votre compte.
+              </Guidance>
             )}
             <form onSubmit={onSubmit} className="vstack gap-3">
               <div className="row g-2">
@@ -133,10 +163,11 @@ export default function Register() {
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
+                {emailHint && <div className="form-text">{emailHint}</div>}
               </div>
               <div>
                 <label className="form-label small text-muted mb-1">
-                  Mot de passe (8 caractères minimum)
+                  Mot de passe
                 </label>
                 <input
                   className="form-control"
@@ -147,6 +178,14 @@ export default function Register() {
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                 />
+                <div className="form-text">
+                  Doit contenir au moins 8 caractères, avec au moins 1 lettre et 1 chiffre.
+                </div>
+                <div className="small text-muted mt-1">
+                  <div>• 8+ caractères : {pw.min8 ? "OK" : "Non"}</div>
+                  <div>• 1 lettre : {pw.hasLetter ? "OK" : "Non"}</div>
+                  <div>• 1 chiffre : {pw.hasDigit ? "OK" : "Non"}</div>
+                </div>
               </div>
               <div>
                 <label className="form-label small text-muted mb-1">Confirmer le mot de passe</label>

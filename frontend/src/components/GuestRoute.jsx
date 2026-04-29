@@ -3,7 +3,7 @@ import { useAuth } from "../hooks/useAuth.js";
 import PageLoader from "./ui/PageLoader.jsx";
 
 /**
- * Login / register: already connected users go to the dashboard.
+ * Connexion / inscription: si l’utilisateur est déjà connecté, on le redirige vers le tableau de bord.
  */
 export default function GuestRoute() {
   const { user, loading } = useAuth();

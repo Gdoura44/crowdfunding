@@ -7,6 +7,8 @@ import { reportsApi } from "../api/reports";
 import { chatbotApi } from "../api/chatbot";
 import { useAuth } from "../hooks/useAuth.js";
 import { canCreatorDeleteProject } from "../utils/projectRules.js";
+import { extractApiError } from "../utils/apiError";
+import Guidance from "../components/ui/Guidance.jsx";
 
 export default function ProjectDetail() {
   const { id } = useParams();
@@ -33,8 +35,15 @@ export default function ProjectDetail() {
   const [chatA, setChatA] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const [chatErr, setChatErr] = useState("");
+  const [chatMode, setChatMode] = useState("");
   const [flash, setFlash] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState("");
+  const [commentBusy, setCommentBusy] = useState(false);
+  const [commentErr, setCommentErr] = useState("");
+  const [commentOk, setCommentOk] = useState("");
 
+  // Centralise le chargement (réutilisé par refresh automatique et après actions).
   const load = useCallback(async () => {
     const { data } = await projectsApi.byId(id);
     setProject(data.project);
@@ -54,7 +63,8 @@ export default function ProjectDetail() {
         await load();
       } catch (err) {
         if (!cancelled) {
-          setError(err.response?.data?.message || "Projet introuvable.");
+          const out = extractApiError(err, "Projet introuvable.");
+          setError(out.message);
         }
       }
     })();
@@ -63,7 +73,35 @@ export default function ProjectDetail() {
     };
   }, [load, location?.state?.flash, location.pathname, navigate]);
 
-  // Auto-refresh while AI analysis is pending (improves UX: no manual page refresh).
+  useEffect(() => {
+    let alive = true;
+    setCommentErr("");
+    setCommentOk("");
+    if (!project?._id || project.status !== "ACTIVE" || project.isArchived) {
+      setComments([]);
+      return () => {
+        alive = false;
+      };
+    }
+    (async () => {
+      try {
+        const { data } = await projectsApi.listComments(project._id);
+        if (alive) setComments(data.comments || []);
+      } catch (e) {
+        if (alive) {
+          const out = extractApiError(e, "Impossible de charger les commentaires.");
+          setCommentErr(out.message);
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [project?._id, project?.status, project?.isArchived]);
+
+  // Auto-refresh tant que l’analyse IA est en attente:
+  // - évite “F5” côté utilisateur
+  // - rend visible le retry automatique en cas de quota (aiQueuedAt/aiNextRetryAt).
   useEffect(() => {
     if (!project || !isOwner) {
       setAutoRefreshing(false);
@@ -111,9 +149,8 @@ export default function ProjectDetail() {
       setSubmitMsg(data.message || "Soumis.");
       await load();
     } catch (err) {
-      setSubmitErr(
-        err.response?.data?.message || "Soumission impossible."
-      );
+      const out = extractApiError(err, "Soumission impossible.");
+      setSubmitErr(out.message);
     } finally {
       setSubmitting(false);
     }
@@ -164,7 +201,7 @@ export default function ProjectDetail() {
     project.status === "ACTIVE" && !project.isArchived;
   const showVisitorCta = !isOwner && isPublicActive;
   const canEdit =
-    isOwner && ["DRAFT", "AWAITING_AI", "REJECTED"].includes(project.status);
+    isOwner && ["DRAFT", "UNDER_REVIEW", "REJECTED"].includes(project.status);
   const canArchive =
     isOwner &&
     ["DRAFT", "AWAITING_AI", "UNDER_REVIEW", "REJECTED"].includes(project.status) &&
@@ -174,6 +211,30 @@ export default function ProjectDetail() {
     isOwner && project.status === "AWAITING_AI" && project.aiStatus === "PENDING";
   const analysisFailed =
     isOwner && project.status === "AWAITING_AI" && project.aiStatus === "FAILED";
+  const queuedMinutes = (() => {
+    const q = project?.aiQueuedAt ? new Date(project.aiQueuedAt) : null;
+    if (!q || Number.isNaN(q.getTime())) return null;
+    return Math.max(0, Math.floor((Date.now() - q.getTime()) / 60000));
+  })();
+  const aiLastErrorCode = String(project?.aiLastError || "").trim();
+  const hasRetrySignal =
+    Boolean(project?.aiNextRetryAt) ||
+    Number(project?.aiAutoRetryCount || 0) > 0 ||
+    ["AI_QUOTA_EXCEEDED", "AI_TEMPORARY_FAILURE"].includes(aiLastErrorCode);
+  const likelyQuotaWait =
+    analysisInProgress && hasRetrySignal && queuedMinutes != null && queuedMinutes >= 1;
+  const queuedAtLabel = (() => {
+    if (!project?.aiQueuedAt) return "";
+    const d = new Date(project.aiQueuedAt);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleString("fr-FR");
+  })();
+  const nextRetryLabel = (() => {
+    if (!project?.aiNextRetryAt) return "";
+    const d = new Date(project.aiNextRetryAt);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleString("fr-FR");
+  })();
   const canReport =
     isAuthenticated &&
     !isOwner &&
@@ -181,6 +242,8 @@ export default function ProjectDetail() {
     !project.isArchived &&
     ["ACTIVE", "CLOSED", "FUNDED"].includes(project.status);
   const showChat = user?.role !== "ADMIN";
+  const showContributionInfo = !isOwner && isPublicActive;
+  const canInvest = !isOwner && isPublicActive && isAuthenticated && user?.role !== "ADMIN";
 
   return (
     <div>
@@ -237,6 +300,106 @@ export default function ProjectDetail() {
                 Inscription
               </Link>
             </div>
+          </div>
+        </div>
+      )}
+
+      {(canEdit || canArchive || canDelete) && (
+        <div className="d-flex flex-wrap gap-2 mb-3">
+          {canEdit && (
+            <Link to={`/projects/${project._id}/edit`} className="btn btn-outline-primary btn-sm">
+              <i className="fa-regular fa-pen-to-square me-2" aria-hidden="true" />
+              Modifier
+            </Link>
+          )}
+          {canArchive && (
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              onClick={() => {
+                confirmAlert({
+                  title: "Archiver ce projet ?",
+                  message:
+                    "Le projet ne sera plus affiché au public. Vous pourrez le conserver dans votre espace.",
+                  buttons: [
+                    { label: "Annuler", onClick: () => {} },
+                    {
+                      label: "Archiver",
+                      onClick: async () => {
+                        try {
+                          await projectsApi.archive(project._id);
+                          navigate(`/projects/${project._id}`, {
+                            replace: true,
+                            state: { flash: { type: "success", message: "Projet archivé." } },
+                          });
+                        } catch (err) {
+                          const out = extractApiError(err, "Archivage impossible.");
+                          navigate(`/projects/${project._id}`, {
+                            replace: true,
+                            state: { flash: { type: "error", message: out.message } },
+                          });
+                        }
+                      },
+                    },
+                  ],
+                });
+              }}
+            >
+              <i className="fa-solid fa-box-archive me-2" aria-hidden="true" />
+              Archiver
+            </button>
+          )}
+          {canDelete && (
+            <button
+              type="button"
+              className="btn btn-outline-danger btn-sm"
+              onClick={() => {
+                confirmAlert({
+                  title: "Supprimer ce projet ?",
+                  message:
+                    "Cette action est irréversible. La suppression est possible uniquement avant mise en ligne et sans financement.",
+                  buttons: [
+                    { label: "Annuler", onClick: () => {} },
+                    {
+                      label: "Supprimer",
+                      onClick: async () => {
+                        try {
+                          await projectsApi.remove(project._id);
+                          navigate("/dashboard", {
+                            replace: true,
+                            state: { flash: { type: "success", message: "Projet supprimé." } },
+                          });
+                        } catch (err) {
+                          const out = extractApiError(err, "Suppression impossible.");
+                          navigate(`/projects/${project._id}`, {
+                            replace: true,
+                            state: { flash: { type: "error", message: out.message } },
+                          });
+                        }
+                      },
+                    },
+                  ],
+                });
+              }}
+            >
+              <i className="fa-regular fa-trash-can me-2" aria-hidden="true" />
+              Supprimer
+            </button>
+          )}
+        </div>
+      )}
+
+      {showContributionInfo && (
+        <div className="alert alert-secondary border-0 small mb-3">
+          <div className="fw-semibold mb-1">
+            <i className="fa-solid fa-circle-info me-2" aria-hidden="true" />
+            Information importante
+          </div>
+          <div>
+            Sur FinCollab, vous <strong>contribuez</strong> à une campagne (don / soutien).{" "}
+            <strong>Ce n’est pas un placement financier</strong> et aucun rendement n’est garanti.
+            En cas d’annulation dans la fenêtre prévue (si applicable), de sur‑financement ou de projet expiré,
+            un remboursement peut être déclenché selon les règles de la plateforme.
           </div>
         </div>
       )}
@@ -303,7 +466,8 @@ export default function ProjectDetail() {
                     <div className="min-w-0 w-100">
                       <div className="fw-semibold mb-1">Questions sur ce projet</div>
                       <div className="small text-muted mb-3">
-                        Vous pouvez poser une question courte (limite: 10 / heure). Réponse en <span className="fw-semibold">mode démo</span>.
+                        Posez une question courte sur le projet. Si le service IA est momentanément limité (quota),
+                        une réponse simplifiée s’affiche et vous pourrez réessayer plus tard pour une réponse plus détaillée.
                       </div>
 
                       {!isAuthenticated && (
@@ -318,6 +482,11 @@ export default function ProjectDetail() {
                       )}
 
                       {chatErr && <div className="alert alert-danger py-2 small">{chatErr}</div>}
+                      {chatMode === "fallback" && (
+                        <div className="alert alert-info py-2 small">
+                          Réponse simplifiée (service IA momentanément limité). Vous pouvez réessayer plus tard pour une réponse plus détaillée.
+                        </div>
+                      )}
                       {chatA && (
                         <div className="alert alert-secondary py-2 small">
                           <div className="fw-semibold mb-1">Réponse</div>
@@ -343,12 +512,15 @@ export default function ProjectDetail() {
                             setChatBusy(true);
                             setChatErr("");
                             setChatA("");
+                            setChatMode("");
                             try {
                               const { data } = await chatbotApi.askAboutProject(project._id, chatQ.trim());
                               setChatA(data?.answer || "—");
+                              setChatMode(String(data?.mode || ""));
                               setChatQ("");
                             } catch (e) {
-                              setChatErr(e?.response?.data?.message || "Impossible d’obtenir une réponse.");
+                              const out = extractApiError(e, "Impossible d’obtenir une réponse.");
+                              setChatErr(out.message);
                             } finally {
                               setChatBusy(false);
                             }
@@ -374,23 +546,18 @@ export default function ProjectDetail() {
               <span className="fw-semibold">{project.currentFunding} TND</span>
             </div>
             <div className="col-sm-4">
-              <span className="text-muted d-block">Workflow n8n (analyse)</span>
+              <span className="text-muted d-block">Analyse IA</span>
               <span className="fw-semibold">
-                {project.aiStatus}
-                {project.aiJobId ? (
-                  <span className="text-muted fw-normal"> · Job #{project.aiJobId}</span>
-                ) : null}
+                {project.aiStatus === "COMPLETED"
+                  ? "Terminée"
+                  : project.aiStatus === "FAILED"
+                    ? "Échouée"
+                    : project.status !== "AWAITING_AI"
+                      ? "Non lancée"
+                      : project.aiStatus === "PENDING"
+                        ? "En cours…"
+                        : project.aiStatus || "—"}
               </span>
-              {project.aiQueuedAt ? (
-                <div className="text-muted">
-                  En file: {new Date(project.aiQueuedAt).toLocaleString("fr-FR")}
-                </div>
-              ) : null}
-              {project.aiStatus === "FAILED" && project.aiLastError ? (
-                <div className="text-danger">
-                  Dernière erreur: {String(project.aiLastError).slice(0, 120)}
-                </div>
-              ) : null}
             </div>
           </div>
 
@@ -420,6 +587,40 @@ export default function ProjectDetail() {
                     </span>
                   </div>
                 </div>
+                {project.aiAnalysis?.report?.summary ? (
+                  <div className="mt-3">
+                    <div className="fw-semibold mb-1">Rapport (résumé)</div>
+                    <div className="text-body small" style={{ whiteSpace: "pre-wrap" }}>
+                      {project.aiAnalysis.report.summary}
+                    </div>
+                  </div>
+                ) : null}
+
+                {(project.aiAnalysis?.report?.improvements || []).length > 0 ? (
+                  <div className="mt-3">
+                    <div className="fw-semibold mb-1">À améliorer</div>
+                    <ul className="small mb-0">
+                      {project.aiAnalysis.report.improvements.slice(0, 6).map((x, idx) => (
+                        <li key={idx}>{x}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {(project.aiAnalysis?.sourcesUsed || []).length > 0 ? (
+                  <div className="mt-3">
+                    <div className="fw-semibold mb-1">Sources consultées</div>
+                    <ul className="small mb-0">
+                      {project.aiAnalysis.sourcesUsed.slice(0, 6).map((s, idx) => (
+                        <li key={idx}>
+                          <a href={s.url} target="_blank" rel="noreferrer">
+                            {s.domain || s.url}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {project.aiAnalysis.analyzedAt && (
                   <div className="small text-muted mt-3">
                     Analysé le{" "}
@@ -518,10 +719,8 @@ export default function ProjectDetail() {
                             setReportType("FRAUD");
                             setShowReport(false);
                           } catch (e) {
-                            setReportErr(
-                              e?.response?.data?.message ||
-                                "Impossible d’envoyer le signalement."
-                            );
+                            const out = extractApiError(e, "Impossible d’envoyer le signalement.");
+                            setReportErr(out.message);
                           } finally {
                             setReportBusy(false);
                           }
@@ -562,9 +761,8 @@ export default function ProjectDetail() {
                       await projectsApi.archive(project._id);
                       await load();
                     } catch (err) {
-                      setSubmitErr(
-                        err.response?.data?.message || "Archivage impossible."
-                      );
+                      const out = extractApiError(err, "Archivage impossible.");
+                      setSubmitErr(out.message);
                     }
                   }}
                 >
@@ -595,10 +793,8 @@ export default function ProjectDetail() {
                                   state: { refresh: Date.now() },
                                 });
                               } catch (err) {
-                                setSubmitErr(
-                                  err.response?.data?.message ||
-                                    "Suppression impossible."
-                                );
+                                const out = extractApiError(err, "Suppression impossible.");
+                                setSubmitErr(out.message);
                               }
                             })();
                           },
@@ -630,7 +826,7 @@ export default function ProjectDetail() {
         </div>
       </div>
 
-      {!isOwner && isPublicActive && isAuthenticated && (
+      {canInvest && (
         <div className="card border-0 fc-surface-card mb-4">
           <div className="card-body p-4">
             <h2 className="h6 mb-2 d-flex align-items-center gap-2 text-dark">
@@ -638,9 +834,8 @@ export default function ProjectDetail() {
               Soutenir ce projet (paiement simulé)
             </h2>
             <p className="small text-muted mb-3">
-              Vous allez ouvrir une page de paiement de démonstration. Choisissez un montant, puis
-              confirmez comme si vous payiez en ligne : le système enregistre le résultat et met à
-              jour la campagne.
+              Vous allez ouvrir une page de paiement simulée. Choisissez un montant, puis confirmez :
+              le système enregistre le résultat et met à jour la campagne.
             </p>
             <div className="row g-2 align-items-end">
               <div className="col-sm-5">
@@ -670,9 +865,8 @@ export default function ProjectDetail() {
                       });
                       navigate(data.paymentUrl);
                     } catch (err) {
-                      setInvestErr(
-                        err.response?.data?.message || "Investissement impossible."
-                      );
+                      const out = extractApiError(err, "Investissement impossible.");
+                      setInvestErr(out.message);
                     } finally {
                       setInvesting(false);
                     }
@@ -705,13 +899,178 @@ export default function ProjectDetail() {
         </div>
       )}
 
+      {isPublicActive && (
+        <div className="card border-0 fc-surface-card mb-4">
+          <div className="card-body p-4">
+            <h2 className="h6 mb-2 d-flex align-items-center gap-2 text-dark">
+              <i className="fa-regular fa-comments text-primary" aria-hidden="true" />
+              Commentaires
+            </h2>
+            <Guidance title="Règles" variant="info">
+              Partagez un avis utile et respectueux. Pas d’informations sensibles (téléphone, IBAN, etc.).
+            </Guidance>
+
+            {commentErr && <div className="alert alert-warning py-2 small">{commentErr}</div>}
+            {commentOk && <div className="alert alert-success py-2 small">{commentOk}</div>}
+
+            {isAuthenticated && user?.role !== "ADMIN" ? (
+              <form
+                className="vstack gap-2 mb-3"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setCommentBusy(true);
+                  setCommentErr("");
+                  setCommentOk("");
+                  try {
+                    const { data } = await projectsApi.createComment(project._id, { content: commentText });
+                    setCommentOk(data.message || "Commentaire publié.");
+                    setCommentText("");
+                    const { data: listData } = await projectsApi.listComments(project._id);
+                    setComments(listData.comments || []);
+                  } catch (e2) {
+                    const out = extractApiError(e2, "Publication impossible.");
+                    setCommentErr(out.message);
+                  } finally {
+                    setCommentBusy(false);
+                  }
+                }}
+              >
+                <textarea
+                  className="form-control"
+                  rows={3}
+                  maxLength={1000}
+                  placeholder="Écrivez votre commentaire…"
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                />
+                <div className="d-flex justify-content-between align-items-center">
+                  <div className="small text-muted">{(commentText || "").length}/1000</div>
+                  <button className="btn btn-outline-primary btn-sm" disabled={commentBusy || !commentText.trim()}>
+                    {commentBusy ? "Envoi…" : "Publier"}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="small text-muted mb-3">
+                Connectez-vous avec un compte utilisateur pour publier un commentaire.
+              </div>
+            )}
+
+            {comments.length === 0 ? (
+              <div className="text-muted small">Aucun commentaire pour le moment.</div>
+            ) : (
+              <div className="vstack gap-2">
+                {comments.slice(0, 20).map((c) => (
+                  <div key={c._id} className="border rounded-3 p-3 bg-white">
+                    <div className="d-flex justify-content-between gap-2">
+                      <div className="fw-semibold text-dark small text-truncate">
+                        {c.authorLabel || "Utilisateur"}
+                      </div>
+                      <div className="text-muted small">
+                        {c.createdAt ? new Date(c.createdAt).toLocaleString() : "—"}
+                      </div>
+                    </div>
+                    <div className="small mt-2" style={{ whiteSpace: "pre-wrap" }}>
+                      {c.content}
+                    </div>
+                    {isAuthenticated && user?.role !== "ADMIN" ? (
+                      <div className="d-flex justify-content-end gap-2 mt-2">
+                        {(String(c.userId) === String(user?.id || user?._id)) && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={async () => {
+                              const ok = window.confirm("Supprimer votre commentaire ? Cette action est définitive.");
+                              if (!ok) return;
+                              setCommentBusy(true);
+                              setCommentErr("");
+                              setCommentOk("");
+                              try {
+                                await projectsApi.deleteComment(project._id, c._id);
+                                setCommentOk("Commentaire supprimé.");
+                                const { data: listData } = await projectsApi.listComments(project._id);
+                                setComments(listData.comments || []);
+                              } catch (e2) {
+                                const out = extractApiError(e2, "Suppression impossible.");
+                                setCommentErr(out.message);
+                              } finally {
+                                setCommentBusy(false);
+                              }
+                            }}
+                            disabled={commentBusy}
+                          >
+                            Supprimer
+                          </button>
+                        )}
+                        {String(c.userId) !== String(user?.id || user?._id) && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary"
+                            disabled={commentBusy}
+                            onClick={async () => {
+                              const reason = window.prompt("Pourquoi signalez-vous ce commentaire ? (obligatoire)", "");
+                              if (!reason || !String(reason).trim()) return;
+                              setCommentBusy(true);
+                              setCommentErr("");
+                              setCommentOk("");
+                              try {
+                                const { data } = await reportsApi.createComment({
+                                  projectId: project._id,
+                                  commentId: c._id,
+                                  type: "INAPPROPRIATE_CONTENT",
+                                  description: String(reason).trim(),
+                                });
+                                setCommentOk(data.message || "Signalement envoyé.");
+                              } catch (e2) {
+                                const out = extractApiError(e2, "Signalement impossible.");
+                                setCommentErr(out.message);
+                              } finally {
+                                setCommentBusy(false);
+                              }
+                            }}
+                          >
+                            Signaler
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {analysisInProgress && (
         <div className="alert alert-info border-0 shadow-sm mb-4">
-          <div className="fw-semibold mb-1">Analyse en cours</div>
-          <div className="small">
-            Votre projet est en cours d’analyse automatique. Cela peut prendre
-            quelques minutes. Vous serez informé(e) dès que la revue démarre.
+          <div className="fw-semibold mb-1">
+            {likelyQuotaWait ? "Analyse en attente (quota IA)" : "Analyse en cours"}
           </div>
+          <div className="small">
+            {likelyQuotaWait ? (
+              <>
+                Le service IA est momentanément limité (quota). La plateforme réessaie automatiquement.
+                Selon le type de limite (par minute ou par jour), le délai peut varier. Les quotas “par jour” reviennent
+                généralement au prochain reset (souvent à minuit, heure du Pacifique), donc pas forcément à minuit chez vous.
+              </>
+            ) : (
+              <>
+                Votre projet est en cours d’analyse automatique. En général, cela prend peu de temps.
+                Vous serez notifié(e) dès que l’analyse est terminée et que la revue démarre.
+              </>
+            )}
+          </div>
+          {likelyQuotaWait && queuedAtLabel && (
+            <div className="small text-muted mt-2">
+              Dernière mise en file : <strong>{queuedAtLabel}</strong>
+            </div>
+          )}
+          {likelyQuotaWait && nextRetryLabel && (
+            <div className="small text-muted mt-1">
+              Prochaine tentative estimée : <strong>{nextRetryLabel}</strong>
+            </div>
+          )}
           {autoRefreshing && (
             <div className="small text-muted mt-2">
               Mise à jour automatique en cours…
@@ -732,16 +1091,30 @@ export default function ProjectDetail() {
         </div>
       )}
 
+      {isOwner && project.status === "REJECTED" && !project.isArchived && (
+        <Guidance title="Projet à corriger" variant="warning">
+          Votre projet a été rejeté temporairement.{" "}
+          {project.rejectionReason ? (
+            <>
+              <strong>Pourquoi ?</strong> {project.rejectionReason}
+            </>
+          ) : (
+            <>Un administrateur a demandé des ajustements.</>
+          )}{" "}
+          Modifiez le projet, puis renvoyez‑le pour révision.
+        </Guidance>
+      )}
+
       {isOwner && project.status === "DRAFT" && !project.isArchived && (
         <div className="card border-0 fc-surface-card mb-4">
           <div className="card-body">
             <h2 className="h6 text-uppercase text-muted mb-3">
               Étape suivante
             </h2>
-            <p className="small text-muted mb-3">
-              Lance l’analyse automatique de votre projet. Ensuite, il passera en
-              revue avant publication.
-            </p>
+            <Guidance title="Que va-t-il se passer ?" variant="info">
+              Après soumission, votre projet passe en <strong>analyse IA</strong>, puis en revue par l’administration
+              avant publication. Vous pourrez suivre l’état directement ici.
+            </Guidance>
             {submitMsg && (
               <div className="alert alert-success py-2 small">{submitMsg}</div>
             )}
@@ -758,6 +1131,13 @@ export default function ProjectDetail() {
             </button>
           </div>
         </div>
+      )}
+
+      {isOwner && project.status === "APPROVED" && !project.isArchived && (
+        <Guidance title="Projet approuvé (non publié)" variant="info">
+          Votre projet a été <strong>approuvé</strong> par l’administration. Il n’est pas encore visible dans “Explorer”.
+          Un administrateur doit maintenant <strong>le publier</strong> pour l’ouvrir au public et aux contributions.
+        </Guidance>
       )}
 
       <div className="d-flex flex-wrap gap-2">

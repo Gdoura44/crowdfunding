@@ -11,7 +11,7 @@ async function writeAudit({ actorId, actorRole, action, targetType, targetId, de
       details: details || {},
     });
   } catch {
-    // Audit must not break the main flow in this PFE prototype.
+    // L’audit ne doit pas interrompre le flux métier principal: on capture l’erreur sans la propager.
   }
 }
 

@@ -3,11 +3,13 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../components/ui/PageHeader.jsx";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import { payoutsApi } from "../api/payouts";
+import { extractApiError } from "../utils/apiError";
+import Guidance from "../components/ui/Guidance.jsx";
 
 function statusHelp(status) {
   if (status === "PENDING") return "Ajoutez vos coordonnées bancaires pour passer à l’étape suivante.";
   if (status === "READY") return "Coordonnées reçues. Un administrateur va valider le virement.";
-  if (status === "COMPLETED") return "Virement marqué comme complété (mode démo).";
+  if (status === "COMPLETED") return "Virement marqué comme complété.";
   if (status === "FAILED") return "Une erreur est survenue. Un administrateur va réessayer.";
   return "—";
 }
@@ -46,7 +48,10 @@ export default function PayoutDetail() {
         const { data } = await payoutsApi.get(id);
         if (!cancelled) setPayout(data.payout);
       } catch (e) {
-        if (!cancelled) setError(e?.response?.data?.message || "Impossible de charger ce payout.");
+        if (!cancelled) {
+          const out = extractApiError(e, "Impossible de charger ce payout.");
+          setError(out.message);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -67,7 +72,8 @@ export default function PayoutDetail() {
       const { data } = await payoutsApi.get(id);
       setPayout(data.payout);
     } catch (e2) {
-      setError(e2?.response?.data?.message || "Erreur lors de l’enregistrement.");
+      const out = extractApiError(e2, "Erreur lors de l’enregistrement.");
+      setError(out.message);
     } finally {
       setSaving(false);
     }
@@ -116,9 +122,14 @@ export default function PayoutDetail() {
               <div className="card-body">
                 <div className="fw-semibold mb-2">Coordonnées bancaires</div>
                 <div className="text-muted small mb-3">
-                  Pour la démo, on collecte ces infos puis un admin “approuve” le virement. Les détails
-                  sont chiffrés côté serveur.
+                  Vos coordonnées sont collectées pour initier le virement. Les détails sont chiffrés côté serveur.
                 </div>
+                {canEdit && (
+                  <Guidance title="Guidance" variant="info">
+                    Remplissez des informations exactes. Après l’envoi, la demande passe en validation admin et
+                    vous ne pourrez plus modifier les champs tant que le statut n’est pas <strong>PENDING</strong>.
+                  </Guidance>
+                )}
 
                 {!canEdit && (
                   <div className="alert alert-info py-2 mb-0">

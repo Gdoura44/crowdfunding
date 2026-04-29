@@ -2,6 +2,7 @@ const express = require("express");
 const asyncHandler = require("../../middleware/asyncHandler");
 const cronService = require("../../services/cronService");
 const investmentCronService = require("../../services/investmentCronService");
+const sessionCronService = require("../../services/sessionCronService");
 
 const router = express.Router();
 
@@ -59,6 +60,27 @@ router.get(
   "/cleanup-stuck-states",
   asyncHandler(async (req, res) => {
     const summary = await cronService.cleanupStuckStates({
+      limit: req.query.limit,
+    });
+    res.json({ ok: true, summary });
+  })
+);
+
+router.get(
+  "/retry-stuck-ai",
+  asyncHandler(async (req, res) => {
+    const summary = await cronService.retryStuckAiAnalyses({
+      olderThanMinutes: req.query.olderThanMinutes,
+      limit: req.query.limit,
+    });
+    res.json({ ok: true, summary });
+  })
+);
+
+router.get(
+  "/cleanup-refresh-tokens",
+  asyncHandler(async (req, res) => {
+    const summary = await sessionCronService.cleanupExpiredRefreshTokens({
       limit: req.query.limit,
     });
     res.json({ ok: true, summary });

@@ -6,8 +6,8 @@ export const authApi = {
   register: (body) => http.post(paths.auth.register, body),
   login: (body) => http.post(paths.auth.login, body),
   logout: () => http.post(paths.auth.logout),
-  verifyEmail: (params) =>
-    http.get(paths.auth.verifyEmail, { params }),
+  verifyEmail: (params, config = {}) => http.get(paths.auth.verifyEmail, { params, ...config }),
+  verifyEmailCode: (body) => http.post(paths.auth.verifyEmailCode, body),
   resendVerification: (body) => http.post(paths.auth.resendVerification, body),
   forgotPassword: (body) => http.post(paths.auth.forgotPassword, body),
   resetPassword: (body) => http.post(paths.auth.resetPassword, body),
