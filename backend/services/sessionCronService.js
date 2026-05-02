@@ -2,12 +2,12 @@ const User = require("../models/User");
 
 /**
  * Cleanup expired refresh tokens stored in `users.refreshTokens[]`.
- * This keeps documents small and reduces failed refresh lookups.
+ * Cela garde des documents plus petits et réduit les échecs lors des refresh.
  */
 async function cleanupExpiredRefreshTokens({ now = new Date(), limit = 500 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 500, 1), 5000);
 
-  // Find candidate users first (bounded), then apply $pull.
+  // Trouver d’abord des utilisateurs candidats (borné), puis appliquer $pull.
   const candidates = await User.find({
     "refreshTokens.expiresAt": { $lt: now },
     deletedAt: null,
@@ -18,7 +18,6 @@ async function cleanupExpiredRefreshTokens({ now = new Date(), limit = 500 } = {
 
   let cleanedUsers = 0;
   for (const u of candidates) {
-    // eslint-disable-next-line no-await-in-loop
     const r = await User.updateOne(
       { _id: u._id },
       { $pull: { refreshTokens: { expiresAt: { $lt: now } } } }

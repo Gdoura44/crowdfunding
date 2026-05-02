@@ -27,9 +27,10 @@ import AdminNotifications from "../pages/AdminNotifications.jsx";
 import AdminReports from "../pages/AdminReports.jsx";
 import AdminPayouts from "../pages/AdminPayouts.jsx";
 import AdminComments from "../pages/AdminComments.jsx";
-import MockCheckout from "../pages/MockCheckout.jsx";
+import MockPaymentProviderPage from "../pages/MockPaymentProviderPage.jsx";
 import Recommendations from "../pages/Recommendations.jsx";
 import AdminOps from "../pages/AdminOps.jsx";
+import MockPayoutTransfer from "../pages/MockPayoutTransfer.jsx";
 
 /**
  * Public vs authentifié :
@@ -64,7 +65,7 @@ export default function AppRoutes() {
           <Route path="profile" element={<Profile />} />
           <Route path="projects/new" element={<ProjectNew />} />
           <Route path="projects/:id/edit" element={<ProjectEdit />} />
-          <Route path="mock-checkout" element={<MockCheckout />} />
+          <Route path="mock-checkout" element={<MockPaymentProviderPage />} />
         </Route>
 
         <Route element={<AdminRoute />}>
@@ -75,6 +76,7 @@ export default function AppRoutes() {
           <Route path="admin/payouts" element={<AdminPayouts />} />
           <Route path="admin/ops" element={<AdminOps />} />
           <Route path="admin/notifications" element={<AdminNotifications />} />
+          <Route path="mock-payout-transfer" element={<MockPayoutTransfer />} />
         </Route>
       </Route>
     </Routes>

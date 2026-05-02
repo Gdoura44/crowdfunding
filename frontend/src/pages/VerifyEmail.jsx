@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { authApi } from "../api/auth";
 import { extractApiError } from "../utils/apiError";
+import Alert from "../components/ui/Alert.jsx";
 
 export default function VerifyEmail() {
   const [params] = useSearchParams();
@@ -28,7 +29,7 @@ export default function VerifyEmail() {
         setStatus("ok");
         setMessage(data.message || "E-mail vérifié.");
       } catch (err) {
-        // Ignore abort (React StrictMode / navigation).
+        // Ignorer l’abort (React StrictMode / navigation).
         if (err?.name === "CanceledError" || err?.code === "ERR_CANCELED") return;
         setStatus("error");
         const out = extractApiError(err, "Vérification impossible.");
@@ -64,7 +65,7 @@ export default function VerifyEmail() {
         <div className="card auth-card">
           <div className="card-body p-4 p-md-5">
             <h1 className="h4 fw-bold text-dark mb-3">Vérification de l’e-mail</h1>
-            {status !== "ok" && flash && <div className="alert alert-info small">{flash}</div>}
+            {status !== "ok" && flash && <Alert variant="info">{flash}</Alert>}
             {status === "pending" && (
               <div className="py-4">
                 <div className="spinner-border text-primary" role="status" aria-hidden="true">
@@ -74,7 +75,7 @@ export default function VerifyEmail() {
             )}
             {status === "ok" && (
               <>
-                <div className="alert alert-success small">{message}</div>
+                <Alert variant="success">{message}</Alert>
                 <Link to="/login" className="btn btn-fc-primary text-white w-100">
                   Se connecter
                 </Link>
@@ -82,7 +83,7 @@ export default function VerifyEmail() {
             )}
             {status === "error" && (
               <>
-                {message && <div className="alert alert-danger small">{message}</div>}
+                {message && <Alert variant="danger">{message}</Alert>}
               </>
             )}
             {!token && status !== "ok" && (

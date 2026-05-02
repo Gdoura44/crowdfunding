@@ -6,6 +6,8 @@ import PageLoader from "../components/ui/PageLoader.jsx";
 import PageHeader from "../components/ui/PageHeader.jsx";
 import { extractApiError } from "../utils/apiError";
 import { PROJECT_CATEGORIES } from "../config/categories.js";
+import Alert from "../components/ui/Alert.jsx";
+import { confirmAlert } from "react-confirm-alert";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -124,27 +126,36 @@ export default function Profile() {
   }
 
   async function onDeleteAccount() {
-    const ok = window.confirm(
-      "Supprimer votre compte ?\n\nCette action anonymise vos données et est irréversible.\nElle peut être bloquée si vous avez des opérations financières en cours."
-    );
-    if (!ok) return;
-    setDeleting(true);
-    setError("");
-    setMessage("");
-    try {
-      await usersApi.deleteAccount();
-      try {
-        await logout();
-      } catch {
-        // ignorer
-      }
-      navigate("/", { replace: true });
-    } catch (err) {
-      const out = extractApiError(err, "Suppression impossible.");
-      setError(out.message);
-    } finally {
-      setDeleting(false);
-    }
+    confirmAlert({
+      title: "Supprimer votre compte ?",
+      message:
+        "Cette action anonymise vos données et est irréversible.\nElle peut être bloquée si vous avez des opérations financières en cours.",
+      buttons: [
+        { label: "Annuler", onClick: () => {} },
+        {
+          label: "Supprimer",
+          onClick: async () => {
+            setDeleting(true);
+            setError("");
+            setMessage("");
+            try {
+              await usersApi.deleteAccount();
+              try {
+                await logout();
+              } catch {
+                // ignorer
+              }
+              navigate("/", { replace: true });
+            } catch (err) {
+              const out = extractApiError(err, "Suppression impossible.");
+              setError(out.message);
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    });
   }
 
   if (loading) {
@@ -160,8 +171,8 @@ export default function Profile() {
         />
         <div className="card border-0 fc-surface-card">
           <div className="card-body p-4 p-md-5">
-            {message && <div className="alert alert-success small">{message}</div>}
-            {error && <div className="alert alert-danger small">{error}</div>}
+            {message && <Alert variant="success">{message}</Alert>}
+            {error && <Alert variant="danger">{error}</Alert>}
             <form onSubmit={onSubmit} className="vstack gap-3">
               <div className="row g-3">
                 <div className="col-md-6">

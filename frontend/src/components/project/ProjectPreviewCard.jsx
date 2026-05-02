@@ -55,8 +55,8 @@ export default function ProjectPreviewCard({ title, description, category, fundi
           </div>
         </div>
 
-        <div className="alert alert-light border small mb-0">
-          Conseil: gardez un objectif réaliste, une description claire, et des dates cohérentes.
+        <div className="small text-muted border rounded-3 p-3 mb-0 bg-light">
+          <strong>Conseil :</strong> gardez un objectif réaliste, une description claire, et des dates cohérentes.
         </div>
       </div>
     </div>

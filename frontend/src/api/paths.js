@@ -60,6 +60,7 @@ export const paths = {
     unhideComment: (id) => `/api/admin/comments/${id}/unhide`,
     payouts: "/api/admin/payouts",
     approvePayout: (id) => `/api/admin/payouts/${id}/approve`,
+    mockConfirmPayout: (id) => `/api/admin/payouts/${id}/mock-confirm`,
     failedNotifications: "/api/admin/failed-notifications",
     retryNotification: "/api/admin/retry-notification",
     opsFailedRefunds: "/api/admin/ops/failed-refunds",

@@ -72,13 +72,13 @@ function estimateBudgetFromDescription(description) {
   const text = String(description || "");
   const lines = text.split(/\r?\n/);
 
-  // Focus on budget-ish lines: those mentioning currency/budget or bullet items.
+  // Se concentrer sur les lignes “budget” : monnaie/budget ou listes à puces.
   const budgetish = lines.filter((l) => /budget|tnd|\bdt\b|dinars?/i.test(l) || /^\s*-\s+/.test(l));
 
   let sum = 0;
   let count = 0;
   for (const l of budgetish) {
-    // Matches like: "7 800 TND", "7800TND", "7800 DT"
+    // Exemples: "7 800 TND", "7800TND", "7800 DT"
     const m = l.match(/(\d[\d\s]{1,})\s*(tnd|\bdt\b|dinars?)/i);
     if (m && m[1]) {
       const n = normalizeTndNumber(m[1]);
@@ -88,7 +88,7 @@ function estimateBudgetFromDescription(description) {
         continue;
       }
     }
-    // Solution de secours (fallback): on prend le dernier “gros nombre” d’une ligne à puces (souvent le total de la ligne).
+    // Solution de secours : on prend le dernier “gros nombre” d’une ligne à puces (souvent le total de la ligne).
     if (/^\s*-\s+/.test(l)) {
       const nums = l.match(/\d[\d\s]{2,}/g);
       if (nums && nums.length) {
@@ -264,7 +264,7 @@ function computeSuccessHeuristic({ startAt, deadline, fundingGoal, description }
   return {
     successProbability: clamp(adjusted, 0, 100),
     breakdown: {
-      // Duration is for coherence only (not a direct score driver).
+      // La durée sert uniquement à la cohérence (pas un facteur direct du score).
       weights: { goalJustification: 0.45, description: 0.55 },
       durationDays,
       duration,

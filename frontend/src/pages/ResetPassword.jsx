@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { authApi } from "../api/auth";
 import { extractApiError } from "../utils/apiError";
 import Guidance from "../components/ui/Guidance.jsx";
+import Alert from "../components/ui/Alert.jsx";
 
 function useQuery() {
   const { search } = useLocation();
@@ -53,13 +54,13 @@ export default function ResetPassword() {
             </Guidance>
 
             {!token && (
-              <div className="alert alert-warning small">
+              <Alert variant="warning">
                 Lien invalide : token manquant. Recommencez depuis “Mot de passe oublié”.
-              </div>
+              </Alert>
             )}
 
-            {message && <div className="alert alert-success small">{message}</div>}
-            {error && <div className="alert alert-danger small">{error}</div>}
+            {message && <Alert variant="success">{message}</Alert>}
+            {error && <Alert variant="danger">{error}</Alert>}
 
             <form onSubmit={onSubmit} className="vstack gap-3">
               <div>

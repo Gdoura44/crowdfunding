@@ -52,15 +52,19 @@ mongoose
             olderThanMinutes: INTERNAL_CRON_RETRY_STUCK_AI_OLDER_THAN_MIN,
             limit: 20,
           });
+          // Clôturer automatiquement les projets FUNDED dès que la période de grâce le permet.
+          await cronService.closeFundedProjects({ limit: 50 });
         } catch (e) {
-          // best-effort
-          console.warn("[internal-cron] retry-stuck-ai a échoué:", e?.message || e);
+          // au mieux
+          console.warn("[internal-cron] exécution a échoué:", e?.message || e);
         }
       };
-      // Kick once at startup, then repeat.
+      // Lancer une première fois au démarrage, puis répéter.
       void run();
       setInterval(run, intervalMin * 60 * 1000);
-      console.log(`[internal-cron] activé : retry-stuck-ai toutes les ${intervalMin} min`);
+      console.log(
+        `[internal-cron] activé : retry-stuck-ai + close-funded-projects toutes les ${intervalMin} min`
+      );
     }
   })
   .catch((err) => {

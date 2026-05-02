@@ -8,6 +8,7 @@ import ProjectCard from "../components/project/ProjectCard.jsx";
 import { recommendationsApi } from "../api/recommendations";
 import { useAuth } from "../hooks/useAuth.js";
 import { extractApiError } from "../utils/apiError";
+import Alert from "../components/ui/Alert.jsx";
 
 export default function Recommendations() {
   const { user } = useAuth();
@@ -80,11 +81,11 @@ export default function Recommendations() {
       />
 
       {user?.role === "ADMIN" && (
-        <div className="alert alert-info py-2">
+        <Alert variant="info">
           Les comptes administrateur n’ont pas de recommandations personnelles.
-        </div>
+        </Alert>
       )}
-      {error && <div className="alert alert-danger py-2">{error}</div>}
+      {error && <Alert variant="danger">{error}</Alert>}
       {loading && <PageLoader label="Chargement…" />}
 
       {!loading && !error && items.length === 0 && (

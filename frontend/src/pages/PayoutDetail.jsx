@@ -5,10 +5,12 @@ import PageLoader from "../components/ui/PageLoader.jsx";
 import { payoutsApi } from "../api/payouts";
 import { extractApiError } from "../utils/apiError";
 import Guidance from "../components/ui/Guidance.jsx";
+import Alert from "../components/ui/Alert.jsx";
 
 function statusHelp(status) {
   if (status === "PENDING") return "Ajoutez vos coordonnées bancaires pour passer à l’étape suivante.";
   if (status === "READY") return "Coordonnées reçues. Un administrateur va valider le virement.";
+  if (status === "PROCESSING") return "Virement initié. En attente de confirmation du prestataire.";
   if (status === "COMPLETED") return "Virement marqué comme complété.";
   if (status === "FAILED") return "Une erreur est survenue. Un administrateur va réessayer.";
   return "—";
@@ -25,19 +27,21 @@ export default function PayoutDetail() {
 
   const [accountHolderName, setAccountHolderName] = useState("");
   const [bankName, setBankName] = useState("");
-  const [iban, setIban] = useState("");
+  const [ribOrIban, setRibOrIban] = useState("");
   const [swiftCode, setSwiftCode] = useState("");
 
   const canEdit = payout?.status === "PENDING";
 
   const bankDetailsJson = useMemo(() => {
+    const normalized = String(ribOrIban || "").replace(/\s+/g, "").toUpperCase();
+    const looksLikeIban = /^[A-Z]{2}/.test(normalized);
     return JSON.stringify({
       accountHolderName,
       bankName,
-      iban,
+      ...(looksLikeIban ? { iban: normalized } : { rib: normalized }),
       swiftCode: swiftCode || undefined,
     });
-  }, [accountHolderName, bankName, iban, swiftCode]);
+  }, [accountHolderName, bankName, ribOrIban, swiftCode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,8 +100,8 @@ export default function PayoutDetail() {
         }
       />
 
-      {error && <div className="alert alert-danger py-2">{error}</div>}
-      {ok && <div className="alert alert-success py-2">{ok}</div>}
+      {error && <Alert variant="danger">{error}</Alert>}
+      {ok && <Alert variant="success">{ok}</Alert>}
       {loading && <PageLoader label="Chargement…" />}
 
       {!loading && payout && (
@@ -109,8 +113,12 @@ export default function PayoutDetail() {
                   <div className="fw-semibold">Résumé</div>
                   <span className="badge bg-light text-dark border">{payout.status}</span>
                 </div>
-                <div className="small text-muted">ProjectId</div>
-                <div className="mb-2">{String(payout.projectId)}</div>
+                <div className="small text-muted">Projet</div>
+                <div className="mb-2">
+                  {payout.projectId && typeof payout.projectId === "object"
+                    ? payout.projectId.title || String(payout.projectId._id || "—")
+                    : String(payout.projectId || "—")}
+                </div>
                 <div className="small text-muted">Montant</div>
                 <div className="fw-semibold">{payout.amount} TND</div>
               </div>
@@ -122,66 +130,80 @@ export default function PayoutDetail() {
               <div className="card-body">
                 <div className="fw-semibold mb-2">Coordonnées bancaires</div>
                 <div className="text-muted small mb-3">
-                  Vos coordonnées sont collectées pour initier le virement. Les détails sont chiffrés côté serveur.
+                  Saisissez vos informations comme sur une plateforme de paiement : elles servent à initier le virement.
+                  Les détails sont chiffrés côté serveur.
                 </div>
                 {canEdit && (
                   <Guidance title="Guidance" variant="info">
-                    Remplissez des informations exactes. Après l’envoi, la demande passe en validation admin et
-                    vous ne pourrez plus modifier les champs tant que le statut n’est pas <strong>PENDING</strong>.
+                    Utilisez les informations exactes de votre compte bancaire. Après l’envoi, la demande passe en
+                    validation admin et vous ne pourrez plus modifier les champs tant que le statut n’est pas{" "}
+                    <strong>PENDING</strong>.
                   </Guidance>
                 )}
 
                 {!canEdit && (
-                  <div className="alert alert-info py-2 mb-0">
+                  <Alert variant="info" className="mb-0">
                     Les coordonnées ne sont plus modifiables pour l’instant (statut: {payout.status}).
-                  </div>
+                  </Alert>
                 )}
 
                 {canEdit && (
                   <form onSubmit={submit} className="d-grid gap-2">
                     <div className="row g-2">
                       <div className="col-12">
-                        <label className="form-label">Nom du titulaire</label>
+                        <label className="form-label">Nom et prénom (titulaire du compte)</label>
                         <input
                           className="form-control"
                           value={accountHolderName}
                           onChange={(e) => setAccountHolderName(e.target.value)}
                           required
                           minLength={3}
+                          placeholder="ex: Ahmed Ben Salah"
                         />
                       </div>
                       <div className="col-12">
                         <label className="form-label">Banque</label>
-                        <input
-                          className="form-control"
-                          value={bankName}
-                          onChange={(e) => setBankName(e.target.value)}
-                          required
-                          minLength={3}
-                        />
+                        <select className="form-select" value={bankName} onChange={(e) => setBankName(e.target.value)} required>
+                          <option value="">Choisir…</option>
+                          <option value="BIAT">BIAT</option>
+                          <option value="BNA">BNA</option>
+                          <option value="STB">STB</option>
+                          <option value="Amen Bank">Amen Bank</option>
+                          <option value="ATB">ATB</option>
+                          <option value="BH Bank">BH Bank</option>
+                          <option value="BT">Banque de Tunisie (BT)</option>
+                          <option value="UIB">UIB</option>
+                          <option value="UBCI">UBCI</option>
+                          <option value="Zitouna">Banque Zitouna</option>
+                          <option value="Autre">Autre</option>
+                        </select>
                       </div>
                       <div className="col-12">
-                        <label className="form-label">IBAN</label>
+                        <label className="form-label">RIB / IBAN</label>
                         <input
                           className="form-control"
-                          value={iban}
-                          onChange={(e) => setIban(e.target.value)}
-                          placeholder="ex: TN59..."
+                          value={ribOrIban}
+                          onChange={(e) => setRibOrIban(e.target.value)}
+                          placeholder="RIB (20 chiffres) ou IBAN (ex: TN59...)"
                           required
+                          inputMode="text"
                         />
+                        <div className="form-text">
+                          RIB: 20 chiffres (sans espaces). IBAN: commence par <strong>TN</strong>.
+                        </div>
                       </div>
                       <div className="col-12">
-                        <label className="form-label">SWIFT (optionnel)</label>
+                        <label className="form-label">Code SWIFT/BIC (optionnel)</label>
                         <input
                           className="form-control"
                           value={swiftCode}
                           onChange={(e) => setSwiftCode(e.target.value)}
-                          placeholder="8 ou 11 caractères"
+                          placeholder="ex: ABCDTNTT (8 ou 11 caractères)"
                         />
                       </div>
                     </div>
                     <button className="btn btn-primary" disabled={saving}>
-                      {saving ? "Enregistrement…" : "Enregistrer et envoyer pour validation"}
+                      {saving ? "Envoi…" : "Confirmer et envoyer pour validation"}
                     </button>
                   </form>
                 )}

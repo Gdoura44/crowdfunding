@@ -5,6 +5,7 @@ import EmptyState from "../components/ui/EmptyState.jsx";
 import { adminApi } from "../api/admin";
 import { useAuth } from "../hooks/useAuth.js";
 import { extractApiError } from "../utils/apiError";
+import Alert from "../components/ui/Alert.jsx";
 
 export default function AdminOps() {
   const { user } = useAuth();
@@ -61,9 +62,7 @@ export default function AdminOps() {
 
   if (!canAccess) {
     return (
-      <div className="alert alert-warning border-0">
-        Accès réservé aux administrateurs.
-      </div>
+      <Alert variant="warning">Accès réservé aux administrateurs.</Alert>
     );
   }
 
@@ -97,7 +96,7 @@ export default function AdminOps() {
         }
       />
 
-      {error && <div className="alert alert-danger py-2">{error}</div>}
+      {error && <Alert variant="danger">{error}</Alert>}
       {loading && <PageLoader label="Chargement…" />}
 
       {!loading && !error && isRefunds && refunds.length === 0 && (
@@ -122,10 +121,10 @@ export default function AdminOps() {
               <thead>
                 <tr>
                   <th>Créé</th>
-                  <th>ProjectId</th>
-                  <th>InvestmentId</th>
-                  <th>Reason</th>
-                  <th>Retry</th>
+                  <th>Projet</th>
+                  <th>Investissement</th>
+                  <th>Raison</th>
+                  <th>Tentatives</th>
                 </tr>
               </thead>
               <tbody>
@@ -134,8 +133,25 @@ export default function AdminOps() {
                     <td className="small text-muted">
                       {r.createdAt ? new Date(r.createdAt).toLocaleString("fr-FR") : "—"}
                     </td>
-                    <td className="small text-muted">{String(r.projectId)}</td>
-                    <td className="small text-muted">{String(r.investmentId)}</td>
+                    <td className="small">
+                      {r.projectId && typeof r.projectId === "object" ? (
+                        <>
+                          <div className="fw-semibold text-truncate" style={{ maxWidth: "16rem" }}>
+                            {r.projectId.title || String(r.projectId._id || "—")}
+                          </div>
+                          {r.projectId.status ? (
+                            <div className="text-muted small">Statut : {r.projectId.status}</div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="text-muted">{String(r.projectId || "—")}</span>
+                      )}
+                    </td>
+                    <td className="small text-muted">
+                      {r.investmentId && typeof r.investmentId === "object"
+                        ? `${r.investmentId.amount ?? "—"} TND · ${r.investmentId.status || "—"}`
+                        : String(r.investmentId || "—")}
+                    </td>
                     <td>
                       <span className="badge bg-light text-dark border">{r.reason}</span>
                     </td>
@@ -155,8 +171,9 @@ export default function AdminOps() {
               <thead>
                 <tr>
                   <th>Créé</th>
-                  <th>PayoutId</th>
-                  <th>Retry</th>
+                  <th>Projet</th>
+                  <th>Payout</th>
+                  <th>Tentatives</th>
                 </tr>
               </thead>
               <tbody>
@@ -165,7 +182,25 @@ export default function AdminOps() {
                     <td className="small text-muted">
                       {p.createdAt ? new Date(p.createdAt).toLocaleString("fr-FR") : "—"}
                     </td>
-                    <td className="small text-muted">{String(p.payoutId)}</td>
+                    <td className="small">
+                      {p.payoutId && typeof p.payoutId === "object" && p.payoutId.projectId && typeof p.payoutId.projectId === "object" ? (
+                        <>
+                          <div className="fw-semibold text-truncate" style={{ maxWidth: "16rem" }}>
+                            {p.payoutId.projectId.title || String(p.payoutId.projectId._id || "—")}
+                          </div>
+                          {p.payoutId.projectId.status ? (
+                            <div className="text-muted small">Statut : {p.payoutId.projectId.status}</div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="small text-muted">
+                      {p.payoutId && typeof p.payoutId === "object"
+                        ? `${String(p.payoutId._id).slice(-6)} · ${p.payoutId.status || "—"} · ${p.payoutId.amount ?? "—"} TND`
+                        : String(p.payoutId || "—")}
+                    </td>
                     <td className="small text-muted">{p.retryCount}</td>
                   </tr>
                 ))}

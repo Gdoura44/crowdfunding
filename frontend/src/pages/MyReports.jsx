@@ -6,6 +6,7 @@ import EmptyState from "../components/ui/EmptyState.jsx";
 import { reportsApi } from "../api/reports";
 import { useAuth } from "../hooks/useAuth.js";
 import { extractApiError } from "../utils/apiError";
+import Alert from "../components/ui/Alert.jsx";
 
 function badge(status) {
   const map = {
@@ -60,12 +61,12 @@ export default function MyReports() {
       />
 
       {user?.role === "ADMIN" && (
-        <div className="alert alert-info py-2">
+        <Alert variant="info">
           Les comptes administrateur n’ont pas d’espace utilisateur pour les signalements.
-        </div>
+        </Alert>
       )}
 
-      {error && <div className="alert alert-danger py-2">{error}</div>}
+      {error && <Alert variant="danger">{error}</Alert>}
       {loading && <PageLoader label="Chargement…" />}
 
       {!loading && !error && items.length === 0 && (

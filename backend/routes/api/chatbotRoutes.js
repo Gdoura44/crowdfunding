@@ -90,7 +90,7 @@ router.post(
           : status === 503 || status === 502 || status === 504
             ? "AI_TEMPORARY_FAILURE"
             : "AI_UNAVAILABLE";
-      // Solution de secours (fallback): garder une UX utilisable même si Gemini est indisponible/quota dépassé.
+      // Solution de secours : garder une UX utilisable même si Gemini est indisponible/quota dépassé.
       const safeAnswer = [
         `Projet: ${project.title}.`,
         `Statut: ${project.status}.`,

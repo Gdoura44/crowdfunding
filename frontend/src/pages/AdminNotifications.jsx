@@ -5,6 +5,7 @@ import PageHeader from "../components/ui/PageHeader.jsx";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import { extractApiError } from "../utils/apiError";
+import Alert from "../components/ui/Alert.jsx";
 import { emitNotificationsChanged } from "../utils/notificationsEvents";
 import { labelNotificationType } from "../utils/notificationLabels";
 
@@ -104,7 +105,7 @@ export default function AdminNotifications() {
           </div>
         }
       />
-      {error && <div className="alert alert-danger py-2">{error}</div>}
+      {error && <Alert variant="danger">{error}</Alert>}
       {loading && <PageLoader label="Chargement…" />}
       {!loading && !error && tab === "FEED" && items.length === 0 && (
         <EmptyState icon="fa-regular fa-bell" title="Aucune notification" description="La base est vide pour le moment." />

@@ -6,11 +6,13 @@ import EmptyState from "../components/ui/EmptyState.jsx";
 import { payoutsApi } from "../api/payouts";
 import { useAuth } from "../hooks/useAuth.js";
 import { extractApiError } from "../utils/apiError";
+import Alert from "../components/ui/Alert.jsx";
 
 function statusBadge(status) {
   const map = {
     PENDING: "bg-secondary",
     READY: "bg-primary",
+    PROCESSING: "bg-info text-dark",
     COMPLETED: "bg-success",
     FAILED: "bg-danger",
     CANCELLED: "bg-warning text-dark",
@@ -55,11 +57,11 @@ export default function MyPayouts() {
       />
 
       {user?.role === "ADMIN" && (
-        <div className="alert alert-info py-2">
+        <Alert variant="info">
           Les comptes administrateur n’ont pas d’espace créateur (payouts personnels).
-        </div>
+        </Alert>
       )}
-      {error && <div className="alert alert-danger py-2">{error}</div>}
+      {error && <Alert variant="danger">{error}</Alert>}
       {loading && <PageLoader label="Chargement…" />}
 
       {!loading && !error && items.length === 0 && (
@@ -85,12 +87,24 @@ export default function MyPayouts() {
               <tbody>
                 {items.map((p) => (
                   <tr key={p._id}>
-                    <td className="text-muted small">{String(p.projectId)}</td>
+                    <td className="small">
+                      {p.projectId && typeof p.projectId === "object" ? (
+                        <div className="fw-semibold text-truncate" style={{ maxWidth: 420 }}>
+                          {p.projectId.title || String(p.projectId._id || "—")}
+                        </div>
+                      ) : (
+                        <span className="text-muted">{String(p.projectId || "—")}</span>
+                      )}
+                      {p.projectId && typeof p.projectId === "object" && p.projectId.status ? (
+                        <div className="text-muted small">Statut projet : {p.projectId.status}</div>
+                      ) : null}
+                    </td>
                     <td className="fw-semibold">{p.amount} TND</td>
                     <td>{statusBadge(p.status)}</td>
                     <td>
-                      <Link to={`/payouts/${p._id}`} className="btn btn-sm btn-outline-secondary">
-                        Ouvrir
+                      <Link to={`/payouts/${p._id}`} className="btn btn-sm btn-primary">
+                        <i className="fa-solid fa-arrow-right-to-bracket me-2" aria-hidden="true" />
+                        Détails
                       </Link>
                     </td>
                   </tr>

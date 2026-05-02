@@ -20,8 +20,8 @@ function nowStartOfDay(d) {
 
 function requirePositiveAmount(amount) {
   const n = Number(amount);
-  if (!Number.isFinite(n) || n <= 0) {
-    throw new HttpError(400, "Le montant doit être supérieur à 0.");
+  if (!Number.isFinite(n) || n < 100) {
+    throw new HttpError(400, "Le montant minimum est 100 TND.");
   }
   return Math.round(n * 100) / 100;
 }
@@ -122,17 +122,25 @@ async function handleMockWebhookPayload(payload) {
 
   const tx = await Transaction.findOne({ providerPaymentId });
   if (!tx) throw new HttpError(404, "Transaction introuvable.");
-  if (tx.status !== "PENDING") {
-    return { ok: true, idempotent: true };
-  }
 
   // En dev/PFE, MongoDB est souvent en standalone (sans transactions).
-  // Ici on exécute en “best effort” sans session, car le provider est mocké et la priorité est la robustesse locale.
+  // Ici on exécute “au mieux” sans session, car le provider est mocké et la priorité est la robustesse locale.
   const investment = await Investment.findById(tx.investmentId);
   if (!investment) throw new HttpError(404, "Investissement introuvable.");
 
   const project = await Project.findById(investment.projectId);
   if (!project) throw new HttpError(404, "Projet introuvable.");
+
+  if (tx.status !== "PENDING") {
+    return {
+      ok: true,
+      idempotent: true,
+      status: tx.status,
+      investmentId: investment._id,
+      projectId: project._id,
+      redirectTo: "/investments",
+    };
+  }
 
   if (normalized === "FAILED") {
     tx.status = "FAILED";
@@ -154,8 +162,16 @@ async function handleMockWebhookPayload(payload) {
       },
     ]);
 
-    await enqueueEmailForNotifications(notifs);
-    return { ok: true, idempotent: false };
+    // Ne pas bloquer la confirmation sur l’envoi d’e-mails (au mieux, asynchrone).
+    void enqueueEmailForNotifications(notifs).catch(() => {});
+    return {
+      ok: true,
+      idempotent: false,
+      status: "FAILED",
+      investmentId: investment._id,
+      projectId: project._id,
+      redirectTo: "/investments",
+    };
   }
 
   // Cas SUCCEEDED — détection atomique du sur-financement.
@@ -225,8 +241,17 @@ async function handleMockWebhookPayload(payload) {
       },
     ]);
 
-    await enqueueEmailForNotifications(notifs);
-    return { ok: true, idempotent: false, refunded };
+    // Ne pas bloquer la confirmation sur l’envoi d’e-mails (au mieux, asynchrone).
+    void enqueueEmailForNotifications(notifs).catch(() => {});
+    return {
+      ok: true,
+      idempotent: false,
+      status: refunded ? "REFUNDED" : "SUCCEEDED",
+      refunded,
+      investmentId: investment._id,
+      projectId: project._id,
+      redirectTo: "/investments",
+    };
   }
 
   // Cas nominal: paiement réussi.
@@ -285,8 +310,17 @@ async function handleMockWebhookPayload(payload) {
     ]);
   }
 
-  await enqueueEmailForNotifications(notifs);
-  return { ok: true, idempotent: false, refunded: false };
+  // Ne pas bloquer la confirmation sur l’envoi d’e-mails (au mieux, asynchrone).
+  void enqueueEmailForNotifications(notifs).catch(() => {});
+  return {
+    ok: true,
+    idempotent: false,
+    status: "SUCCEEDED",
+    refunded: false,
+    investmentId: investment._id,
+    projectId: project._id,
+    redirectTo: "/investments",
+  };
 }
 
 async function handleMockWebhook(req) {
@@ -353,7 +387,8 @@ async function cancelInvestment({ investorId, investmentId }) {
           relatedEntityType: "INVESTMENT",
         },
       ]);
-      await enqueueEmailForNotifications(notifs);
+      // Au mieux : ne pas bloquer sur l’envoi d’e-mails.
+      void enqueueEmailForNotifications(notifs).catch(() => {});
     } catch {
       // ignorer
     }
@@ -376,7 +411,7 @@ async function cancelInvestment({ investorId, investmentId }) {
 
     // Si le paiement était déjà confirmé au moment de la demande d’annulation,
     // l’annulation agit comme un remboursement (et doit mettre à jour les totaux).
-    // Note: on ne peut pas se fier à `freshInvestment.status` ici car on l’a déjà passé en CANCELLING.
+    // Remarque : on ne peut pas se fier à `freshInvestment.status` ici car on l’a déjà passé en CANCELLING.
     const wasSucceeded = Boolean(eligibleSuccess) && freshTx.status === "SUCCEEDED";
     if (wasSucceeded) {
       const refundResp = mockProvider.refundPayment({

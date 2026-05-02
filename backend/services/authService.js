@@ -20,7 +20,7 @@ const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
  * - Lien = fallback (si l’utilisateur préfère ou si le mail client bloque la saisie).
  * - Le lien est idempotent: si déjà utilisé (par lien ou par code), on renvoie un statut lisible
  *   plutôt qu’une erreur “mystère”.
- * - L’envoi d’e-mail est best-effort et asynchrone en dev/PFE pour rendre l’UI instantanée.
+ * - L’envoi d’e-mail est au mieux et asynchrone en dev/PFE pour rendre l’UI instantanée.
  */
 function getJwtSecrets() {
   const access = process.env.JWT_ACCESS_SECRET;
@@ -65,7 +65,7 @@ async function registerUser({ email, password, firstName, lastName, phone }) {
     );
   }
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-  const verifyPlain = randomUrlToken(24); // token de lien (solution de secours / fallback)
+  const verifyPlain = randomUrlToken(24); // token de lien (solution de secours)
   const verifyTokenHash = sha256Hex(verifyPlain);
   const verifyTokenExpiry = new Date(Date.now() + VERIFY_TOKEN_TTL_MS);
 
@@ -90,8 +90,8 @@ async function registerUser({ email, password, firstName, lastName, phone }) {
   const link = `${baseUrl}/verify-email?token=${verifyPlain}`;
 
   // Envoi asynchrone: l’inscription doit répondre instantanément côté UI.
-  // Best-effort (sans bloquer le parcours): les échecs sont gérés dans `trySendMailOrFallback`
-  // (fallback en dev / 502 en prod).
+  // Au mieux (sans bloquer le parcours): les échecs sont gérés dans `trySendMailOrFallback`
+  // (secours en dev / 502 en prod).
   void trySendMailOrFallback({
     mail: {
       to: user.email,
@@ -110,7 +110,7 @@ async function registerUser({ email, password, firstName, lastName, phone }) {
     devLinkLogLabel: "[auth] Dev verification link:",
     link,
   }).catch(() => {
-    // best-effort
+    // au mieux
   });
 
   return {
@@ -118,7 +118,7 @@ async function registerUser({ email, password, firstName, lastName, phone }) {
     email: user.email,
     // Ne jamais exposer de lien de vérification dans une réponse en production.
     devVerificationLink: process.env.NODE_ENV !== "production" ? link : undefined,
-    // Best-effort: l’email peut arriver un peu plus tard.
+    // Au mieux: l’email peut arriver un peu plus tard.
     emailSent: true,
     emailDevFallback: false,
   };
@@ -232,7 +232,7 @@ async function resendVerificationEmail(email) {
     devLinkLogLabel: "[auth] Dev verification link (resend):",
     link,
   }).catch(() => {
-    // best-effort
+    // au mieux
   });
 
   return { ok: true };

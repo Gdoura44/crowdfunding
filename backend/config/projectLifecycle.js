@@ -88,7 +88,11 @@ function isArchivableByCreator(status) {
 }
 
 function isPubliclyVisible(project) {
-  return project?.status === ProjectStatus.ACTIVE && !project?.isArchived;
+  // Les campagnes visibles publiquement incluent ACTIVE et FUNDED (toujours “en ligne” jusqu’à la clôture par cron).
+  return (
+    [ProjectStatus.ACTIVE, ProjectStatus.FUNDED].includes(project?.status) &&
+    !project?.isArchived
+  );
 }
 
 function canCreatorDeleteProject(project) {

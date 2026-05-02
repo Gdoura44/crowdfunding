@@ -9,6 +9,7 @@ import { useAuth } from "../hooks/useAuth.js";
 import { canCreatorDeleteProject } from "../utils/projectRules.js";
 import { extractApiError } from "../utils/apiError";
 import Guidance from "../components/ui/Guidance.jsx";
+import Alert from "../components/ui/Alert.jsx";
 
 export default function ProjectDetail() {
   const { id } = useParams();
@@ -55,7 +56,7 @@ export default function ProjectDetail() {
     setError("");
     if (location?.state?.flash) {
       setFlash(location.state.flash);
-      // Clear once (so back/forward doesn't re-show).
+      // Effacer une seule fois (pour que retour/avance ne ré-affiche pas le message).
       navigate(location.pathname, { replace: true, state: null });
     }
     (async () => {
@@ -74,10 +75,26 @@ export default function ProjectDetail() {
   }, [load, location?.state?.flash, location.pathname, navigate]);
 
   useEffect(() => {
+    if (!project) return;
+    const goal = Number(project.fundingGoal || 0);
+    const current = Number(project.currentFunding || 0);
+    const remaining = Math.max(goal - current, 0);
+    if (!Number.isFinite(remaining) || remaining <= 0) return;
+    setInvestAmount((prev) => {
+      const n = Number(prev);
+      const min = 100;
+      const fallback = Math.min(min, remaining);
+      if (!Number.isFinite(n) || n < min) return fallback;
+      return Math.min(n, remaining);
+    });
+  }, [project]);
+
+  useEffect(() => {
     let alive = true;
     setCommentErr("");
     setCommentOk("");
-    if (!project?._id || project.status !== "ACTIVE" || project.isArchived) {
+    const isPublicStatus = ["ACTIVE", "FUNDED"].includes(String(project?.status));
+    if (!project?._id || !isPublicStatus || project.isArchived) {
       setComments([]);
       return () => {
         alive = false;
@@ -125,7 +142,7 @@ export default function ProjectDetail() {
       try {
         await load();
       } catch {
-        // best-effort
+        // au mieux
       } finally {
         if (alive) {
           t = setTimeout(tick, 4000);
@@ -199,7 +216,7 @@ export default function ProjectDetail() {
 
   const isPublicActive =
     project.status === "ACTIVE" && !project.isArchived;
-  const showVisitorCta = !isOwner && isPublicActive;
+  const showVisitorCta = !isAuthenticated && !isOwner && isPublicActive;
   const canEdit =
     isOwner && ["DRAFT", "UNDER_REVIEW", "REJECTED"].includes(project.status);
   const canArchive =
@@ -390,37 +407,37 @@ export default function ProjectDetail() {
       )}
 
       {showContributionInfo && (
-        <div className="alert alert-secondary border-0 small mb-3">
+        <Alert variant="secondary" className="mb-3">
           <div className="fw-semibold mb-1">
             <i className="fa-solid fa-circle-info me-2" aria-hidden="true" />
             Information importante
           </div>
-          <div>
+          <div className="mb-0">
             Sur FinCollab, vous <strong>contribuez</strong> à une campagne (don / soutien).{" "}
             <strong>Ce n’est pas un placement financier</strong> et aucun rendement n’est garanti.
             En cas d’annulation dans la fenêtre prévue (si applicable), de sur‑financement ou de projet expiré,
             un remboursement peut être déclenché selon les règles de la plateforme.
           </div>
-        </div>
+        </Alert>
       )}
 
       {isOwner && (
-        <div className="alert alert-primary border-0 py-2 small mb-3">
+        <Alert variant="info" className="mb-3">
           Vous êtes le <strong>créateur</strong> de ce projet.
-        </div>
+        </Alert>
       )}
 
       <div className="card border-0 fc-surface-card mb-4">
         <div className="card-body p-4 p-md-5">
           {flash?.type === "success" && (
-            <div className="alert alert-success py-2 small mb-3">
+            <Alert variant="success" className="mb-3">
               {flash.message}
-            </div>
+            </Alert>
           )}
           {flash?.type === "error" && (
-            <div className="alert alert-danger py-2 small mb-3">
+            <Alert variant="danger" className="mb-3">
               {flash.message}
-            </div>
+            </Alert>
           )}
           <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
             <h1 className="h3 mb-0 fw-bold text-dark">{project.title}</h1>
@@ -471,27 +488,27 @@ export default function ProjectDetail() {
                       </div>
 
                       {!isAuthenticated && (
-                        <div className="alert alert-info py-2 small">
+                        <Alert variant="info">
                           Connectez-vous pour utiliser le chatbot.
                           <div className="mt-2">
                             <Link to="/login" state={{ from: location }} className="btn btn-sm btn-fc-primary text-white">
                               Connexion
                             </Link>
                           </div>
-                        </div>
+                        </Alert>
                       )}
 
-                      {chatErr && <div className="alert alert-danger py-2 small">{chatErr}</div>}
+                      {chatErr && <Alert variant="danger">{chatErr}</Alert>}
                       {chatMode === "fallback" && (
-                        <div className="alert alert-info py-2 small">
+                        <Alert variant="info">
                           Réponse simplifiée (service IA momentanément limité). Vous pouvez réessayer plus tard pour une réponse plus détaillée.
-                        </div>
+                        </Alert>
                       )}
                       {chatA && (
-                        <div className="alert alert-secondary py-2 small">
+                        <Alert variant="secondary">
                           <div className="fw-semibold mb-1">Réponse</div>
                           <div style={{ whiteSpace: "pre-wrap" }}>{chatA}</div>
-                        </div>
+                        </Alert>
                       )}
 
                       <div className="d-flex flex-column flex-md-row gap-2">
@@ -661,14 +678,14 @@ export default function ProjectDetail() {
                     </div>
 
                     {reportOk && (
-                      <div className="alert alert-success py-2 small mb-3">
+                      <Alert variant="success" className="mb-3">
                         {reportOk}
-                      </div>
+                      </Alert>
                     )}
                     {reportErr && (
-                      <div className="alert alert-danger py-2 small mb-3">
+                      <Alert variant="danger" className="mb-3">
                         {reportErr}
-                      </div>
+                      </Alert>
                     )}
 
                     <div className="row g-2">
@@ -812,14 +829,14 @@ export default function ProjectDetail() {
           {(submitMsg || submitErr) && (
             <div className="mt-3">
               {submitMsg && (
-                <div className="alert alert-success py-2 small mb-2">
+                <Alert variant="success" className="mb-2">
                   {submitMsg}
-                </div>
+                </Alert>
               )}
               {submitErr && (
-                <div className="alert alert-danger py-2 small mb-0">
+                <Alert variant="danger" className="mb-0">
                   {submitErr}
-                </div>
+                </Alert>
               )}
             </div>
           )}
@@ -840,28 +857,94 @@ export default function ProjectDetail() {
             <div className="row g-2 align-items-end">
               <div className="col-sm-5">
                 <label className="form-label small text-muted mb-1">Montant (TND)</label>
-                <input
-                  type="number"
-                  min="1"
-                  step="10"
-                  className="form-control"
-                  value={investAmount}
-                  onChange={(e) => setInvestAmount(e.target.value)}
-                />
-                <div className="form-text">Astuce : utilisez un pas de 10 TND, ou saisissez directement.</div>
+                {(() => {
+                  const goal = Number(project?.fundingGoal || 0);
+                  const current = Number(project?.currentFunding || 0);
+                  const min = 100;
+                  const remaining = Math.max(goal - current, 0);
+                  const max = Math.max(remaining, 0);
+                  const step = 100;
+                  const safeValue = Math.min(Math.max(Number(investAmount || 0), min), Math.max(max, min));
+                  const bump = (delta) =>
+                    setInvestAmount((v) => {
+                      const n = Number(v);
+                      const base = Number.isFinite(n) ? n : 0;
+                      return Math.min(Math.max(base + delta, min), Math.max(max, min));
+                    });
+                  const tooLowRemaining = Number.isFinite(remaining) && remaining > 0 && remaining < min;
+
+                  return (
+                    <>
+                      <div className="input-group">
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => bump(-step)}
+                          aria-label="Diminuer le montant"
+                          disabled={tooLowRemaining}
+                        >
+                          −{step}
+                        </button>
+                        <input
+                          type="number"
+                          min={min}
+                          max={Math.max(max, min)}
+                          step={step}
+                          className="form-control no-spin"
+                          value={safeValue}
+                          onChange={(e) => setInvestAmount(Number(e.target.value))}
+                          disabled={tooLowRemaining}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => bump(step)}
+                          aria-label="Augmenter le montant"
+                          disabled={tooLowRemaining}
+                        >
+                          +{step}
+                        </button>
+                      </div>
+                      <input
+                        type="range"
+                        className="form-range mt-2"
+                        min={min}
+                        max={Math.max(max, min)}
+                        step={step}
+                        value={safeValue}
+                        onChange={(e) => setInvestAmount(Number(e.target.value))}
+                        disabled={tooLowRemaining}
+                      />
+                      <div className="form-text">
+                        {tooLowRemaining
+                          ? `Montant restant trop faible pour investir (reste ${remaining} TND, minimum ${min} TND).`
+                          : `Astuce : ajustez par paliers (±${step}) ou au clavier. Maximum possible : ${max} TND.`}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
-              <div className="col-sm-7 d-flex gap-2">
+              <div className="col-sm-7 d-flex justify-content-end align-items-end">
                 <button
                   type="button"
                   className="btn btn-fc-primary text-white"
-                  disabled={investing}
+                  disabled={(() => {
+                    const goal = Number(project?.fundingGoal || 0);
+                    const current = Number(project?.currentFunding || 0);
+                    const remaining = Math.max(goal - current, 0);
+                    return investing || (Number.isFinite(remaining) && remaining > 0 && remaining < 100);
+                  })()}
                   onClick={async () => {
                     setInvesting(true);
                     setInvestErr("");
                     try {
+                      const amt = Number(investAmount);
+                      if (!Number.isFinite(amt) || amt < 100) {
+                        throw new Error("Montant invalide.");
+                      }
                       const { data } = await investmentsApi.create({
                         projectId: project._id,
-                        amount: investAmount,
+                        amount: amt,
                       });
                       navigate(data.paymentUrl);
                     } catch (err) {
@@ -888,13 +971,13 @@ export default function ProjectDetail() {
                     </>
                   )}
                 </button>
-                <Link to="/notifications" className="btn btn-outline-secondary">
-                  <i className="fa-regular fa-bell me-2" aria-hidden="true" />
-                  Mes notifications
-                </Link>
               </div>
             </div>
-            {investErr && <div className="alert alert-danger py-2 mt-3 mb-0">{investErr}</div>}
+            {investErr && (
+              <Alert variant="danger" className="mt-3 mb-0">
+                {investErr}
+              </Alert>
+            )}
           </div>
         </div>
       )}
@@ -910,8 +993,8 @@ export default function ProjectDetail() {
               Partagez un avis utile et respectueux. Pas d’informations sensibles (téléphone, IBAN, etc.).
             </Guidance>
 
-            {commentErr && <div className="alert alert-warning py-2 small">{commentErr}</div>}
-            {commentOk && <div className="alert alert-success py-2 small">{commentOk}</div>}
+            {commentErr && <Alert variant="warning">{commentErr}</Alert>}
+            {commentOk && <Alert variant="success">{commentOk}</Alert>}
 
             {isAuthenticated && user?.role !== "ADMIN" ? (
               <form
@@ -980,22 +1063,32 @@ export default function ProjectDetail() {
                             type="button"
                             className="btn btn-sm btn-outline-danger"
                             onClick={async () => {
-                              const ok = window.confirm("Supprimer votre commentaire ? Cette action est définitive.");
-                              if (!ok) return;
-                              setCommentBusy(true);
-                              setCommentErr("");
-                              setCommentOk("");
-                              try {
-                                await projectsApi.deleteComment(project._id, c._id);
-                                setCommentOk("Commentaire supprimé.");
-                                const { data: listData } = await projectsApi.listComments(project._id);
-                                setComments(listData.comments || []);
-                              } catch (e2) {
-                                const out = extractApiError(e2, "Suppression impossible.");
-                                setCommentErr(out.message);
-                              } finally {
-                                setCommentBusy(false);
-                              }
+                              confirmAlert({
+                                title: "Supprimer votre commentaire ?",
+                                message: "Cette action est définitive.",
+                                buttons: [
+                                  { label: "Annuler", onClick: () => {} },
+                                  {
+                                    label: "Supprimer",
+                                    onClick: async () => {
+                                      setCommentBusy(true);
+                                      setCommentErr("");
+                                      setCommentOk("");
+                                      try {
+                                        await projectsApi.deleteComment(project._id, c._id);
+                                        setCommentOk("Commentaire supprimé.");
+                                        const { data: listData } = await projectsApi.listComments(project._id);
+                                        setComments(listData.comments || []);
+                                      } catch (e2) {
+                                        const out = extractApiError(e2, "Suppression impossible.");
+                                        setCommentErr(out.message);
+                                      } finally {
+                                        setCommentBusy(false);
+                                      }
+                                    },
+                                  },
+                                ],
+                              });
                             }}
                             disabled={commentBusy}
                           >
@@ -1008,25 +1101,82 @@ export default function ProjectDetail() {
                             className="btn btn-sm btn-outline-secondary"
                             disabled={commentBusy}
                             onClick={async () => {
-                              const reason = window.prompt("Pourquoi signalez-vous ce commentaire ? (obligatoire)", "");
-                              if (!reason || !String(reason).trim()) return;
-                              setCommentBusy(true);
-                              setCommentErr("");
-                              setCommentOk("");
-                              try {
-                                const { data } = await reportsApi.createComment({
-                                  projectId: project._id,
-                                  commentId: c._id,
-                                  type: "INAPPROPRIATE_CONTENT",
-                                  description: String(reason).trim(),
-                                });
-                                setCommentOk(data.message || "Signalement envoyé.");
-                              } catch (e2) {
-                                const out = extractApiError(e2, "Signalement impossible.");
-                                setCommentErr(out.message);
-                              } finally {
-                                setCommentBusy(false);
-                              }
+                              confirmAlert({
+                                title: "Signaler ce commentaire",
+                                message: "Indiquez brièvement la raison (obligatoire).",
+                                customUI: ({ onClose }) => {
+                                  let reason = "";
+                                  return (
+                                    <div className="card border-0 shadow" style={{ width: "min(560px, 92vw)" }}>
+                                      <div className="card-body">
+                                        <div className="d-flex justify-content-between align-items-start gap-3">
+                                          <div>
+                                            <div className="h5 mb-1">Signaler ce commentaire</div>
+                                            <div className="text-muted small">
+                                              Un administrateur vérifiera le contenu signalé.
+                                            </div>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            className="btn btn-sm btn-outline-secondary"
+                                            onClick={onClose}
+                                          >
+                                            Fermer
+                                          </button>
+                                        </div>
+
+                                        <div className="mt-3">
+                                          <label className="form-label small text-muted mb-1">
+                                            Raison (obligatoire)
+                                          </label>
+                                          <textarea
+                                            className="form-control"
+                                            rows={3}
+                                            placeholder="Ex: insultes / contenu haineux / spam…"
+                                            onChange={(e) => {
+                                              reason = e.target.value;
+                                            }}
+                                          />
+                                        </div>
+
+                                        <div className="d-flex justify-content-end gap-2 mt-3">
+                                          <button type="button" className="btn btn-outline-secondary" onClick={onClose}>
+                                            Annuler
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="btn btn-warning"
+                                            onClick={async () => {
+                                              const r = String(reason || "").trim();
+                                              if (!r) return;
+                                              onClose();
+                                              setCommentBusy(true);
+                                              setCommentErr("");
+                                              setCommentOk("");
+                                              try {
+                                                const { data } = await reportsApi.createComment({
+                                                  projectId: project._id,
+                                                  commentId: c._id,
+                                                  type: "INAPPROPRIATE_CONTENT",
+                                                  description: r,
+                                                });
+                                                setCommentOk(data.message || "Signalement envoyé.");
+                                              } catch (e2) {
+                                                const out = extractApiError(e2, "Signalement impossible.");
+                                                setCommentErr(out.message);
+                                              } finally {
+                                                setCommentBusy(false);
+                                              }
+                                            }}
+                                          >
+                                            Envoyer
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                },
+                              });
                             }}
                           >
                             Signaler
@@ -1043,7 +1193,7 @@ export default function ProjectDetail() {
       )}
 
       {analysisInProgress && (
-        <div className="alert alert-info border-0 shadow-sm mb-4">
+        <Alert variant="info" className="shadow-sm mb-4">
           <div className="fw-semibold mb-1">
             {likelyQuotaWait ? "Analyse en attente (quota IA)" : "Analyse en cours"}
           </div>
@@ -1076,11 +1226,11 @@ export default function ProjectDetail() {
               Mise à jour automatique en cours…
             </div>
           )}
-        </div>
+        </Alert>
       )}
 
       {analysisFailed && (
-        <div className="alert alert-warning border-0 shadow-sm mb-4">
+        <Alert variant="warning" className="shadow-sm mb-4">
           <div className="fw-semibold mb-1">Analyse indisponible</div>
           <div className="small">
             L’analyse automatique n’a pas pu être finalisée après plusieurs
@@ -1088,7 +1238,7 @@ export default function ProjectDetail() {
             un administrateur. Aucune action n’est requise de votre part pour le
             moment.
           </div>
-        </div>
+        </Alert>
       )}
 
       {isOwner && project.status === "REJECTED" && !project.isArchived && (
@@ -1115,12 +1265,8 @@ export default function ProjectDetail() {
               Après soumission, votre projet passe en <strong>analyse IA</strong>, puis en revue par l’administration
               avant publication. Vous pourrez suivre l’état directement ici.
             </Guidance>
-            {submitMsg && (
-              <div className="alert alert-success py-2 small">{submitMsg}</div>
-            )}
-            {submitErr && (
-              <div className="alert alert-danger py-2 small">{submitErr}</div>
-            )}
+            {submitMsg && <Alert variant="success">{submitMsg}</Alert>}
+            {submitErr && <Alert variant="danger">{submitErr}</Alert>}
             <button
               type="button"
               className="btn btn-fc-primary text-white"

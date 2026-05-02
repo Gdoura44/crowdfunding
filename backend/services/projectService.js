@@ -168,7 +168,7 @@ async function updateProject(creatorId, projectId, changes) {
   // ramène le projet à l’état AWAITING_AI pour éviter une décision admin sur des données obsolètes.
   if (project.status === ProjectStatus.UNDER_REVIEW && affectsAnalysis) {
     // Intention: dès que le créateur modifie un champ impactant, l’ancienne analyse n’est plus fiable.
-    // On relance donc automatiquement l’analyse IA (best-effort, sans bloquer l’utilisateur).
+    // On relance donc automatiquement l’analyse IA (au mieux, sans bloquer l’utilisateur).
     transitionProjectStatus(project, ProjectStatus.AWAITING_AI, { action: "EDIT_PROJECT_RERUN_AI" });
     project.aiStatus = AIStatus.PENDING;
     project.aiAnalysisRetries = 0;
@@ -225,13 +225,12 @@ async function getProjectById(projectId, userId) {
 }
 
 function buildPublicProjectQuery({ status, category, riskLevel, minFunding, maxFunding, q, includeUpcoming }) {
-  const safeStatus = ["ACTIVE", "CLOSED"].includes(String(status || "").toUpperCase())
+  const safeStatus = ["ACTIVE", "FUNDED", "CLOSED"].includes(String(status || "").toUpperCase())
     ? String(status).toUpperCase()
     : "ACTIVE";
-  const query = {
-    status: safeStatus,
-    isArchived: false,
-  };
+  const query = { isArchived: false };
+  // La navigation "ACTIVE" inclut aussi les campagnes FUNDED (toujours visibles publiquement).
+  query.status = safeStatus === "ACTIVE" ? { $in: [ProjectStatus.ACTIVE, ProjectStatus.FUNDED] } : safeStatus;
   if (!includeUpcoming) {
     query.startAt = { $lte: new Date() };
   }
@@ -253,17 +252,30 @@ function buildPublicProjectQuery({ status, category, riskLevel, minFunding, maxF
   return query;
 }
 
-async function listPublicProjects({ limit = 20 } = {}) {
+async function listPublicProjects({ limit = 20, page = 1 } = {}) {
   const n = Number(limit);
   const safeLimit = Number.isFinite(n) ? Math.min(Math.max(n, 1), 50) : 20;
-  return Project.find({
-    status: ProjectStatus.ACTIVE,
+  const p = Number(page);
+  const safePage = Number.isFinite(p) ? Math.max(Math.floor(p), 1) : 1;
+  const skip = (safePage - 1) * safeLimit;
+
+  const query = {
+    status: { $in: [ProjectStatus.ACTIVE, ProjectStatus.FUNDED] },
     isArchived: false,
     startAt: { $lte: new Date() },
-  })
-    .sort({ publishedAt: -1, createdAt: -1 })
-    .limit(safeLimit)
-    .lean();
+  };
+
+  const [projects, total] = await Promise.all([
+    Project.find(query)
+      .sort({ publishedAt: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(safeLimit)
+      .lean(),
+    Project.countDocuments(query),
+  ]);
+
+  const totalPages = Math.max(Math.ceil(total / safeLimit), 1);
+  return { projects, page: safePage, limit: safeLimit, total, totalPages };
 }
 
 async function searchPublicProjects(params = {}) {
@@ -272,6 +284,9 @@ async function searchPublicProjects(params = {}) {
   const maxFunding = params.maxFunding != null ? Number(params.maxFunding) : null;
   const limit = Number(params.limit ?? 20);
   const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 50) : 20;
+  const p = Number(params.page ?? 1);
+  const safePage = Number.isFinite(p) ? Math.max(Math.floor(p), 1) : 1;
+  const skip = (safePage - 1) * safeLimit;
   const includeUpcoming =
     String(params.includeUpcoming || "").trim().toLowerCase() === "true";
 
@@ -285,13 +300,21 @@ async function searchPublicProjects(params = {}) {
     includeUpcoming,
   });
 
-  const sort =
-    mongoQuery.$text ? { score: { $meta: "textScore" }, createdAt: -1 } : { createdAt: -1 };
+  const sort = mongoQuery.$text
+    ? { score: { $meta: "textScore" }, publishedAt: -1, createdAt: -1 }
+    : { publishedAt: -1, createdAt: -1 };
 
-  return Project.find(mongoQuery, mongoQuery.$text ? { score: { $meta: "textScore" } } : undefined)
-    .sort(sort)
-    .limit(safeLimit)
-    .lean();
+  const [projects, total] = await Promise.all([
+    Project.find(mongoQuery, mongoQuery.$text ? { score: { $meta: "textScore" } } : undefined)
+      .sort(sort)
+      .skip(skip)
+      .limit(safeLimit)
+      .lean(),
+    Project.countDocuments(mongoQuery.$text ? { ...mongoQuery, $text: mongoQuery.$text } : mongoQuery),
+  ]);
+
+  const totalPages = Math.max(Math.ceil(total / safeLimit), 1);
+  return { projects, page: safePage, limit: safeLimit, total, totalPages };
 }
 
 /**

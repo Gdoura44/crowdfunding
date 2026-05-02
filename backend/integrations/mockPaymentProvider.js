@@ -9,6 +9,7 @@ function signPayload(rawBody) {
   return crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
 }
 
+/** Génère l’URL de la page SPA de paiement simulé (doit rester alignée avec la route front `/mock-checkout`). */
 function createPaymentLink({ amount, currency = "TND", referenceId }) {
   const providerPaymentId = `mock_${crypto.randomUUID()}`;
   const paymentUrl = `/mock-checkout?paymentId=${encodeURIComponent(

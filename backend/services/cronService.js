@@ -82,7 +82,7 @@ async function expireProjects({ now = new Date(), limit = 50 } = {}) {
       });
     }
 
-    // Fail pending initiated investments.
+    // Marquer en échec les investissements INITIATED encore en attente (paiement non confirmé).
     const pendings = await Investment.find({ projectId: p._id, status: "INITIATED" }).lean();
     for (const inv of pendings) {
       await Investment.updateOne({ _id: inv._id, status: "INITIATED" }, { $set: { status: "FAILED" } });
@@ -103,7 +103,7 @@ async function expireProjects({ now = new Date(), limit = 50 } = {}) {
       });
     }
 
-    // Rembourser les investissements SUCCESS (best-effort, créer FailedRefundEvent en cas d’échec).
+    // Rembourser les investissements SUCCESS (au mieux, créer FailedRefundEvent en cas d’échec).
     const successes = await Investment.find({ projectId: p._id, status: "SUCCESS" }).lean();
     for (const inv of successes) {
       const tx = await Transaction.findOne({ investmentId: inv._id }).sort({ attemptNumber: -1 }).lean();
@@ -162,7 +162,7 @@ async function expireProjects({ now = new Date(), limit = 50 } = {}) {
       }
     }
 
-    // Alert admins if there are failed refunds.
+    // Alerter les admins si des remboursements ont échoué.
     const failed = await FailedRefundEvent.findOne({ projectId: p._id, resolved: false }).lean();
     if (failed && admins.length) {
       await Notification.insertMany(
@@ -223,7 +223,6 @@ async function closeFundedProjects({ now = new Date(), limit = 50 } = {}) {
 
     let canClose = true;
     for (const inv of successInvestments) {
-      // eslint-disable-next-line no-await-in-loop
       const tx = await Transaction.findOne({ investmentId: inv._id })
         .sort({ attemptNumber: -1 })
         .select("createdAt refundStatus status")
@@ -378,7 +377,6 @@ async function cleanupStuckStates({ now = new Date(), limit = 200 } = {}) {
 
   const summary = { scanned: stuck.length, flagged: 0 };
   for (const inv of stuck) {
-    // eslint-disable-next-line no-await-in-loop
     const ev = await FailedCancellationEvent.create({
       investmentId: inv._id,
       error: "Investment stuck in CANCELLING state",
@@ -390,14 +388,12 @@ async function cleanupStuckStates({ now = new Date(), limit = 200 } = {}) {
 
     summary.flagged += 1;
 
-    // eslint-disable-next-line no-await-in-loop
     await Investment.updateOne(
       { _id: inv._id, status: "CANCELLING" },
       { $set: { status: "FAILED" } }
     );
 
     if (admins.length) {
-      // eslint-disable-next-line no-await-in-loop
       await Notification.insertMany(
         admins.map((adminId) => ({
           userId: adminId,
@@ -425,7 +421,7 @@ async function cleanupStuckStates({ now = new Date(), limit = 200 } = {}) {
  * Stratégie:
  * - Cibler AWAITING_AI avec aiStatus=PENDING/FAILED et aiQueuedAt plus ancien que le cutoff.
  * - Ne relancer que si aiNextRetryAt est atteinte (backoff) pour éviter le spam quota.
- * - Ré-enfiler le job risk-analysis (best-effort) et rafraîchir aiQueuedAt/aiJobId.
+ * - Ré-enfiler le job risk-analysis (au mieux) et rafraîchir aiQueuedAt/aiJobId.
  * - Garder une limite conservatrice pour éviter les bursts.
  */
 async function retryStuckAiAnalyses({
@@ -434,7 +430,7 @@ async function retryStuckAiAnalyses({
   limit = 30,
 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 200);
-  // Allow 0 for manual/debug triggers (requeue immediately).
+  // Autoriser 0 pour les déclenchements manuels/debug (ré-enfiler immédiatement).
   const mins = Math.max(Number(olderThanMinutes) || 20, 0);
   const cutoff = new Date(now.getTime() - mins * 60 * 1000);
 
@@ -461,11 +457,9 @@ async function retryStuckAiAnalyses({
       project.aiNextRetryAt = null;
       await project.save();
 
-      // eslint-disable-next-line no-await-in-loop
       const enq = await enqueueRiskAnalysisJob(project);
       if (enq && enq.queued && enq.jobId) {
         project.aiJobId = String(enq.jobId);
-        // eslint-disable-next-line no-await-in-loop
         await project.save();
       }
       summary.requeued += 1;

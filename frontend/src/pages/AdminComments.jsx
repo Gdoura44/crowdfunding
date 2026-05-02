@@ -4,6 +4,8 @@ import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import { adminApi } from "../api/admin.js";
 import { extractApiError } from "../utils/apiError.js";
+import Alert from "../components/ui/Alert.jsx";
+import { confirmAlert } from "react-confirm-alert";
 
 export default function AdminComments() {
   const [projectId, setProjectId] = useState("");
@@ -87,7 +89,7 @@ export default function AdminComments() {
         </div>
       </div>
 
-      {error && <div className="alert alert-danger py-2">{error}</div>}
+      {error && <Alert variant="danger">{error}</Alert>}
       {loading && <PageLoader label="Chargement…" />}
 
       {!loading && !error && items.length === 0 && (
@@ -115,11 +117,17 @@ export default function AdminComments() {
                 {items.map((c) => (
                   <tr key={c._id}>
                     <td className="text-muted small text-truncate" style={{ maxWidth: "10rem" }}>
-                      {String(c.projectId || "—")}
+                      {c.projectId && typeof c.projectId === "object"
+                        ? (c.projectId.title || String(c.projectId._id || "—"))
+                        : String(c.projectId || "—")}
                     </td>
                     <td className="small">
                       <div className="fw-semibold text-truncate" style={{ maxWidth: "12rem" }}>
-                        {c.authorLabel || "Utilisateur"}
+                        {c.userId && typeof c.userId === "object"
+                          ? [c.userId.profile?.firstName, c.userId.profile?.lastName].filter(Boolean).join(" ") ||
+                            c.authorLabel ||
+                            String(c.userId.email || "Utilisateur")
+                          : c.authorLabel || "Utilisateur"}
                       </div>
                       <div className="text-muted">{c.createdAt ? new Date(c.createdAt).toLocaleString() : "—"}</div>
                     </td>
@@ -147,17 +155,67 @@ export default function AdminComments() {
                           className="btn btn-sm btn-outline-danger"
                           disabled={busyId === c._id}
                           onClick={async () => {
-                            const reason = window.prompt("Raison du masquage (optionnel) :", "");
-                            setBusyId(c._id);
-                            try {
-                              await adminApi.hideComment(c._id, { reason: reason || "" });
-                              await load();
-                            } catch (e) {
-                              const out = extractApiError(e, "Action impossible.");
-                              setError(out.message);
-                            } finally {
-                              setBusyId(null);
-                            }
+                            confirmAlert({
+                              title: "Masquer le commentaire ?",
+                              message:
+                                "Le commentaire sera retiré de l’espace public. Vous pouvez indiquer une raison (optionnel).",
+                              customUI: ({ onClose }) => {
+                                let reason = "";
+                                return (
+                                  <div className="card border-0 shadow" style={{ width: "min(560px, 92vw)" }}>
+                                    <div className="card-body">
+                                      <div className="d-flex justify-content-between align-items-start gap-3">
+                                        <div>
+                                          <div className="h5 mb-1">Masquer le commentaire</div>
+                                          <div className="text-muted small">
+                                            Le commentaire ne sera plus visible publiquement.
+                                          </div>
+                                        </div>
+                                        <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onClose}>
+                                          Fermer
+                                        </button>
+                                      </div>
+                                      <div className="mt-3">
+                                        <label className="form-label small text-muted mb-1">
+                                          Raison (optionnel)
+                                        </label>
+                                        <input
+                                          className="form-control"
+                                          placeholder="Ex: langage inapproprié"
+                                          onChange={(e) => {
+                                            reason = e.target.value;
+                                          }}
+                                        />
+                                      </div>
+                                      <div className="d-flex justify-content-end gap-2 mt-3">
+                                        <button type="button" className="btn btn-outline-secondary" onClick={onClose}>
+                                          Annuler
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn btn-danger"
+                                          onClick={async () => {
+                                            onClose();
+                                            setBusyId(c._id);
+                                            try {
+                                              await adminApi.hideComment(c._id, { reason: reason || "" });
+                                              await load();
+                                            } catch (e) {
+                                              const out = extractApiError(e, "Action impossible.");
+                                              setError(out.message);
+                                            } finally {
+                                              setBusyId(null);
+                                            }
+                                          }}
+                                        >
+                                          Masquer
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              },
+                            });
                           }}
                         >
                           Masquer

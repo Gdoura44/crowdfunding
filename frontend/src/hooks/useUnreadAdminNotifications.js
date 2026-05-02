@@ -28,7 +28,7 @@ export function useUnreadAdminNotifications({
         const list = data.notifications || [];
         if (alive) setUnread(list.length);
       } catch {
-        // best-effort
+        // au mieux
       } finally {
         if (alive) t = setTimeout(tick, opts.pollMs);
       }

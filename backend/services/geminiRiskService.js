@@ -59,7 +59,7 @@ async function callGeminiJson({ prompt }) {
     // le taux de succès sans attendre des minutes.
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        // Progressive timeout: 45s -> 70s -> 90s
+        // Timeout progressif : 45s → 70s → 90s
         const timeoutMs = attempt === 1 ? 45_000 : attempt === 2 ? 70_000 : 90_000;
         resp = await axios.post(`${url}?key=${encodeURIComponent(apiKey)}`, body, {
           timeout: timeoutMs,
@@ -74,15 +74,14 @@ async function callGeminiJson({ prompt }) {
           err?.code === "ECONNABORTED" || /timeout/i.test(String(err?.message || ""));
         const transient = isTimeout || [429, 502, 503, 504].includes(Number(status));
 
-        // On ne change de modèle (fallback) que pour les erreurs “model not found” (404).
+        // On ne change de modèle (secours) que pour les erreurs “model not found” (404).
         if (status === 404) {
           break;
         }
         if (!transient || attempt === 3) {
           throw err;
         }
-        // Petit backoff (quasi exponentiel): 1.5s, 4s
-        // eslint-disable-next-line no-await-in-loop
+        // Petit backoff (quasi exponentiel) : 1.5s, 4s
         await sleep(attempt === 1 ? 1500 : 4000);
       }
     }
@@ -113,7 +112,7 @@ function requireArrayOfStrings(v, { max = 10 } = {}) {
     .slice(0, max);
 }
 
-async function analyzeProjectRisk(payload, { sources = [] } = {}) {
+async function analyzeProjectRisk(payload, { sources: _sources = [] } = {}) {
   const heuristic = payload?.heuristic || null;
   const heuristicText = heuristic
     ? [

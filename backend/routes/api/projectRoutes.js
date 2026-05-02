@@ -129,18 +129,19 @@ router.get(
 router.get(
   "/public",
   asyncHandler(async (req, res) => {
-    const projects = await projectService.listPublicProjects({
+    const out = await projectService.listPublicProjects({
       limit: req.query.limit,
+      page: req.query.page,
     });
-    res.json({ projects });
+    res.json(out);
   })
 );
 
 router.get(
   "/search",
   asyncHandler(async (req, res) => {
-    const projects = await projectService.searchPublicProjects(req.query);
-    res.json({ projects });
+    const out = await projectService.searchPublicProjects(req.query);
+    res.json(out);
   })
 );
 
@@ -189,7 +190,8 @@ router.get(
     }
     const userId = req.user?.id || null;
     const { project, isOwner } = await projectService.getProjectById(req.params.id, userId);
-    if (!isOwner && (project.status !== "ACTIVE" || project.isArchived)) {
+    const isPublicStatus = ["ACTIVE", "FUNDED"].includes(String(project.status));
+    if (!isOwner && (!isPublicStatus || project.isArchived)) {
       throw new HttpError(404, "Projet introuvable.");
     }
 
@@ -219,7 +221,8 @@ router.post(
     if (isOwner) {
       throw new HttpError(400, "Vous ne pouvez pas commenter votre propre projet.");
     }
-    if (project.status !== "ACTIVE" || project.isArchived) {
+    const isPublicStatus = ["ACTIVE", "FUNDED"].includes(String(project.status));
+    if (!isPublicStatus || project.isArchived) {
       throw new HttpError(409, "Commentaires indisponibles : la campagne n’est pas publique.");
     }
 

@@ -7,6 +7,7 @@ import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import { useAuth } from "../hooks/useAuth.js";
 import { extractApiError } from "../utils/apiError";
+import Alert from "../components/ui/Alert.jsx";
 
 function badge(status) {
   const map = {
@@ -34,10 +35,14 @@ function cancellationInfo(inv) {
     const deadlineMs = new Date(tx.createdAt).getTime() + graceMin * 60 * 1000;
     const leftMs = deadlineMs - Date.now();
     if (leftMs <= 0) return { canCancel: false };
-    const leftMin = Math.max(1, Math.ceil(leftMs / (60 * 1000)));
+    const totalSeconds = Math.max(1, Math.ceil(leftMs / 1000));
+    const mm = Math.floor(totalSeconds / 60);
+    const ss = totalSeconds % 60;
+    const mmStr = String(mm).padStart(2, "0");
+    const ssStr = String(ss).padStart(2, "0");
     return {
       canCancel: true,
-      label: `Annuler (reste ~${leftMin} min)`,
+      label: `Annuler (reste ${mmStr}:${ssStr})`,
       policy: `Annulation possible pendant ${graceMin} minutes après le paiement.`,
     };
   }
@@ -51,6 +56,12 @@ export default function MyInvestments() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setTick((x) => (x + 1) % 1000000), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   async function refresh() {
     setLoading(true);
@@ -100,11 +111,11 @@ export default function MyInvestments() {
       />
 
       {user?.role === "ADMIN" && (
-        <div className="alert alert-info py-2">
+        <Alert variant="info">
           Les comptes administrateur n’ont pas d’espace investisseur.
-        </div>
+        </Alert>
       )}
-      {error && <div className="alert alert-danger py-2">{error}</div>}
+      {error && <Alert variant="danger">{error}</Alert>}
       {loading && <PageLoader label="Chargement…" />}
 
       {!loading && !error && items.length === 0 && (
@@ -161,7 +172,7 @@ export default function MyInvestments() {
                               setError("");
                               try {
                                 const { data } = await investmentsApi.retry(inv._id);
-                                // If backend returns paymentUrl, redirect to mock checkout.
+                                // Si le backend renvoie paymentUrl, rediriger vers le checkout mocké.
                                 if (data?.paymentUrl) {
                                   window.location.assign(data.paymentUrl);
                                   return;
@@ -180,6 +191,8 @@ export default function MyInvestments() {
                         )}
 
                         {(() => {
+                          // Forcer le recalcul du délai d’annulation (mm:ss) en temps réel.
+                          void tick;
                           const info = cancellationInfo(inv);
                           if (!info.canCancel) return null;
                           return (

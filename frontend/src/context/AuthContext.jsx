@@ -44,7 +44,7 @@ export function AuthProvider({ children }) {
     try {
       await authApi.logout();
     } catch {
-      /* session may already be invalid */
+      /* La session peut déjà être invalide. */
     }
     setUser(null);
     navigate("/", { replace: true });
@@ -66,4 +66,4 @@ export function AuthProvider({ children }) {
   );
 }
 
-// useAuth moved to `src/hooks/useAuth.js` (react-refresh lint rule).
+// useAuth est exporté depuis `src/hooks/useAuth.js` (même contrainte ESLint react-refresh).

@@ -9,7 +9,7 @@ function navClass({ isActive }) {
     .join(" ");
 }
 
-// Layout global: navbar + routage. Affiche un badge +N sur “Notifications” (user/admin) en temps réel.
+// Layout global : navbar + routage. Affiche un badge +N sur “Notifications” (user/admin) en temps réel.
 export default function Layout() {
   const { user, loading, logout, isAuthenticated } = useAuth();
   const isAdmin = user?.role === "ADMIN";

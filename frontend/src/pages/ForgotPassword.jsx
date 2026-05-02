@@ -4,6 +4,7 @@ import { authApi } from "../api/auth";
 import { extractApiError } from "../utils/apiError";
 import { suggestEmailTypo } from "../utils/formHints";
 import Guidance from "../components/ui/Guidance.jsx";
+import Alert from "../components/ui/Alert.jsx";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -39,9 +40,9 @@ export default function ForgotPassword() {
               Entrez votre e‑mail. Si un compte existe, un lien de réinitialisation sera envoyé{" "}
               <strong>dans quelques instants</strong>. (Pensez à vérifier le spam.)
             </Guidance>
-            {message && <div className="alert alert-success small">{message}</div>}
-            {error && <div className="alert alert-danger small">{error}</div>}
-            {hint && <div className="alert alert-warning small mb-3">{hint}</div>}
+            {message && <Alert variant="success">{message}</Alert>}
+            {error && <Alert variant="danger">{error}</Alert>}
+            {hint && <Alert variant="warning" className="mb-3">{hint}</Alert>}
 
             <form onSubmit={onSubmit} className="vstack gap-3">
               <div>

@@ -75,7 +75,6 @@ async function enqueueEmailForNotifications(notifications) {
   const items = Array.isArray(notifications) ? notifications : [];
   for (const n of items) {
     try {
-      // eslint-disable-next-line no-await-in-loop
       await enqueueEmailForNotification(n);
     } catch {
       // L’e-mail ne doit pas casser le flux principal.

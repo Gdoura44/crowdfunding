@@ -1,0 +1,105 @@
+{
+  "_id": ObjectId,
+  "payoutId": { "type": "ObjectId", "ref": "Payout", "required": true },
+  "error": { "type": "string", "required": true },
+  "retryCount": { "type": "number", "default": 0 },
+  
+  // Ajouté pour la piste d’audit
+  "resolvedBy": { "type": "ObjectId", "ref": "User" },
+  "resolvedAt": { "type": "Date" },
+  
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "resolved": { "type": "boolean", "default": false }
+}
+
+// Indexes
+db.failedPayoutEvents.createIndex({ payoutId: 1 });
+db.failedPayoutEvents.createIndex({ resolved: 1, createdAt: -1 });
+
+// ============================================================================
+// SCÉNARIOS D’ÉCHEC PAYOUT
+// ============================================================================
+//
+// **Causes fréquentes :**
+// - Coordonnées bancaires invalides (IBAN mal formé, compte clôturé, RIB erroné)
+// - Solde insuffisant côté plateforme (balance check)
+// - Erreur API provider (timeout, rate limit, service down)
+// - Rejet de la banque destinataire (compte gelé, mismatch de nom)
+// - Conformité / KYC (vérification additionnelle requise)
+//
+// **Quand surviennent les échecs :**
+// 1. L’admin valide le payout (status READY → COMPLETED)
+// 2. Le backend appelle l’API payout du provider
+// 3. Rejet ou timeout
+// 4. Actions backend :
+//    - Payout.status → FAILED
+//    - Payout.failureReason = message d’erreur
+//    - FailedPayoutEvent créé
+//    - Le créateur reçoit PAYOUT_FAILED
+//    - Une notification d’escalade est envoyée à l’admin.
+// ============================================================================
+
+// ============================================================================
+// MÉCANISME DE RELANCE (UC_RetryPayout)
+// ============================================================================
+//
+// **Flux de relance (admin) :**
+// 1. L’admin consulte FailedPayoutEvent dans le dashboard.
+// 2. Investigation du motif :
+//    - Inspecter Payout.failureReason
+//    - Vérifier la validité des coordonnées bancaires
+//    - Contacter le créateur si correction nécessaire
+//    - Vérifier le solde du compte plateforme.
+// 3. Correction éventuelle :
+//    - Mise à jour Payout.bankDetails (chiffré)
+//    - Annoter via le champ notes.
+// 4. L’admin clique « Relancer le payout ».
+// 5. Backend :
+//    - Vérifie Payout.status = FAILED
+//    - Vérifie que bankDetails sont renseignés
+//    - Appelle l’API payout du provider
+//    - En cas de succès :
+//        • Payout.status → COMPLETED ; Payout.completedAt = now
+//        • Payout.failureReason vidé
+//        • FailedPayoutEvent.resolved = true ; resolvedBy = admin._id ; resolvedAt = now
+//        • Le créateur reçoit PAYOUT_COMPLETED.
+//    - En cas d’échec :
+//        • retryCount++ ; error et Payout.failureReason mis à jour
+//        • Si retryCount > 3 : escalade équipe finance.
+//
+// **Résolutions manuelles :**
+//
+// 1. **Annulation du payout :**
+//    - L’admin estime le payout irrécupérable (créateur injoignable, compte invalide).
+//    - Payout.status → CANCELLED ; Payout.notes documente le motif.
+//    - FailedPayoutEvent.resolved = true.
+//    - Le créateur reçoit PAYOUT_CANCELLED.
+//
+// 2. **Paiement alternatif :**
+//    - L’admin organise un règlement hors plateforme (virement direct, etc.).
+//    - L’admin marque manuellement Payout.status → COMPLETED.
+//    - Méthode documentée dans Payout.notes.
+//    - FailedPayoutEvent.resolved = true.
+//    - Le créateur reçoit PAYOUT_COMPLETED.
+//
+// 3. **Escalade juridique :**
+//    - En cas de conflit ou de problème de conformité.
+//    - Le payout reste FAILED ; résolution externe puis Cancel ou completion manuelle.
+// ============================================================================
+
+// ============================================================================
+// CAS LIMITE — SUPPRESSION DU CRÉATEUR
+// ============================================================================
+//
+// **Si le créateur supprime son compte alors que Payout est FAILED :**
+// - Le payout persiste avec creatorId pointant vers le document User anonymisé.
+// - bankDetails sont vidés au moment de la suppression (confidentialité).
+// - L’admin doit :
+//     1. Annuler le payout (impossible à compléter sans coordonnées valides), OU
+//     2. Contacter le créateur via canal externe pour restauration, OU
+//     3. Mettre les fonds en attente jusqu’à reprise de contact.
+// - FailedPayoutEvent reste non résolu tant que l’admin n’a pas agi.
+//
+// **Si le créateur tente de supprimer son compte alors que Payout est PENDING/READY :**
+// - La suppression est BLOQUÉE (cf. user.txt). Le créateur doit attendre la complétion ou annulation.
+// ============================================================================

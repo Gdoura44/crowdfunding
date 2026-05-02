@@ -71,7 +71,7 @@ async function main() {
   console.log("== E2E edge cases via API ==");
   const password = "Test12345a";
 
-  // Users
+  // Utilisateurs
   const creator = await registerVerifyLogin({
     email: randEmail("creator.edge"),
     password,
@@ -94,11 +94,11 @@ async function main() {
   const adminLogin = await httpJson("/api/auth/login", { method: "POST", body: { email: adminEmail, password } });
   const admin = { cookie: adminLogin.cookie, email: adminEmail };
 
-  // Edge 1: auto-reject budget gap >= 30% (simulate by setting aiAnalysis that triggers REJECTED is done in internal workflow,
-  // here we verify that validation rejects if project is not UNDER_REVIEW or analysis missing)
+  // Edge 1 : auto-rejet si écart budget >= 30% (la simulation via aiAnalysis qui déclenche REJECTED est gérée en workflow interne ;
+  // ici on vérifie que la validation échoue si le projet n’est pas UNDER_REVIEW ou si l’analyse est manquante)
   console.log("[Edge] overfunding refund (2 investors race)");
 
-  // Create small goal project (goal 10000), publish, invest 6000 then 6000 => second should be refunded/failed
+  // Créer un projet avec petit objectif (goal 10000), publier, investir 6000 puis 6000 => le second doit être remboursé/échouer
   const startAt = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000);
   startAt.setHours(0, 0, 0, 0);
   const deadline = new Date(Date.now() + 40 * 24 * 60 * 60 * 1000);
@@ -119,7 +119,7 @@ async function main() {
   if (!p1.ok) throw Object.assign(new Error("create project failed"), { p1 });
   const projectId = p1.json.project._id;
 
-  // Put UNDER_REVIEW + ai COMPLETED so admin can approve/publish
+  // Mettre UNDER_REVIEW + IA terminée pour permettre la validation + publication admin.
   await mongoose.connect(process.env.DATABASE);
   const now = new Date();
   await Project.updateOne(
@@ -181,7 +181,7 @@ async function main() {
     body: { providerPaymentId: invB.json.providerPaymentId, status: "SUCCEEDED", paymentMethod: "CARD" },
   });
 
-  // ConfirmB may succeed but refund the tx; we verify project currentFunding never exceeds goal.
+  // ConfirmB peut réussir mais rembourser la transaction ; on vérifie que currentFunding ne dépasse jamais l’objectif.
   const projAfter = await httpJson(`/api/projects/${projectId}`, { method: "GET", cookie: creator.cookie });
   const cf = Number(projAfter.json?.project?.currentFunding || 0);
   const goal = Number(projAfter.json?.project?.fundingGoal || 0);

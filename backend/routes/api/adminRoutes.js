@@ -11,6 +11,7 @@ const reportService = require("../../services/reportService");
 const payoutService = require("../../services/payoutService");
 const adminOpsService = require("../../services/adminOpsService");
 const Comment = require("../../models/Comment");
+// (User est déjà importé plus haut dans ce module via d’autres services.)
 
 const router = express.Router();
 
@@ -167,6 +168,17 @@ router.get(
     if (q) query.content = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
 
     const comments = await Comment.find(query)
+      .select({
+        projectId: 1,
+        userId: 1,
+        authorLabel: 1,
+        content: 1,
+        isHidden: 1,
+        hiddenReason: 1,
+        createdAt: 1,
+      })
+      .populate({ path: "projectId", select: { title: 1 }, options: { lean: true } })
+      .populate({ path: "userId", select: { email: 1, profile: 1 }, options: { lean: true } })
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
@@ -271,11 +283,15 @@ router.post(
   requireAuth,
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const project = await adminProjectService.retryAiAnalysis({
+    const out = await adminProjectService.retryAiAnalysis({
       adminId: req.user.id,
       projectId: req.params.id,
     });
-    res.json({ project, message: "Relance de l’analyse IA demandée." });
+    res.json({
+      project: out?.project || out,
+      diagnostics: out?.diagnostics,
+      message: "Relance de l’analyse IA demandée.",
+    });
   })
 );
 
@@ -324,12 +340,31 @@ router.post(
   requireAuth,
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const payout = await payoutService.approvePayout({
+    const out = await payoutService.approvePayout({
       adminId: req.user.id,
       payoutId: req.params.id,
       notes: req.body?.notes,
     });
-    res.json({ payout, message: "Retrait approuvé." });
+    res.json({
+      payout: out?.payout || out,
+      transferUrl: out?.transferUrl,
+      message: "Virement initié (simulation).",
+    });
+  })
+);
+
+router.post(
+  "/payouts/:id/mock-confirm",
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const payout = await payoutService.confirmMockPayoutTransfer({
+      adminId: req.user.id,
+      payoutId: req.params.id,
+      providerTransferId: req.body?.providerTransferId,
+      status: req.body?.status,
+    });
+    res.json({ payout, message: "Statut de virement mis à jour (simulation)." });
   })
 );
 

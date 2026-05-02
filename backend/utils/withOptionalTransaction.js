@@ -31,7 +31,7 @@ async function detectSupportsTransactions() {
     cachedSupportsTransactions = Boolean(hello?.setName);
     return cachedSupportsTransactions;
   } catch {
-    // En cas de doute, on tente (fallback géré ailleurs).
+    // En cas de doute, on tente (secours géré ailleurs).
     cachedSupportsTransactions = true;
     return cachedSupportsTransactions;
   }

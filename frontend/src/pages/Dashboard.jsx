@@ -7,6 +7,7 @@ import PageHeader from "../components/ui/PageHeader.jsx";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import { useMyProjects } from "../hooks/useMyProjects.js";
+import Alert from "../components/ui/Alert.jsx";
 
 const STATUS_VARIANT = {
   DRAFT: "secondary",
@@ -62,9 +63,9 @@ export default function Dashboard() {
 
       {loading && <PageLoader label="Chargement de vos projets…" />}
 
-      {error && <div className="alert alert-warning">{error}</div>}
-      {actionError && <div className="alert alert-danger">{actionError}</div>}
-      {actionOk && <div className="alert alert-success">{actionOk}</div>}
+      {error && <Alert variant="warning">{error}</Alert>}
+      {actionError && <Alert variant="danger">{actionError}</Alert>}
+      {actionOk && <Alert variant="success">{actionOk}</Alert>}
 
       {!loading && !error && projects.length === 0 && (
         <EmptyState

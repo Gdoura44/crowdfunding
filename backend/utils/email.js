@@ -18,7 +18,7 @@ async function getTransporter() {
     return transporter;
   }
 
-  // Fallback dev: auto-créer un compte SMTP de test pour que les emails soient quand même “envoyés”
+  // Secours en dev : auto-créer un compte SMTP de test pour que les emails soient quand même “envoyés”
   // et permettre d’ouvrir l’URL de prévisualisation dans la console (pratique pour démo/jury).
   if (process.env.NODE_ENV !== "production") {
     const acc = await nodemailer.createTestAccount();

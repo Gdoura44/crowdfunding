@@ -7,6 +7,7 @@ import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import { extractApiError } from "../utils/apiError";
 import { PROJECT_CATEGORIES } from "../config/categories.js";
+import Alert from "../components/ui/Alert.jsx";
 
 const RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"];
 
@@ -18,11 +19,14 @@ export default function BrowseProjects() {
   const [riskLevel, setRiskLevel] = useState("");
   const [status, setStatus] = useState("ACTIVE");
   const [includeUpcoming, setIncludeUpcoming] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Debounce text inputs so we don't reload on every keystroke.
+  // Debounce des champs texte pour éviter de recharger à chaque frappe.
   useEffect(() => {
     const t = setTimeout(() => {
       setQ(qDraft);
@@ -31,23 +35,30 @@ export default function BrowseProjects() {
     return () => clearTimeout(t);
   }, [qDraft, categoryDraft]);
 
+  // Revenir à la première page quand les filtres changent.
+  useEffect(() => {
+    setPage(1);
+  }, [q, category, riskLevel, status, includeUpcoming]);
+
   const params = useMemo(() => {
-    const p = { limit: 24 };
+    const p = { limit: 21, page };
     if (q.trim()) p.q = q.trim();
     if (category.trim()) p.category = category.trim();
     if (riskLevel) p.riskLevel = riskLevel;
     if (status) p.status = status;
     if (status === "ACTIVE") p.includeUpcoming = includeUpcoming ? "true" : "false";
     return p;
-  }, [q, category, riskLevel, status, includeUpcoming]);
+  }, [q, category, riskLevel, status, includeUpcoming, page]);
 
   async function load() {
-    // Public browse/search. We debounce text fields for a smoother UX.
+    // Navigation publique (liste / recherche). Les champs texte sont debounce pour une UX plus fluide.
     const { data } =
       params.q || params.category || params.riskLevel || params.status
         ? await projectsApi.search(params)
-        : await projectsApi.public({ limit: 24 });
+        : await projectsApi.public(params);
     setProjects(data.projects || []);
+    setTotalPages(Number(data.totalPages || 1));
+    setTotal(Number(data.total || 0));
   }
 
   useEffect(() => {
@@ -171,7 +182,7 @@ export default function BrowseProjects() {
 
       {loading && <PageLoader label="Chargement des campagnes…" />}
 
-      {error && <div className="alert alert-warning">{error}</div>}
+      {error && <Alert variant="warning">{error}</Alert>}
 
       {!loading && !error && projects.length === 0 && (
         <EmptyState
@@ -182,13 +193,40 @@ export default function BrowseProjects() {
       )}
 
       {!loading && !error && projects.length > 0 && (
-        <div className="row g-3">
-          {projects.map((p) => (
-            <div key={p._id} className="col-12 col-md-6 col-lg-4">
-              <ProjectCard project={p} />
+        <>
+          <div className="d-flex justify-content-between align-items-center mb-2 small text-muted">
+            <div>
+              Page <strong>{page}</strong> / <strong>{totalPages}</strong>
+              {Number.isFinite(total) && total > 0 ? <> · {total} résultats</> : null}
             </div>
-          ))}
-        </div>
+            <div className="btn-group" role="group" aria-label="Pagination">
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => setPage((p) => Math.max(1, Number(p || 1) - 1))}
+                disabled={loading || page <= 1}
+              >
+                Précédent
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => setPage((p) => Math.min(totalPages, Number(p || 1) + 1))}
+                disabled={loading || page >= totalPages}
+              >
+                Suivant
+              </button>
+            </div>
+          </div>
+
+          <div className="row g-3">
+            {projects.map((p) => (
+              <div key={p._id} className="col-12 col-md-6 col-lg-4">
+                <ProjectCard project={p} />
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

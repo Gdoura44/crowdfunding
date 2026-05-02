@@ -5,6 +5,8 @@ import PageHeader from "../components/ui/PageHeader.jsx";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import { extractApiError } from "../utils/apiError";
+import Alert from "../components/ui/Alert.jsx";
+import { confirmAlert } from "react-confirm-alert";
 
 export default function AdminReports() {
   const { user } = useAuth();
@@ -12,6 +14,7 @@ export default function AdminReports() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
   const [busyId, setBusyId] = useState(null);
   const [resolutionById, setResolutionById] = useState({});
   const [actionById, setActionById] = useState({});
@@ -72,7 +75,8 @@ export default function AdminReports() {
         }
       />
 
-      {error && <div className="alert alert-danger py-2">{error}</div>}
+      {error && <Alert variant="danger">{error}</Alert>}
+      {ok && <Alert variant="success">{ok}</Alert>}
       {loading && <PageLoader label="Chargement…" />}
 
       {!loading && !error && items.length === 0 && (
@@ -92,6 +96,7 @@ export default function AdminReports() {
                   <th>Type</th>
                   <th>Description</th>
                   <th>Projet</th>
+                  <th>Rapporteur</th>
                   <th>Date</th>
                   {status === "PENDING" && <th style={{ minWidth: "16rem" }}>Résolution</th>}
                   {status === "PENDING" && <th style={{ width: "1%" }} />}
@@ -107,15 +112,43 @@ export default function AdminReports() {
                       {r.description || "—"}
                     </td>
                     <td className="small text-muted">
-                      <div className="text-truncate" style={{ maxWidth: "14rem" }}>
-                        {String(r.projectId)}
+                      <div className="text-truncate" style={{ maxWidth: "18rem" }}>
+                        {r.projectId && typeof r.projectId === "object"
+                          ? r.projectId.title || String(r.projectId._id || "—")
+                          : String(r.projectId || "—")}
                       </div>
+                      {r.projectId && typeof r.projectId === "object" && r.projectId.status ? (
+                        <div className="text-muted small">Statut projet : {r.projectId.status}</div>
+                      ) : null}
                       {r.commentId ? (
-                        <div className="text-truncate" style={{ maxWidth: "14rem" }}>
-                          <span className="badge bg-light text-dark border">COMMENT</span>{" "}
-                          {String(r.commentId)}
+                        <div className="mt-2">
+                          <div className="d-flex align-items-center gap-2">
+                            <span className="badge bg-light text-dark border">COMMENT</span>
+                            <span className="text-muted small">
+                              {r.commentId && typeof r.commentId === "object" && r.commentId.createdAt
+                                ? new Date(r.commentId.createdAt).toLocaleString("fr-FR")
+                                : "—"}
+                            </span>
+                            {r.commentId && typeof r.commentId === "object" && (r.commentId.deletedAt || r.commentId.isHidden) ? (
+                              <span className="badge bg-secondary">
+                                {r.commentId.deletedAt ? "Supprimé" : "Masqué"}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="small mt-1" style={{ whiteSpace: "pre-wrap" }}>
+                            {r.commentId && typeof r.commentId === "object" ? (r.commentId.content || "—") : "—"}
+                          </div>
                         </div>
                       ) : null}
+                    </td>
+                    <td className="small text-muted">
+                      {r.reporterId && typeof r.reporterId === "object"
+                        ? [
+                            r.reporterId.profile?.firstName,
+                            r.reporterId.profile?.lastName,
+                          ].filter(Boolean).join(" ") ||
+                          String(r.reporterId.email || r.reporterId._id || "—")
+                        : String(r.reporterId || "—")}
                     </td>
                     <td className="small text-muted">
                       {r.createdAt ? new Date(r.createdAt).toLocaleString("fr-FR") : "—"}
@@ -171,22 +204,44 @@ export default function AdminReports() {
                           className="btn btn-sm btn-primary"
                           disabled={busyId === r._id || !(resolutionById[r._id] || "").trim()}
                           onClick={async () => {
-                            setBusyId(r._id);
-                            setError("");
-                            try {
-                              await adminApi.resolveReport(r._id, {
-                                resolution: resolutionById[r._id],
-                                actionOnProject: r.commentId ? undefined : actionById[r._id] || undefined,
-                                actionOnComment: r.commentId ? actionById[r._id] || undefined : undefined,
-                                status: decisionById[r._id] || "RESOLVED",
-                              });
-                              await load();
-                            } catch (e) {
-                              const out = extractApiError(e, "Action impossible.");
-                              setError(out.message);
-                            } finally {
-                              setBusyId(null);
+                            const action = actionById[r._id] || "";
+                            const decision = decisionById[r._id] || "RESOLVED";
+                            const isDestructive =
+                              action === "DELETE_COMMENT" || action === "HIDE_COMMENT" || action === "DEACTIVATE";
+                            const doRun = async () => {
+                              setBusyId(r._id);
+                              setError("");
+                              setOk("");
+                              try {
+                                await adminApi.resolveReport(r._id, {
+                                  resolution: resolutionById[r._id],
+                                  actionOnProject: r.commentId ? undefined : actionById[r._id] || undefined,
+                                  actionOnComment: r.commentId ? actionById[r._id] || undefined : undefined,
+                                  status: decisionById[r._id] || "RESOLVED",
+                                });
+                                await load();
+                                setOk("Signalement traité.");
+                              } catch (e) {
+                                const out = extractApiError(e, "Action impossible.");
+                                setError(out.message);
+                              } finally {
+                                setBusyId(null);
+                              }
+                            };
+
+                            if (!isDestructive) {
+                              await doRun();
+                              return;
                             }
+
+                            confirmAlert({
+                              title: "Confirmer l’action ?",
+                              message: `Décision: ${decision}\nAction: ${action || "Aucune"}\n\nCette action impactera le contenu/projet.`,
+                              buttons: [
+                                { label: "Annuler", onClick: () => {} },
+                                { label: "Confirmer", onClick: () => void doRun() },
+                              ],
+                            });
                           }}
                         >
                           Traiter

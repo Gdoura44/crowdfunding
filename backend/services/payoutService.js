@@ -9,8 +9,9 @@ const HttpError = require("../utils/HttpError");
 const { seal, open } = require("../utils/cryptoSeal");
 const { enqueueEmailForNotifications } = require("../integrations/emailQueue");
 const User = require("../models/User");
+const mockPayoutProvider = require("../integrations/mockPayoutProvider");
 
-// Pourquoi: l’intégration bancaire est simulée par un fournisseur factice (cf. MockPaymentProvider),
+// Pourquoi : l’intégration bancaire est simulée par un fournisseur factice (cf. mockPaymentProvider),
 // mais on modélise tout le workflow réel (PENDING → READY → COMPLETED) afin que l’UX et le processus
 // admin restent fidèles à un environnement de production.
 
@@ -24,7 +25,8 @@ function validateBankDetailsJsonString(bankDetails) {
 
   const accountHolderName = String(parsed.accountHolderName || "").trim();
   const bankName = String(parsed.bankName || "").trim();
-  const iban = String(parsed.iban || "").replace(/\s+/g, "").toUpperCase();
+  const rawIban = String(parsed.iban || "").replace(/\s+/g, "").toUpperCase();
+  const rawRib = String(parsed.rib || "").replace(/\s+/g, "");
   const swiftCode = parsed.swiftCode ? String(parsed.swiftCode || "").trim().toUpperCase() : "";
 
   if (accountHolderName.length < 3 || accountHolderName.length > 100) {
@@ -39,9 +41,17 @@ function validateBankDetailsJsonString(bankDetails) {
       "Coordonnées bancaires invalides : `bankName` doit contenir 3 à 100 caractères."
     );
   }
-  // Contrôle de format IBAN (lettres pays + 13 à 32 alphanumériques).
-  if (!/^[A-Z]{2}[0-9A-Z]{13,32}$/.test(iban)) {
+  // Tunisie : certaines plateformes exigent un RIB (20 chiffres), d’autres un IBAN (TN…).
+  const hasIban = Boolean(rawIban);
+  const hasRib = Boolean(rawRib);
+  if (!hasIban && !hasRib) {
+    throw new HttpError(400, "Coordonnées bancaires invalides : renseignez un RIB ou un IBAN.");
+  }
+  if (hasIban && !/^[A-Z]{2}[0-9A-Z]{13,32}$/.test(rawIban)) {
     throw new HttpError(400, "Coordonnées bancaires invalides : format IBAN incorrect.");
+  }
+  if (hasRib && !/^[0-9]{20}$/.test(rawRib)) {
+    throw new HttpError(400, "Coordonnées bancaires invalides : le RIB doit contenir 20 chiffres.");
   }
   if (swiftCode && !/^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(swiftCode)) {
     throw new HttpError(
@@ -50,7 +60,13 @@ function validateBankDetailsJsonString(bankDetails) {
     );
   }
 
-  return { accountHolderName, bankName, iban, swiftCode: swiftCode || null };
+  return {
+    accountHolderName,
+    bankName,
+    iban: hasIban ? rawIban : null,
+    rib: hasRib ? rawRib : null,
+    swiftCode: swiftCode || null,
+  };
 }
 
 async function ensurePayoutForFundedProject(projectId) {
@@ -66,7 +82,8 @@ async function ensurePayoutForFundedProject(projectId) {
   const payout = await Payout.create({
     projectId: project._id,
     creatorId: project.creatorId,
-    amount: project.fundingGoal,
+    // Montant du payout = montant réellement collecté (plus réaliste que fundingGoal).
+    amount: Number(project.currentFunding || project.fundingGoal || 0),
     status: "PENDING",
   });
 
@@ -88,6 +105,18 @@ async function listMyPayouts(creatorId, { limit = 30 } = {}) {
   const n = Number(limit);
   const safeLimit = Number.isFinite(n) ? Math.min(Math.max(n, 1), 50) : 30;
   return Payout.find({ creatorId })
+    .select({
+      projectId: 1,
+      amount: 1,
+      status: 1,
+      provider: 1,
+      providerTransferId: 1,
+      bankDetailsProvidedAt: 1,
+      transferInitiatedAt: 1,
+      completedAt: 1,
+      createdAt: 1,
+    })
+    .populate({ path: "projectId", select: { title: 1, status: 1 }, options: { lean: true } })
     .sort({ createdAt: -1 })
     .limit(safeLimit)
     .lean();
@@ -95,9 +124,25 @@ async function listMyPayouts(creatorId, { limit = 30 } = {}) {
 
 async function getMyPayout(creatorId, payoutId) {
   if (!mongoose.isValidObjectId(payoutId)) throw new HttpError(400, "Identifiant de retrait invalide.");
-  const payout = await Payout.findOne({ _id: payoutId, creatorId }).lean();
+  const payout = await Payout.findOne({ _id: payoutId, creatorId })
+    .select({
+      projectId: 1,
+      creatorId: 1,
+      amount: 1,
+      status: 1,
+      provider: 1,
+      providerTransferId: 1,
+      failureReason: 1,
+      notes: 1,
+      bankDetailsProvidedAt: 1,
+      transferInitiatedAt: 1,
+      completedAt: 1,
+      createdAt: 1,
+    })
+    .populate({ path: "projectId", select: { title: 1, status: 1 }, options: { lean: true } })
+    .lean();
   if (!payout) throw new HttpError(404, "Retrait introuvable.");
-  // Do not return decrypted bank details on API (minimize exposure)
+  // Ne pas renvoyer les coordonnées bancaires déchiffrées via l’API (minimiser l’exposition).
   return payout;
 }
 
@@ -137,7 +182,7 @@ async function provideBankDetails(creatorId, payoutId, bankDetails) {
     })
   );
 
-  // Conception: notify admins to approve payout once bank details are provided.
+  // Notifier les administrateurs : un retrait est prêt à être validé après saisie des coordonnées.
   const admins = await User.find({ role: "ADMIN" }).select("_id").lean();
   if (admins.length) {
     const adminNotifs = await Notification.insertMany(
@@ -163,7 +208,31 @@ async function listAdminPayouts({ status, limit = 50 } = {}) {
   const safeLimit = Number.isFinite(n) ? Math.min(Math.max(n, 1), 100) : 50;
   const query = {};
   if (status) query.status = String(status);
-  return Payout.find(query).sort({ createdAt: -1 }).limit(safeLimit).lean();
+  // Liste admin: enrichir avec des libellés utiles (sans exposer bankDetails).
+  return Payout.find(query)
+    .select({
+      projectId: 1,
+      creatorId: 1,
+      amount: 1,
+      status: 1,
+      provider: 1,
+      providerTransferId: 1,
+      notes: 1,
+      failureReason: 1,
+      bankDetailsProvidedAt: 1,
+      transferInitiatedAt: 1,
+      completedAt: 1,
+      createdAt: 1,
+    })
+    .populate({ path: "projectId", select: { title: 1, status: 1 }, options: { lean: true } })
+    .populate({
+      path: "creatorId",
+      select: { email: 1, role: 1, isActive: 1, profile: 1 },
+      options: { lean: true },
+    })
+    .sort({ createdAt: -1 })
+    .limit(safeLimit)
+    .lean();
 }
 
 async function approvePayout({ adminId, payoutId, notes = "" }) {
@@ -182,15 +251,23 @@ async function approvePayout({ adminId, payoutId, notes = "" }) {
     throw new HttpError(400, "Approbation impossible : remboursements de surfinancement en attente.");
   }
 
-  // Provider factice : on simule la réussite du virement.
-  // En production, on appellerait ici le fournisseur de paiement réel (PSP/banque).
-  const decrypted = open(payout.bankDetails); // validate decrypt works
+  // Valider qu’on peut déchiffrer (ne jamais renvoyer les détails).
+  const decrypted = open(payout.bankDetails);
   if (!decrypted) {
     throw new HttpError(500, "Erreur interne : impossible de déchiffrer les coordonnées bancaires.");
   }
 
-  payout.status = "COMPLETED";
-  payout.completedAt = new Date();
+  // Initier un transfert (simulation provider) → PROCESSING.
+  const transfer = mockPayoutProvider.createTransfer({
+    amount: payout.amount,
+    currency: "TND",
+    referenceId: String(payout._id),
+  });
+
+  payout.status = "PROCESSING";
+  payout.transferInitiatedAt = new Date();
+  payout.provider = transfer.provider;
+  payout.providerTransferId = transfer.providerTransferId;
   payout.notes = String(notes || "").trim();
   await payout.save();
 
@@ -206,14 +283,64 @@ async function approvePayout({ adminId, payoutId, notes = "" }) {
   const notifs = await Notification.create([
     {
       userId: payout.creatorId,
-      type: "PAYOUT_COMPLETED",
-      title: "Virement effectué",
-      message: "Votre paiement a été validé et marqué comme complété.",
+      type: "PAYOUT_PROCESSING",
+      title: "Virement en cours",
+      message:
+        "Un administrateur a initié le virement. Vous serez notifié(e) dès confirmation du prestataire.",
       relatedEntityId: payout._id,
       relatedEntityType: "PAYOUT",
     },
   ]);
-  await enqueueEmailForNotifications(notifs);
+  void enqueueEmailForNotifications(notifs).catch(() => {});
+
+  return { payout: payout.toObject(), transferUrl: transfer.transferUrl };
+}
+
+async function confirmMockPayoutTransfer({ adminId, payoutId, providerTransferId, status }) {
+  const payout = await Payout.findById(payoutId);
+  if (!payout) throw new HttpError(404, "Retrait introuvable.");
+  if (payout.status !== "PROCESSING") {
+    throw new HttpError(409, "État invalide : le payout doit être en cours (PROCESSING).");
+  }
+  if (String(payout.providerTransferId || "") !== String(providerTransferId || "")) {
+    throw new HttpError(400, "Identifiant de transfert invalide.");
+  }
+  const normalized = String(status || "").toUpperCase();
+  if (!["COMPLETED", "FAILED"].includes(normalized)) {
+    throw new HttpError(400, "status doit être COMPLETED ou FAILED.");
+  }
+
+  payout.status = normalized;
+  if (normalized === "COMPLETED") {
+    payout.completedAt = new Date();
+    payout.failureReason = "";
+  } else {
+    payout.failureReason = "Virement refusé par le prestataire (simulation)";
+  }
+  await payout.save();
+
+  await Notification.create([
+    {
+      userId: payout.creatorId,
+      type: normalized === "COMPLETED" ? "PAYOUT_COMPLETED" : "PAYOUT_FAILED",
+      title: normalized === "COMPLETED" ? "Virement effectué" : "Virement échoué",
+      message:
+        normalized === "COMPLETED"
+          ? "Le prestataire a confirmé le virement. Le payout est complété."
+          : "Le prestataire a refusé le virement. Un administrateur pourra réessayer.",
+      relatedEntityId: payout._id,
+      relatedEntityType: "PAYOUT",
+    },
+  ]).catch(() => {});
+
+  await AuditLog.create({
+    actorId: adminId,
+    actorRole: "ADMIN",
+    action: normalized === "COMPLETED" ? "CONFIRM_PAYOUT_COMPLETED" : "CONFIRM_PAYOUT_FAILED",
+    targetType: "Payout",
+    targetId: payout._id,
+    details: { provider: payout.provider, providerTransferId: payout.providerTransferId },
+  });
 
   return payout.toObject();
 }
@@ -301,6 +428,7 @@ module.exports = {
   provideBankDetails,
   listAdminPayouts,
   approvePayout,
+  confirmMockPayoutTransfer,
   failPayout,
   cancelOpenPayoutForProject,
 };

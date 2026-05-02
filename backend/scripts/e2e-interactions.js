@@ -95,7 +95,7 @@ async function preparePublishedProject({ creatorCookie, adminCookie, title = "In
   assert(p.ok, "create project failed");
   const projectId = p.json.project._id;
 
-  // Put UNDER_REVIEW + AI completed, then approve+publish
+  // Mettre UNDER_REVIEW + IA terminée, puis approve + publish
   await mongoose.connect(process.env.DATABASE);
   const now = new Date();
   await Project.updateOne(
@@ -125,7 +125,7 @@ async function preparePublishedProject({ creatorCookie, adminCookie, title = "In
   });
   await httpJson(`/api/admin/projects/${projectId}/publish`, { method: "POST", cookie: adminCookie, body: {} });
 
-  // make investable now for interactions if needed
+  // Rendre investissable maintenant pour les interactions si besoin
   await mongoose.connect(process.env.DATABASE);
   const y = new Date();
   y.setDate(y.getDate() - 1);
@@ -196,7 +196,7 @@ async function main() {
     cookie: user.cookie, // reporter cannot report own comment; use creator as reporter
     body: { projectId, commentId, type: "INAPPROPRIATE_CONTENT", description: "Test" },
   });
-  // This should fail because user is author; verify expected 400
+  // Ça doit échouer car l’utilisateur est l’auteur ; vérifier le 400 attendu
   assert(!rep.ok && rep.status === 400, "expected 400 when reporting own comment");
 
   const rep2 = await httpJson("/api/reports/comments", {
@@ -243,7 +243,7 @@ async function main() {
   assert(!(list4.json?.comments || []).some((c) => String(c._id) === String(commentId)), "deleted comment still visible");
   console.log("OK comment delete");
 
-  // Cleanup quick sanity: comment exists in DB with deletedAt
+  // Sanity check rapide : le commentaire existe en DB avec deletedAt
   await mongoose.connect(process.env.DATABASE);
   const cdoc = await Comment.findById(commentId).lean();
   await mongoose.disconnect();

@@ -1,7 +1,7 @@
 import http from "./client";
 import { paths } from "./paths";
 
-/** Project CRUD / workflow calls used by the creator dashboard. */
+/** Appels API projets (CRUD / workflow) utilisés par le tableau de bord créateur. */
 export const projectsApi = {
   mine: () => http.get(paths.projects.mine),
   create: (body) => http.post(paths.projects.collection, body),

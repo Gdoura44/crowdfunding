@@ -6,8 +6,8 @@ const sessionCronService = require("../../services/sessionCronService");
 
 const router = express.Router();
 
-// Cron endpoints (production-like behavior, internal bearer protected).
-// They are protected by `requireInternalBearer` via `routes/internal/index.js`.
+// Endpoints de type cron (comportement proche production), protégés par un bearer interne.
+// Protection via `requireInternalBearer` dans `routes/internal/index.js`.
 
 router.get(
   "/expire-projects",

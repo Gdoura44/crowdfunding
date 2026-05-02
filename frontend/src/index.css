@@ -61,7 +61,7 @@ code {
   font-size: 0.9em;
 }
 
-/* Hide native number spinners (better UX for stepper inputs). */
+/* Masquer les flèches natives des champs numériques (meilleure UX pour les steppers). */
 input.no-spin::-webkit-outer-spin-button,
 input.no-spin::-webkit-inner-spin-button {
   -webkit-appearance: none;

@@ -62,6 +62,12 @@ function main() {
   const diagDir = path.join(repoRoot, "conception", "diagrame de sequence");
   const routesDir = path.join(repoRoot, "backend", "routes");
 
+  if (!fs.existsSync(diagDir)) {
+    console.log("[audit] Dossier de diagrammes introuvable:", diagDir);
+    console.log("[audit] Rien à auditer. (Astuce: exportez vos diagrammes texte dans ce dossier ou adaptez le chemin.)");
+    process.exit(0);
+  }
+
   const diagramFiles = readAllFiles(diagDir, { exts: [".txt"] });
   const routeFiles = readAllFiles(routesDir, { exts: [".js", ".mjs", ".cjs"] });
 

@@ -165,7 +165,7 @@ router.post(
           });
           await enqueueEmailForNotification(notif);
         } catch {
-          // ignorer (best-effort)
+          // ignorer (au mieux)
         }
 
         return res.json({
@@ -214,8 +214,8 @@ router.post(
        *   puis on renvoie 429/503 afin que n8n/BullMQ réessaie sans marquer le projet FAILED.
        * - non transitoire => on marque FAILED (audit + dead-letter) via workflowInternalService.
        */
-      // If Gemini/web is temporarily unavailable, let BullMQ/n8n retry the job
-      // without marking the project as FAILED too early.
+      // Si Gemini/web est temporairement indisponible, laisser BullMQ/n8n relancer le job
+      // sans marquer le projet FAILED trop tôt.
       const upstreamStatus =
         err?.response?.status ||
         err?.statusCode ||
@@ -228,7 +228,7 @@ router.post(
       const isQuota = Number(upstreamStatus) === 429;
       const transient = isTimeout || [429, 502, 503, 504].includes(Number(upstreamStatus));
       if (transient) {
-        // Record transient info for better UX/backoff (do not mark FAILED permanently).
+        // Enregistrer l’état transitoire pour améliorer l’UX / le backoff (ne pas marquer FAILED définitivement).
         try {
           const p = await Project.findById(data.projectId).select("aiAutoRetryCount").lean();
           const n = Math.max(Number(p?.aiAutoRetryCount || 0), 0);
@@ -245,7 +245,7 @@ router.post(
             }
           );
         } catch {
-          // best-effort
+          // au mieux
         }
         if (isQuota) {
           const retryDelayRaw =

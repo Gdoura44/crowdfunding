@@ -9,11 +9,11 @@ function scoreRiskMatch(userPref, projectRiskLevel) {
   const pref = String(userPref || "MEDIUM").toUpperCase();
   const lvl = String(projectRiskLevel || "").toUpperCase();
   if (!lvl) return 0; // unknown: neutral
-  // LOW users prefer LOW, avoid HIGH.
+  // Préférence risque : LOW → préfère LOW, évite HIGH.
   if (pref === "LOW") return lvl === "LOW" ? 20 : lvl === "MEDIUM" ? 8 : -15;
-  // HIGH users are fine with MEDIUM/HIGH.
+  // Préférence risque : HIGH → accepte MEDIUM/HIGH.
   if (pref === "HIGH") return lvl === "HIGH" ? 18 : lvl === "MEDIUM" ? 12 : 2;
-  // MEDIUM users prefer MEDIUM, accept LOW, dislike HIGH slightly.
+  // Préférence risque : MEDIUM → préfère MEDIUM, accepte LOW, pénalise légèrement HIGH.
   return lvl === "MEDIUM" ? 16 : lvl === "LOW" ? 10 : -6;
 }
 
@@ -29,7 +29,7 @@ function scorePopularity(project) {
   const goal = Number(project.fundingGoal || 0);
   const cur = Number(project.currentFunding || 0);
   const pct = goal > 0 ? cur / goal : 0;
-  // Up to 20 points for progress, capped.
+  // Progression du financement : jusqu’à 20 points (capé).
   return Math.round(clamp(pct, 0, 1) * 20);
 }
 
@@ -45,7 +45,7 @@ async function getRecommendationsForUser(userId, { limit = 8 } = {}) {
   const n = Number(limit);
   const safeLimit = Number.isFinite(n) ? Math.min(Math.max(n, 1), 20) : 8;
 
-  // Never recommend archived projects (creator explicitly hid them).
+  // Ne jamais recommander les projets archivés (le créateur les a explicitement masqués).
   const candidates = await Project.find({
     status: "ACTIVE",
     isArchived: false,

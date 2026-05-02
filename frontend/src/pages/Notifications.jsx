@@ -9,6 +9,7 @@ import { extractApiError } from "../utils/apiError";
 import { useAuth } from "../hooks/useAuth";
 import { emitNotificationsChanged } from "../utils/notificationsEvents";
 import { labelNotificationType } from "../utils/notificationLabels";
+import Alert from "../components/ui/Alert.jsx";
 
 export default function Notifications() {
   const { user } = useAuth();
@@ -25,7 +26,7 @@ export default function Notifications() {
       if (!isProject || !id) return false;
       if (projectTitleCache[id]) return false;
       const t = String(n.title || "");
-      // If backend already includes "— <title>", skip.
+      // Si le backend inclut déjà "— <titre>", ne rien faire.
       if (t.includes("—")) return false;
       return true;
     });
@@ -64,7 +65,7 @@ export default function Notifications() {
     const { data } = await notificationsApi.list({ limit: 30 });
     const notifs = data.notifications || [];
     setItems(notifs);
-    // Enrichissement best-effort pour les anciennes notifications sans titre de projet.
+    // Enrichissement au mieux pour les anciennes notifications sans titre de projet.
     await enrichProjectTitles(notifs);
   }, [enrichProjectTitles]);
 
@@ -108,7 +109,7 @@ export default function Notifications() {
 
       {loading && <PageLoader label="Chargement de vos messages…" />}
 
-      {error && <div className="alert alert-warning">{error}</div>}
+      {error && <Alert variant="warning">{error}</Alert>}
 
       {!loading && !error && items.length === 0 && (
         <EmptyState

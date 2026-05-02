@@ -4,6 +4,7 @@ import { authApi } from "../api/auth";
 import { extractApiError } from "../utils/apiError";
 import { passwordChecklist, suggestEmailTypo } from "../utils/formHints";
 import Guidance from "../components/ui/Guidance.jsx";
+import Alert from "../components/ui/Alert.jsx";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -109,11 +110,9 @@ export default function Register() {
                 </p>
               </div>
             </div>
-            {message && (
-              <div className="alert alert-success small">{String(message)}</div>
-            )}
+            {message && <Alert variant="success">{String(message)}</Alert>}
             {error && (
-              <div className="alert alert-danger small">
+              <Alert variant="danger">
                 <div>{String(error)}</div>
                 {fieldErrors?.length > 0 && (
                   <ul className="mb-0 mt-2">
@@ -124,7 +123,7 @@ export default function Register() {
                     ))}
                   </ul>
                 )}
-              </div>
+              </Alert>
             )}
             {!message && !error && (
               <Guidance title="Astuce" variant="info">

@@ -15,7 +15,7 @@ router.post(
     const { projectId, amount } = req.body || {};
     if (!projectId) throw new HttpError(400, "projectId est requis.");
     if (amount == null) throw new HttpError(400, "amount est requis.");
-    if (Number(amount) <= 0) throw new HttpError(400, "Le montant doit être supérieur à 0.");
+    if (Number(amount) < 100) throw new HttpError(400, "Le montant minimum est 100 TND.");
 
     const result = await investmentService.createInvestment({
       investorId: req.user.id,

@@ -235,7 +235,7 @@ async function scenarioRetryFailedPayment({ creator, admin, investor }) {
   const investmentId = inv.json?.investment?._id;
   assert(providerPaymentId && investmentId, "missing providerPaymentId/investmentId");
 
-  // Mark FAILED
+  // Marquer FAILED
   const fail = await httpJson("/api/investments/mock/confirm", {
     method: "POST",
     cookie: investor.cookie,
@@ -243,7 +243,7 @@ async function scenarioRetryFailedPayment({ creator, admin, investor }) {
   });
   assert(fail.ok, `mock confirm FAILED failed (${fail.status})`);
 
-  // Retry should return new providerPaymentId
+  // Le retry doit renvoyer un nouveau providerPaymentId
   const retry = await httpJson(`/api/investments/${investmentId}/retry`, {
     method: "POST",
     cookie: investor.cookie,
@@ -334,7 +334,7 @@ async function scenarioCancelAndRefundWithinGrace({ creator, admin, investor }) 
   const funded = await getProject(creator.cookie, projectId);
   assert(funded.status === "FUNDED", `expected FUNDED before cancel, got ${funded.status}`);
 
-  // Cancel should be allowed (within grace window)
+  // L’annulation doit être autorisée (pendant la fenêtre de grâce)
   const cancel = await httpJson(`/api/investments/${investmentId}/cancel`, {
     method: "POST",
     cookie: investor.cookie,
@@ -362,7 +362,7 @@ async function scenarioExpireProjectsCron({ creator, admin }) {
   await httpJson(`/api/admin/projects/${projectId}/publish`, { method: "POST", cookie: admin.cookie });
   await setProjectStartAtYesterday(projectId);
 
-  // Make deadline yesterday so it should expire
+  // Mettre deadline à hier pour que le projet expire
   await mongoose.connect(process.env.DATABASE);
   const d = new Date();
   d.setDate(d.getDate() - 1);
@@ -382,7 +382,7 @@ async function scenarioExpireProjectsCron({ creator, admin }) {
   console.log("OK");
 }
 
-async function scenarioAutoRejectGap30({ creator, admin }) {
+async function scenarioAutoRejectGap30({ creator, admin: _admin }) {
   console.log("\n[Scenario] Auto-reject gap >=30% via internal run-risk-analysis");
   const projectId = await createProjectAsCreator(creator.cookie, { title: "AutoRejectGap", goal: 20000 });
 

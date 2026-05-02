@@ -5,11 +5,15 @@ import EmptyState from "../components/ui/EmptyState.jsx";
 import { adminApi } from "../api/admin";
 import { useAuth } from "../hooks/useAuth.js";
 import { extractApiError } from "../utils/apiError";
+import { useNavigate } from "react-router-dom";
+import Alert from "../components/ui/Alert.jsx";
+import { confirmAlert } from "react-confirm-alert";
 
 function badge(status) {
   const map = {
     PENDING: "bg-secondary",
     READY: "bg-primary",
+    PROCESSING: "bg-info text-dark",
     COMPLETED: "bg-success",
     FAILED: "bg-danger",
     CANCELLED: "bg-warning text-dark",
@@ -19,11 +23,12 @@ function badge(status) {
 
 export default function AdminPayouts() {
   const { user } = useAuth();
+  const nav = useNavigate();
   const [tab, setTab] = useState("READY");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [notes, setNotes] = useState({});
+  const [ok, setOk] = useState("");
   const [busyId, setBusyId] = useState("");
 
   const params = useMemo(() => ({ status: tab, limit: 100 }), [tab]);
@@ -52,9 +57,39 @@ export default function AdminPayouts() {
   async function approve(id) {
     setBusyId(id);
     setError("");
+    setOk("");
     try {
-      await adminApi.approvePayout(id, { notes: notes[id] || "" });
-      await refresh();
+      confirmAlert({
+        title: "Initier le virement ?",
+        message:
+          "Vous serez redirigé vers la page du prestataire (simulation) pour confirmer succès/échec.",
+        buttons: [
+          { label: "Annuler", onClick: () => {} },
+          {
+            label: "Initier",
+            onClick: async () => {
+              setBusyId(id);
+              setError("");
+              setOk("");
+              try {
+                const { data } = await adminApi.approvePayout(id, {});
+                if (data?.transferUrl) {
+                  setOk("Virement initié. Confirmation prestataire requise.");
+                  nav(data.transferUrl, { replace: true });
+                  return;
+                }
+                await refresh();
+                setOk("Virement initié.");
+              } catch (e) {
+                const out = extractApiError(e, "Approbation impossible pour le moment.");
+                setError(out.message);
+              } finally {
+                setBusyId("");
+              }
+            },
+          },
+        ],
+      });
     } catch (e) {
       const out = extractApiError(e, "Approbation impossible pour le moment.");
       setError(out.message);
@@ -65,9 +100,7 @@ export default function AdminPayouts() {
 
   if (!canAccess) {
     return (
-      <div className="alert alert-warning border-0">
-        Accès réservé aux administrateurs.
-      </div>
+      <Alert variant="warning">Accès réservé aux administrateurs.</Alert>
     );
   }
 
@@ -75,10 +108,10 @@ export default function AdminPayouts() {
     <div>
       <PageHeader
         title="Admin · Payouts"
-        subtitle="Valider les virements."
+        subtitle="Initier et suivre les virements (simulation provider)."
         actions={
           <div className="btn-group btn-group-sm">
-            {["READY", "PENDING", "COMPLETED", "FAILED", "CANCELLED"].map((k) => (
+            {["READY", "PROCESSING", "PENDING", "COMPLETED", "FAILED", "CANCELLED"].map((k) => (
               <button
                 key={k}
                 type="button"
@@ -92,7 +125,8 @@ export default function AdminPayouts() {
         }
       />
 
-      {error && <div className="alert alert-danger py-2">{error}</div>}
+      {error && <Alert variant="danger">{error}</Alert>}
+      {ok && <Alert variant="success">{ok}</Alert>}
       {loading && <PageLoader label="Chargement…" />}
 
       {!loading && !error && items.length === 0 && (
@@ -110,44 +144,59 @@ export default function AdminPayouts() {
               <thead>
                 <tr>
                   <th>Id</th>
-                  <th>ProjectId</th>
-                  <th>CreatorId</th>
+                  <th>Projet</th>
+                  <th>Créateur</th>
                   <th>Montant</th>
                   <th>Statut</th>
-                  <th style={{ width: 320 }}>Notes</th>
-                  <th>Action</th>
+                  {tab === "READY" ? <th style={{ width: "1%" }}>Action</th> : null}
                 </tr>
               </thead>
               <tbody>
                 {items.map((p) => (
                   <tr key={p._id}>
                     <td className="text-muted small">{String(p._id).slice(-6)}</td>
-                    <td className="text-muted small">{String(p.projectId)}</td>
-                    <td className="text-muted small">{String(p.creatorId)}</td>
+                    <td className="small">
+                      {p.projectId && typeof p.projectId === "object" ? (
+                        <div className="fw-semibold text-truncate" style={{ maxWidth: 360 }}>
+                          {p.projectId.title || String(p.projectId._id || "—")}
+                        </div>
+                      ) : (
+                        <span className="text-muted">{String(p.projectId || "—")}</span>
+                      )}
+                      {p.projectId && typeof p.projectId === "object" && p.projectId.status ? (
+                        <div className="text-muted small">Statut projet : {p.projectId.status}</div>
+                      ) : null}
+                    </td>
+                    <td className="small text-muted">
+                      {p.creatorId && typeof p.creatorId === "object" ? (
+                        <>
+                          <div className="fw-semibold">
+                            {[
+                              p.creatorId.profile?.firstName,
+                              p.creatorId.profile?.lastName,
+                            ]
+                              .filter(Boolean)
+                              .join(" ") || String(p.creatorId.email || "—")}
+                          </div>
+                          <div className="small text-muted">{String(p.creatorId.email || p.creatorId._id || "—")}</div>
+                        </>
+                      ) : (
+                        String(p.creatorId || "—")
+                      )}
+                    </td>
                     <td className="fw-semibold">{p.amount} TND</td>
                     <td>{badge(p.status)}</td>
-                    <td>
-                      <input
-                        className="form-control form-control-sm"
-                        value={notes[p._id] || ""}
-                        onChange={(e) => setNotes((x) => ({ ...x, [p._id]: e.target.value }))}
-                        placeholder="Optionnel…"
-                        disabled={p.status !== "READY"}
-                      />
-                    </td>
-                    <td>
-                      {p.status === "READY" ? (
+                    {tab === "READY" ? (
+                      <td className="text-end">
                         <button
                           className="btn btn-sm btn-success"
                           onClick={() => approve(p._id)}
                           disabled={busyId === p._id}
                         >
-                          {busyId === p._id ? "Validation…" : "Approuver"}
+                          {busyId === p._id ? "Validation…" : "Initier virement"}
                         </button>
-                      ) : (
-                        <span className="text-muted small">—</span>
-                      )}
-                    </td>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

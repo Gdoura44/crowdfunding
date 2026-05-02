@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { authApi } from "../api/auth";
 import { useAuth } from "../hooks/useAuth.js";
 import { extractApiError } from "../utils/apiError";
+import Alert from "../components/ui/Alert.jsx";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -59,11 +60,11 @@ export default function Login() {
               </div>
             </div>
             {location.state?.from && (
-              <div className="alert alert-info py-2 small mb-3">
+              <Alert variant="info" className="mb-3">
                 Connectez-vous pour accéder à la page demandée.
-              </div>
+              </Alert>
             )}
-            {error && <div className="alert alert-danger small">{error}</div>}
+            {error && <Alert variant="danger">{error}</Alert>}
             <form onSubmit={onSubmit} className="vstack gap-3">
               <div>
                 <label className="form-label small text-muted mb-1">E-mail</label>

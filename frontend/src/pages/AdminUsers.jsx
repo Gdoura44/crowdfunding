@@ -5,12 +5,15 @@ import PageHeader from "../components/ui/PageHeader.jsx";
 import PageLoader from "../components/ui/PageLoader.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 import { extractApiError } from "../utils/apiError";
+import Alert from "../components/ui/Alert.jsx";
+import { confirmAlert } from "react-confirm-alert";
 
 export default function AdminUsers() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
   const [busyId, setBusyId] = useState(null);
 
   const canAccess = user?.role === "ADMIN";
@@ -57,7 +60,8 @@ export default function AdminUsers() {
         title="Utilisateurs"
         subtitle="Vue d’ensemble des comptes enregistrés (e-mail, rôle, activation)."
       />
-      {error && <div className="alert alert-danger py-2">{error}</div>}
+      {error && <Alert variant="danger">{error}</Alert>}
+      {ok && <Alert variant="success">{ok}</Alert>}
       {loading && <PageLoader label="Chargement des comptes…" />}
       {!loading && !error && items.length === 0 && (
         <EmptyState icon="fa-solid fa-users" title="Aucun utilisateur" description="Aucune donnée à afficher." />
@@ -103,9 +107,11 @@ export default function AdminUsers() {
                               onClick={async () => {
                                 setBusyId(u._id);
                                 setError("");
+                                setOk("");
                                 try {
                                   await adminApi.reactivateUser(u._id);
                                   await reload();
+                                  setOk("Utilisateur réactivé.");
                                 } catch (e) {
                                   const out = extractApiError(e, "Action impossible.");
                                   setError(out.message);
@@ -119,20 +125,35 @@ export default function AdminUsers() {
                           ) : (
                             <button
                               type="button"
-                              className="btn btn-sm btn-outline-warning"
+                              className="btn btn-sm btn-outline-danger"
                               disabled={busyId === u._id}
                               onClick={async () => {
-                                setBusyId(u._id);
-                                setError("");
-                                try {
-                                  await adminApi.setUserActive(u._id, { isActive: false });
-                                  await reload();
-                                } catch (e) {
-                                  const out = extractApiError(e, "Action impossible.");
-                                  setError(out.message);
-                                } finally {
-                                  setBusyId(null);
-                                }
+                                confirmAlert({
+                                  title: "Désactiver cet utilisateur ?",
+                                  message:
+                                    "Il ne pourra plus se connecter ni effectuer des actions sur la plateforme.",
+                                  buttons: [
+                                    { label: "Annuler", onClick: () => {} },
+                                    {
+                                      label: "Désactiver",
+                                      onClick: async () => {
+                                        setBusyId(u._id);
+                                        setError("");
+                                        setOk("");
+                                        try {
+                                          await adminApi.setUserActive(u._id, { isActive: false });
+                                          await reload();
+                                          setOk("Utilisateur désactivé.");
+                                        } catch (e) {
+                                          const out = extractApiError(e, "Action impossible.");
+                                          setError(out.message);
+                                        } finally {
+                                          setBusyId(null);
+                                        }
+                                      },
+                                    },
+                                  ],
+                                });
                               }}
                             >
                               Désactiver

@@ -6,6 +6,6 @@ export const investmentsApi = {
   mine: (params) => http.get(paths.investments.mine, { params }),
   cancel: (id) => http.post(paths.investments.cancel(id)),
   retry: (id) => http.post(paths.investments.retry(id)),
-  mockConfirm: (body) => http.post(paths.investments.mockConfirm, body),
+  mockConfirm: (body, config) => http.post(paths.investments.mockConfirm, body, config),
 };
 

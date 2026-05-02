@@ -21,6 +21,7 @@ export const adminApi = {
   unhideComment: (id) => http.patch(paths.admin.unhideComment(id)),
   listPayouts: (params) => http.get(paths.admin.payouts, { params }),
   approvePayout: (id, body) => http.post(paths.admin.approvePayout(id), body),
+  mockConfirmPayout: (id, body) => http.post(paths.admin.mockConfirmPayout(id), body),
   listFailedNotifications: (params) => http.get(paths.admin.failedNotifications, { params }),
   retryNotification: (eventId) => http.post(paths.admin.retryNotification, { eventId }),
 

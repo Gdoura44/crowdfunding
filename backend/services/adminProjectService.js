@@ -303,14 +303,10 @@ async function retryAiAnalysis({ adminId, projectId }) {
   project.aiAnalysisRetries = Number(project.aiAnalysisRetries || 0) + 1;
   await project.save();
 
-  try {
-    const enq = await enqueueRiskAnalysisJob(project);
-    if (enq && enq.queued && enq.jobId) {
-      project.aiJobId = String(enq.jobId);
-      await project.save();
-    }
-  } catch {
-    // Mise en file best-effort (mode stub si REDIS_URL manquant)
+  const enq = await enqueueRiskAnalysisJob(project);
+  if (enq && enq.queued && enq.jobId) {
+    project.aiJobId = String(enq.jobId);
+    await project.save();
   }
 
   await AuditLog.create({
@@ -322,7 +318,16 @@ async function retryAiAnalysis({ adminId, projectId }) {
     details: { aiAnalysisRetries: project.aiAnalysisRetries },
   });
 
-  return project.toObject();
+  // Diagnostic UX: aider l’admin à comprendre pourquoi ça n’avance pas (n8n/Redis/quota).
+  const diagnostics = {
+    queued: Boolean(enq?.queued),
+    jobId: enq?.jobId ? String(enq.jobId) : null,
+    hint: enq?.queued
+      ? "Job mis en file. Si le statut reste AWAITING_AI, vérifiez que n8n (consumer) et Redis tournent."
+      : "Job non mis en file (mode stub). Vérifiez la configuration REDIS_URL côté backend.",
+  };
+
+  return { project: project.toObject(), diagnostics };
 }
 
 async function deactivateProject({ adminId, projectId, reason = "" }) {
@@ -395,7 +400,7 @@ async function deactivateProject({ adminId, projectId, reason = "" }) {
     return project.toObject();
   });
 
-  // Best-effort (sans bloquer): annuler un payout ouvert lié à ce projet (workflow démo).
+  // Au mieux (sans bloquer): annuler un payout ouvert lié à ce projet (workflow démo).
   try {
     await payoutService.cancelOpenPayoutForProject({
       adminId,
@@ -500,7 +505,7 @@ async function reactivateProject({ adminId, projectId }) {
     try {
       await enqueueRiskAnalysisJob(project);
     } catch {
-      // best-effort
+      // au mieux
     }
   }
 

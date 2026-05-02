@@ -25,7 +25,7 @@ const aiAnalysisSchema = new mongoose.Schema(
     ],
     // Traçabilité (modèle utilisé + méthode d’analyse).
     meta: {
-      method: { type: String, default: "" }, // ex. "web+llm" | "llm-only"
+      method: { type: String, default: "" }, // exemple : "web+llm" ou "llm"
       model: { type: String, default: "" },
     },
   },

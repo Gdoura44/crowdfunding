@@ -11,14 +11,30 @@ async function listFailedRefunds({ resolved, limit = 50 } = {}) {
   const query = {};
   if (resolved != null) query.resolved = Boolean(resolved);
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  return FailedRefundEvent.find(query).sort({ createdAt: -1 }).limit(safeLimit).lean();
+  return FailedRefundEvent.find(query)
+    .populate({ path: "projectId", select: { title: 1, status: 1 }, options: { lean: true } })
+    .populate({ path: "investmentId", select: { amount: 1, status: 1 }, options: { lean: true } })
+    .sort({ createdAt: -1 })
+    .limit(safeLimit)
+    .lean();
 }
 
 async function listFailedPayouts({ resolved, limit = 50 } = {}) {
   const query = {};
   if (resolved != null) query.resolved = Boolean(resolved);
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  return FailedPayoutEvent.find(query).sort({ createdAt: -1 }).limit(safeLimit).lean();
+  return FailedPayoutEvent.find(query)
+    .populate({
+      path: "payoutId",
+      select: { projectId: 1, creatorId: 1, amount: 1, status: 1, createdAt: 1 },
+      populate: [
+        { path: "projectId", select: { title: 1, status: 1 }, options: { lean: true } },
+      ],
+      options: { lean: true },
+    })
+    .sort({ createdAt: -1 })
+    .limit(safeLimit)
+    .lean();
 }
 
 async function retryRefundsOnce({ limit } = {}) {
@@ -59,7 +75,7 @@ async function retryNotificationOnce({ adminId, eventId }) {
     return { ok: true, queued: false, reason: "notification introuvable" };
   }
 
-  // Relance best-effort (ne doit pas bloquer le flux admin).
+  // Relance au mieux (ne doit pas bloquer le flux admin).
   await enqueueEmailForNotification(notif);
 
   ev.resolved = true;

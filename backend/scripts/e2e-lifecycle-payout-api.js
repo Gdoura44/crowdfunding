@@ -77,7 +77,7 @@ async function main() {
 
   console.log("== E2E lifecycle payout via API ==");
 
-  // Users
+  // Utilisateurs
   const creatorEmail = randEmail("creator.payout");
   const investorEmail = randEmail("investor.payout");
   const adminEmail = randEmail("admin.payout");
@@ -94,7 +94,7 @@ async function main() {
     firstName: "Investor",
     lastName: "PFE",
   });
-  const adminPre = await registerVerifyLogin({
+  await registerVerifyLogin({
     email: adminEmail,
     password,
     firstName: "Admin",
@@ -114,7 +114,7 @@ async function main() {
     return { cookie: login.cookie };
   })();
 
-  // Create project (startAt must be >= J+7)
+  // Créer le projet (startAt doit être >= J+7)
   const startAt = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000);
   startAt.setHours(0, 0, 0, 0);
   const deadline = new Date(Date.now() + 40 * 24 * 60 * 60 * 1000);
@@ -136,8 +136,8 @@ async function main() {
   if (!projectId) throw new Error("No project id returned by POST /api/projects");
   console.log("ProjectId:", projectId);
 
-  // Simulate AI completion (DB helper script / direct update via service script)
-  // Minimal DB update to allow validation (aiAnalysis fields required)
+  // Simuler la fin de l’analyse IA (helper DB / update direct) pour débloquer la validation admin.
+  // Mise à jour DB minimale pour permettre la validation (champs aiAnalysis requis)
   await mongoose.connect(process.env.DATABASE);
   const Project = require("../models/Project");
   const now = new Date();

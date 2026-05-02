@@ -47,10 +47,10 @@ async function updateAiAnalysisFromWorkflow(input) {
   const baseReport = input.report || project.aiAnalysis?.report || {};
   const improvements = Array.isArray(baseReport.improvements) ? baseReport.improvements : [];
 
-  // Keep some room for user interaction:
-  // - If successProbability > 75%: do not provide "improvements" tips.
-  // - If successProbability >= 70%: keep only 1–2 improvements.
-  // - Else: keep up to 6 improvements (avoid over-perfect reports).
+  // Garder de la marge pour l’interaction utilisateur :
+  // - Si successProbability > 75% : ne pas proposer d’“improvements”.
+  // - Si successProbability >= 70% : garder seulement 1–2 améliorations.
+  // - Sinon : garder jusqu’à 6 améliorations (éviter un rapport trop “parfait”).
   let cappedImprovements = improvements;
   if (Number.isFinite(sp) && sp > 75) cappedImprovements = [];
   else if (Number.isFinite(sp) && sp >= 70) cappedImprovements = improvements.slice(0, 2);

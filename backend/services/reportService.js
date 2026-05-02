@@ -30,7 +30,7 @@ async function createReport({ reporterId, projectId, type, description = "" }) {
     );
   }
 
-  // No transaction (standalone MongoDB compatibility); order is safe enough for PFE.
+  // Pas de transaction MongoDB (compatibilité instance « standalone ») : l’ordre des opérations suffit ici.
   const report = await Report.create({
     reporterId,
     projectId,
@@ -124,7 +124,33 @@ async function listAdminReports({ status, limit = 40 } = {}) {
   const safeLimit = Number.isFinite(n) ? Math.min(Math.max(n, 1), 100) : 40;
   const query = {};
   if (status) query.status = String(status);
-  return Report.find(query).sort({ createdAt: -1 }).limit(safeLimit).lean();
+  return Report.find(query)
+    .select({
+      reporterId: 1,
+      projectId: 1,
+      commentId: 1,
+      type: 1,
+      description: 1,
+      status: 1,
+      resolvedBy: 1,
+      resolution: 1,
+      resolvedAt: 1,
+      createdAt: 1,
+    })
+    .populate({ path: "projectId", select: { title: 1, status: 1 }, options: { lean: true } })
+    .populate({
+      path: "reporterId",
+      select: { email: 1, role: 1, profile: 1 },
+      options: { lean: true },
+    })
+    .populate({
+      path: "commentId",
+      select: { content: 1, authorLabel: 1, isHidden: 1, deletedAt: 1, createdAt: 1 },
+      options: { lean: true },
+    })
+    .sort({ createdAt: -1 })
+    .limit(safeLimit)
+    .lean();
 }
 
 async function resolveReport({
@@ -152,7 +178,7 @@ async function resolveReport({
 
   const notifs = [];
 
-  // Optional project action (WARNING / DEACTIVATE)
+  // Action sur le projet facultative (AVERTISSEMENT / DÉSACTIVATION).
   if (actionOnProject === "DEACTIVATE") {
     const project = await Project.findById(report.projectId);
     if (project) {
@@ -196,7 +222,7 @@ async function resolveReport({
     }
   }
 
-  // Optional comment action (DELETE_COMMENT / HIDE_COMMENT)
+  // Action sur le commentaire facultative (SUPPRIMER / MASQUER).
   if (report.commentId && actionOnComment) {
     if (!["DELETE_COMMENT", "HIDE_COMMENT"].includes(String(actionOnComment))) {
       throw new HttpError(400, "actionOnComment doit être DELETE_COMMENT ou HIDE_COMMENT.");
@@ -216,7 +242,7 @@ async function resolveReport({
     }
   }
 
-  // Notify reporter
+  // Informer le rapporteur de la clôture du signalement.
   notifs.push(
     await Notification.create({
       userId: report.reporterId,

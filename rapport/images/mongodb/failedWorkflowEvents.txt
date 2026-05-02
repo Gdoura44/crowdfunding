@@ -1,0 +1,63 @@
+{
+  "_id": ObjectId,
+
+  // projectId est optionnel : renseigné uniquement pour les workflows liés à un projet
+  // (ex. "risk-analysis"). Null pour les workflows hors projet (ex. "notification" : user-scoped).
+  "projectId": { "type": "ObjectId", "ref": "Project", "required": false, "default": null },
+
+  "workflowType": { "type": "string", "required": true },
+  // exemples : "risk-analysis", "notification"
+
+  "payload": { "type": "Object", "required": true },
+  // Données d’entrée originales envoyées au workflow — utilisées pour la relance manuelle.
+
+  "error": { "type": "string", "required": true },
+  "retryCount": { "type": "number", "default": 0 },
+  
+  // Ajouté pour la piste d’audit
+  "resolvedBy": { "type": "ObjectId", "ref": "User" },
+  "resolvedAt": { "type": "Date" },
+  
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "resolved": { "type": "boolean", "default": false }
+}
+
+// Indexes
+db.failedWorkflowEvents.createIndex({ resolved: 1, createdAt: -1 });
+db.failedWorkflowEvents.createIndex({ projectId: 1 });   // sparse for non-null projectIds
+db.failedWorkflowEvents.createIndex({ workflowType: 1, resolved: 1 });
+
+// ============================================================================
+// GESTION DES ÉCHECS DE WORKFLOW
+// ============================================================================
+//
+// **Types de workflow :**
+//
+// 1. **risk-analysis** (lié à un projet) :
+//    - projectId : renseigné avec Project._id
+//    - payload : { projectId }
+//    - Déclenché lors de la soumission d’un projet pour analyse IA.
+//    - Relance : UI admin → POST /api/admin/projects/:id/retry-ai (re-enfile BullMQ).
+//    - Échec : le projet reste AWAITING_AI ; aiStatus=FAILED ; FailedWorkflowEvent créé.
+//
+// 2. **notification** (user-scoped) :
+//    - projectId : null
+//    - payload DOIT contenir :
+//        • userId (ObjectId)
+//        • notificationId (ObjectId) ← requis pour la relance
+//        • emailTemplate (string)
+//        • recipientEmail (string)
+//    - Déclenché si l’envoi d’e-mail échoue après création de la notification in-app.
+//    - Relance : « Relancer notification échouée » (UC_ManageNotifications)
+//      → POST /api/admin/retry-notification { eventId } → adminOpsService.retryNotificationOnce
+//    - Le document Notification est récupéré via payload.notificationId.
+//
+// **Relance / clôture (alignement code actuel) :**
+// - risk-analysis : pas de « retry » générique sur FailedWorkflowEvent côté API publique ;
+//   l’admin relance via retry-ai sur le projet. Les events restent pour audit jusqu’à résolution manuelle si besoin.
+// - notification : POST /api/admin/retry-notification { eventId }.
+//
+// **Remarque :**
+// Les FailedWorkflowEvent jouent surtout un rôle d’historique/audit ; la résolution
+// automatique (cron) n’est pas une exigence du schéma — elle dépend de l’implémentation.
+// ============================================================================

@@ -5,6 +5,7 @@ import { projectsApi } from "../api/projects";
 import { canCreatorDeleteProject } from "../utils/projectRules.js";
 import { extractApiError } from "../utils/apiError";
 import Guidance from "../components/ui/Guidance.jsx";
+import Alert from "../components/ui/Alert.jsx";
 import { PROJECT_CATEGORIES } from "../config/categories.js";
 import { FUNDING_GOAL_MAX, FUNDING_GOAL_MIN } from "../config/businessRules.js";
 
@@ -22,7 +23,7 @@ function addDaysToDateInput(dateStr, days) {
   return base.toISOString().slice(0, 10);
 }
 
-// Page modification: permet d’éditer un projet non public et relance l’analyse IA si un champ “impactant” change.
+// Page modification : permet d’éditer un projet non public et relance l’analyse IA si un champ “impactant” change.
 export default function ProjectEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -40,46 +41,50 @@ export default function ProjectEdit() {
     deadline: "",
   });
   const descTemplate = [
-    "1. Problème & contexte",
-    "- Quel besoin concret voulez-vous résoudre ? (pour qui, où, pourquoi maintenant)",
-    "- Constat chiffré si possible (ex. nombre de bénéficiaires, coût actuel, délai, etc.)",
-    "- Situation actuelle et limites (ce qui ne marche pas aujourd’hui)",
+    "Résumé (2–3 lignes)",
+    "- Le problème (pour qui, où) + la solution proposée + l’impact attendu.",
     "",
-    "2. Objectif & impact attendu",
-    "- Objectif principal (1 phrase) + 2–3 objectifs secondaires",
-    "- Indicateurs de succès (ex. 200 bénéficiaires, 50 kits distribués, 3 ateliers, etc.)",
+    "1) Problème & contexte",
+    "- Contexte : qui est concerné, où, pourquoi c’est urgent.",
+    "- Constat chiffré : bénéficiaires, coûts actuels, délais, manque d’équipement, etc.",
+    "- Ce qui ne fonctionne pas aujourd’hui et pourquoi.",
     "",
-    "3. Solution proposée",
-    "- Votre idée en 5–8 lignes (ce que vous allez faire concrètement)",
-    "- Pourquoi cette solution est réaliste ? (équipe, partenaires, ressources)",
+    "2) Objectifs & indicateurs (SMART)",
+    "- Objectif principal (1 phrase).",
+    "- 2–3 objectifs secondaires.",
+    "- Indicateurs de succès : chiffres, dates, livrables mesurables.",
     "",
-    "4. Plan d’action (jalons)",
-    "- Étape 1 (Semaine 1–2) : ...",
-    "- Étape 2 (Semaine 3–4) : ...",
-    "- Étape 3 (Semaine 5–6) : ...",
-    "- Date de livraison / mise en service : ...",
+    "3) Solution & exécution",
+    "- Ce que vous allez faire concrètement (5–8 lignes).",
+    "- Méthode : étapes techniques/terrain, partenaires, autorisations (si besoin).",
+    "- Équipe : rôles, expériences pertinentes, responsabilités.",
     "",
-    "5. Budget (utilisation des fonds)",
-    "- Poste A : ... TND (ex. matériel)",
-    "- Poste B : ... TND (ex. transport / logistique)",
-    "- Poste C : ... TND (ex. communication)",
-    "- Total : ... TND",
-    "- Si vous avez déjà une contribution (personnelle/partenaire), précisez-la.",
+    "4) Plan d’action (jalons + calendrier)",
+    "- Jalon 1 (Semaine X–Y) : … (résultat attendu)",
+    "- Jalon 2 (Semaine X–Y) : …",
+    "- Jalon 3 (Semaine X–Y) : …",
+    "- Date de livraison / mise en service : …",
     "",
-    "6. Livrables / preuves (ce que les contributeurs verront)",
-    "- Livrable 1 : ... (photo, rapport, vidéo, lien, événement)",
-    "- Livrable 2 : ...",
-    "- Fréquence des mises à jour (ex. 1 fois / semaine)",
+    "5) Budget détaillé (important)",
+    "- Ligne 1 : … TND (quantité × prix unitaire) — justification",
+    "- Ligne 2 : … TND — justification",
+    "- Ligne 3 : … TND — justification",
+    "- Frais logistiques : … TND",
+    "- Total : … TND (doit correspondre à l’objectif)",
+    "- Si vous avez un co-financement : montant + source + statut (confirmé / en cours).",
     "",
-    "7. Risques & plan d’atténuation",
-    "- Risque 1 : ... → Solution : ...",
-    "- Risque 2 : ... → Solution : ...",
-    "- Plan B (si un fournisseur / une étape échoue) : ...",
+    "6) Livrables & transparence",
+    "- Livrable 1 : … (photo/rapport/vidéo/lien)",
+    "- Livrable 2 : …",
+    "- Fréquence des mises à jour (ex. 1 fois / semaine).",
     "",
-    "8. Transparence",
-    "- Qui gère le projet ? (nom/organisation, rôle)",
-    "- Comment l’argent sera utilisé ? (rappel du budget)",
-    "- Comment les contributeurs seront informés ?",
+    "7) Risques & atténuation (ce que l’IA vérifie)",
+    "- Risque 1 : … → Mesure : …",
+    "- Risque 2 : … → Mesure : …",
+    "- Plan B : …",
+    "",
+    "8) Questions à clarifier (si applicable)",
+    "- Exemple : fournisseurs, autorisations, maintenance, qui exploite après livraison ?",
   ].join("\n");
 
   useEffect(() => {
@@ -182,10 +187,10 @@ export default function ProjectEdit() {
             renvoyés après refus — tant que la campagne n’est pas publique.
           </p>
         </div>
-        <div className="alert alert-secondary border-0 small">
+        <Alert variant="secondary">
           <strong>Important :</strong> FinCollab est une plateforme de <strong>soutien</strong> (don / contribution).
           Ce n’est <strong>pas</strong> un produit financier : aucun rendement n’est garanti.
-        </div>
+        </Alert>
         <div className="card border-0 fc-surface-card">
           <div className="card-body p-4 p-md-5">
             <form onSubmit={onSubmit} className="vstack gap-3">

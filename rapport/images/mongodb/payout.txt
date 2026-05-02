@@ -1,0 +1,125 @@
+{
+  "_id": ObjectId,
+  "projectId": { "type": "ObjectId", "ref": "Project", "required": true, "index": true },
+
+  // creatorId ajouté pour référence d’audit directe
+  // Copié depuis Project.creatorId au moment de la création du Payout
+  // Conservé même si le créateur est ensuite supprimé (référence vers un User anonymisé)
+  "creatorId": { "type": "ObjectId", "ref": "User", "required": true, "index": true },
+
+  // amount = fundingGoal au moment de la clôture du projet (PAS currentFunding)
+  // Garantit que le créateur reçoit exactement le montant objectif, même en cas de surfinancement
+  // Les remboursements de surfinancement sont traités AVANT la création du Payout
+  "amount": { "type": "number", "required": true },
+
+  "status": {
+    "type": "string",
+    "enum": ["PENDING", "READY", "COMPLETED", "CANCELLED", "FAILED"],
+    "default": "PENDING"
+  },
+
+  // bankDetails: chiffré au repos (AES-256-GCM). Null jusqu'à saisie par le créateur.
+  "bankDetails": { "type": "string", "default": null },
+
+  // Ajouté pour documenter les raisons d’échec
+  "failureReason": { "type": "string" },
+  // Renseigné quand status → FAILED
+  // Exemples : "Coordonnées bancaires invalides", "Compte bancaire clôturé", "Erreur provider"
+
+  // notes: utilisé par l’admin pour documenter annulations, interventions manuelles, etc.
+  "notes": { "type": "string" },
+
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "bankDetailsProvidedAt": "Date",   // renseigné quand status → READY
+  "completedAt": "Date"              // renseigné quand status → COMPLETED
+}
+
+// Indexes
+db.payouts.createIndex({ projectId: 1 }, { unique: true });
+// Unique: un seul payout par projet. Un second payout pour le même projet est un bug.
+db.payouts.createIndex({ creatorId: 1, status: 1 });
+db.payouts.createIndex({ status: 1 });
+
+// ============================================================================
+// FORMAT DES COORDONNÉES BANCAIRES (avant chiffrement)
+// ============================================================================
+// Le champ bankDetails doit être une chaîne JSON avec la structure suivante:
+// {
+//   "accountHolderName": "string",   // requis, 3 à 100 caractères
+//   "iban": "string",                // requis, format IBAN valide
+//   "bankName": "string",            // requis, 3 à 100 caractères
+//   "swiftCode": "string"            // optionnel, exactement 8 ou 11 caractères
+// }
+//
+// Validation (couche service, avant chiffrement):
+// 1. Parser le JSON.
+// 2. Vérifier présence + longueur des champs requis.
+// 3. Valider l’IBAN via une librairie standard (ex: iban.js).
+// 4. Si swiftCode est fourni, vérifier longueur 8 ou 11.
+// 5. En cas d’échec, lever ValidationError avec un message clair.
+// ============================================================================
+
+// ============================================================================
+// RÈGLES DE TRANSITION DU STATUT PAYOUT
+// ============================================================================
+//
+//
+// **Précondition à la création d’un payout:**
+// Le système DOIT vérifier qu’aucun FailedRefundEvent non résolu n’existe pour ce projet
+// avec reason = "OVERFUNDING". Si un tel événement existe, le projet reste ACTIVE
+// (objectif atteint mais clôture en attente de résolution du remboursement). Le payout n’est
+// PAS créé tant que le remboursement de surfinancement n’a pas réussi ou n’est pas résolu manuellement.
+//
+// **Flux des statuts :**
+// 1. PENDING (créé à la clôture réussie du projet)
+//    → Le créateur reçoit la notification PAYOUT_BANK_DETAILS_REQUEST
+//    → En attente de la saisie des coordonnées bancaires.
+//
+// 2. PENDING → READY (le créateur soumet ses coordonnées)
+//    → bankDetailsProvidedAt renseigné
+//    → L’admin reçoit PAYOUT_READY_FOR_APPROVAL pour valider le payout.
+//
+// 3. READY → COMPLETED (l’admin valide et le paiement réussit)
+//    → completedAt renseigné
+//    → Le créateur reçoit PAYOUT_COMPLETED
+//    → État immuable (aucune transition ultérieure).
+//
+// 4. READY → FAILED (échec du paiement)
+//    → failureReason renseigné (ex. "Format IBAN invalide")
+//    → FailedPayoutEvent créé
+//    → Le créateur reçoit PAYOUT_FAILED
+//    → Notification admin pour traitement.
+//
+// 5. FAILED → READY (l’admin corrige et relance)
+//    → L’admin vérifie/corrige les coordonnées bancaires
+//    → L’admin clique « Relancer payout échoué » (UC_RetryPayout)
+//    → failureReason nettoyée ou mise à jour
+//    → FailedPayoutEvent.resolved = true.
+//
+// 6. ANY → CANCELLED (l’admin annule le payout)
+//    → Le champ notes documente le motif d’annulation
+//    → Le créateur reçoit PAYOUT_CANCELLED
+//    → bankDetails effacés (confidentialité)
+//    → État immuable.
+//
+// **Cas limites:**
+//
+// **Créateur supprimé avant la fin du payout:**
+// - Si status = PENDING ou READY: suppression utilisateur **bloquée** (cf. user.txt).
+//   Le payout doit être annulé ou complété avant suppression.
+// - Si status = FAILED: suppression autorisée (pas de payout actif). Les coordonnées bancaires sont effacées,
+//   et l’admin peut annuler le payout après suppression pour propreté d’audit.
+// - Si status = COMPLETED: le payout persiste pour la traçabilité (minimum 7 ans).
+// - Si status = CANCELLED: état final, aucune action.
+//
+// - **Coordonnées bancaires invalides :**
+//   • status → FAILED, failureReason = "Coordonnées bancaires invalides"
+//   • Le créateur est notifié pour mise à jour (s’il n’est pas supprimé)
+//   • L’admin peut annoter le champ notes et relancer manuellement.
+//
+// - **Multiples échecs :**
+//   • Aucune limite de relance imposée au niveau schéma
+//   • L’admin choisit entre annuler et relancer
+//   • Chaque relance incrémente FailedPayoutEvent.retryCount.
+//
+// ============================================================================

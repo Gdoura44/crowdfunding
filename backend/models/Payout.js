@@ -16,13 +16,16 @@ const payoutSchema = new mongoose.Schema(
     amount: { type: Number, required: true },
     status: {
       type: String,
-      enum: ["PENDING", "READY", "COMPLETED", "CANCELLED", "FAILED"],
+      enum: ["PENDING", "READY", "PROCESSING", "COMPLETED", "CANCELLED", "FAILED"],
       default: "PENDING",
     },
+    provider: { type: String, default: "" }, // ex: "FLOUCI" (simulation)
+    providerTransferId: { type: String, default: "" },
     bankDetails: { type: String, default: null },
     failureReason: { type: String, default: "" },
     notes: { type: String, default: "" },
     bankDetailsProvidedAt: { type: Date },
+    transferInitiatedAt: { type: Date },
     completedAt: { type: Date },
   },
   { timestamps: { createdAt: true, updatedAt: false }, collection: "payouts" }

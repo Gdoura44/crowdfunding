@@ -1,15 +1,14 @@
 /**
- * API base URL resolution (see `vite.config.js` server.proxy for local dev).
+ * Résolution de l’URL de base de l’API (voir `vite.config.js` et `server.proxy` en dev local).
  *
- * - Development: default "" → requests go to the same origin as the Vite dev
- *   server (e.g. :5173), and `/api` is proxied to the Node backend. No
- *   frontend `.env` required for a standard setup.
- * - Production: set `VITE_API_URL` at build time if the API is on another
- *   origin; otherwise "" assumes the API is served under the same host
- *   (e.g. reverse proxy `/api` → backend).
+ * - Développement : par défaut "" → les requêtes vont vers le même origin que le serveur Vite
+ *   (ex. :5173), et `/api` est proxy vers le backend Node. Aucun `.env` frontend n’est requis
+ *   pour une configuration standard.
+ * - Production : définir `VITE_API_URL` au build si l’API est sur un autre origin ; sinon ""
+ *   suppose que l’API est servie sous le même hôte (ex. reverse proxy `/api` → backend).
  */
 export function getApiBaseUrl() {
-  // In dev, always prefer same-origin + Vite proxy (`/api` → backend).
+  // En dev, préférer le même origin + proxy Vite (`/api` → backend).
   // Évite les problèmes de cookies cross-site (SameSite) avec les sessions httpOnly.
   if (import.meta.env.DEV) return "";
 

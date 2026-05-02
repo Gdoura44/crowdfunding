@@ -1,0 +1,94 @@
+{
+  "_id": ObjectId,
+  "title": "string",
+  "description": "string",
+  "category": "string",
+  "fundingGoal": "number",
+  "currentFunding": { "type": "number", "default": 0 },
+  "status": {
+    "type": "string",
+    "enum": [
+      "DRAFT",
+      "AWAITING_AI",
+      "UNDER_REVIEW",
+      "APPROVED",
+      "ACTIVE",
+      "REJECTED",
+      "FUNDED",
+      "CLOSED",
+      "SUSPENDED"
+    ],
+    "default": "DRAFT"
+  },
+  "aiStatus": {
+    "type": "string",
+    "enum": ["PENDING", "COMPLETED", "FAILED"],
+    "default": "PENDING"
+  },
+  
+  // Ajouté pour tracer les tentatives de relance de l’analyse IA
+  "aiAnalysisRetries": { 
+    "type": "number", 
+    "default": 0, 
+    "max": 3,
+    "min": 0
+  },
+  "aiJobId": { "type": "string", "default": "" },
+  "aiQueuedAt": { "type": "Date" },
+  "aiNextRetryAt": { "type": "Date" },
+  "aiLastError": { "type": "string", "default": "" },
+  "aiAutoRetryCount": { "type": "number", "default": 0, "min": 0 },
+  
+  "creatorId": { "type": "ObjectId", "ref": "User", "index": true, "required": true },
+  "startAt": { "type": "Date", "required": true },
+  "deadline": { "type": "Date", "required": true },
+  "rejectionReason": "string",
+  "rejectedBy": { "type": "ObjectId", "ref": "User" },
+  "rejectedAt": "Date",
+  "isArchived": { "type": "boolean", "default": false },
+  "isCreatorDeleted": { "type": "boolean", "default": false },
+  "fundedAt": "Date",
+  "publishedAt": { "type": "Date" },
+  "images": ["string"],
+  "documents": ["string"],
+  "aiAnalysis": {
+    // Renseigné lorsque aiStatus = COMPLETED (sinon undefined).
+    "riskScore": "number",
+    "riskLevel": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+    "successProbability": "number",
+    "analyzedAt": "Date",
+    // Rapport lisible pour le créateur ET l’admin (transparence PFE).
+    "report": {
+      "summary": { "type": "string", "default": "" },
+      "advantages": ["string"],
+      "disadvantages": ["string"],
+      "improvements": ["string"],
+      "removals": ["string"],
+      "questionsToClarify": ["string"]
+    },
+    "sourcesUsed": [
+      { "url": "string", "title": "string", "domain": "string" }
+    ],
+    "meta": {
+      // ex. method = "llm-only" (depuis suppression de la recherche web).
+      "method": { "type": "string", "default": "" },
+      "model":  { "type": "string", "default": "" }
+    }
+  },
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "updatedAt": { "type": "Date", "default": "Date.now" }
+}
+
+// Indexes
+db.projects.createIndex({ status: 1, deadline: 1 });
+db.projects.createIndex({ creatorId: 1 });
+db.projects.createIndex({ status: 1, startAt: 1 });
+db.projects.createIndex({ status: 1, isArchived: 1 });
+db.projects.createIndex({ "aiAnalysis.analyzedAt": 1 });
+db.projects.createIndex({ title: "text", description: "text" }); // recherche texte (Home/Explorer)
+
+// Flux IA : DRAFT → submit → AWAITING_AI → (succès) UNDER_REVIEW.
+// En cas de quota/503/timeout: backoff via aiNextRetryAt + relance automatique (cron interne/externe) sans intervention utilisateur.
+// Échec persistant: aiStatus FAILED, retry admin POST /api/admin/projects/:id/retry-ai (max 3, BullMQ).
+// Clôture / overfunding : voir projectService + cronService (FailedRefundEvent OVERFUNDING bloque CLOSED / payout).
+// Archivage : DRAFT, AWAITING_AI, UNDER_REVIEW, REJECTED. Réactivation SUSPENDED : voir adminProjectService (IA fraîche > 30 j → UNDER_REVIEW sinon AWAITING_AI + file risque).

@@ -32,7 +32,7 @@ export function useMyProjects({ enabled = true } = {}) {
 
   const deleteProject = useCallback(
     async (projectId) => {
-      // Optimistic UI: remove immediately.
+      // UI optimiste : retirer immédiatement côté écran (puis re-synchroniser avec le serveur).
       setProjects((prev) => prev.filter((p) => p._id !== projectId));
       try {
         await projectsApi.remove(projectId);

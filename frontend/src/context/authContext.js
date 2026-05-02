@@ -1,5 +1,5 @@
 import { createContext } from "react";
 
-// Kept in a non-component module to satisfy react-refresh lint rule.
+// Contexte React dans un module hors composant (contrainte ESLint react-refresh).
 export const AuthContext = createContext(null);
 

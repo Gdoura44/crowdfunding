@@ -16,13 +16,11 @@ async function expireInitiatedInvestments({ olderThanMinutes = 30, limit = 200 }
     // Alignement avec la conception: on n’expire que les investissements INITIATED qui n’ont jamais
     // déclenché de transaction. Si une transaction existe, c’est la réconciliation (statut provider)
     // qui détermine l’état final.
-    // eslint-disable-next-line no-await-in-loop
     const anyTx = await Transaction.findOne({ investmentId: inv._id })
       .select("_id")
       .lean();
     if (anyTx) continue;
 
-    // eslint-disable-next-line no-await-in-loop
     const res = await Investment.updateOne({ _id: inv._id, status: "INITIATED" }, { $set: { status: "FAILED" } });
     if (res.modifiedCount) {
       expired += 1;

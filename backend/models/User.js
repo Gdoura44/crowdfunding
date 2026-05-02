@@ -13,9 +13,9 @@ const userProfileSchema = new mongoose.Schema(
   {
     firstName: { type: String, default: "" },
     lastName: { type: String, default: "" },
-    // phone: stored as E.164 string when possible (e.g. "+21612345678")
+    // Téléphone : stocké au format E.164 quand possible (ex. "+21612345678")
     phone: { type: String, default: "" },
-    // Note: country is not persisted; UI stores the full E.164 in `phone`.
+    // Remarque : le pays n’est pas persisté ; l’UI stocke le E.164 complet dans `phone`.
     riskPreference: {
       type: String,
       enum: ["LOW", "MEDIUM", "HIGH"],
@@ -61,7 +61,7 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ isActive: 1 });
 userSchema.index({ deletedAt: 1 });
-// Verification lookups should be instant (used on public endpoints).
+// Les recherches de vérification doivent être rapides (utilisées sur des endpoints publics).
 userSchema.index({ verifyTokenHash: 1 });
 userSchema.index({ verifyCodeHash: 1 });
 

@@ -9,7 +9,7 @@ function getQueue() {
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) return null;
 
-  // Producer connection: fail fast when Redis is down (workers should use maxRetriesPerRequest: null).
+  // Connexion “producer” : échec rapide si Redis est down (les workers doivent utiliser maxRetriesPerRequest: null).
   const connection = new IORedis(redisUrl, { maxRetriesPerRequest: 1 });
   queueInstance = new Queue("risk-analysis", { connection });
   return queueInstance;
