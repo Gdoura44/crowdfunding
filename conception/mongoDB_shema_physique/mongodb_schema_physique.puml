@@ -1,0 +1,420 @@
+@startuml
+' ==========================================================
+' Schéma physique MongoDB — version RAPPORT (Plan du rapport v2 / FSEG Sfax)
+' Source de vérité : modèles Mongoose `backend/models/*` (collection, champs, index, refs)
+' Représentation : collections (documents) + relations (références ObjectId) + index structurants
+' ==========================================================
+
+title Schéma physique — MongoDB (collections, index, relations)
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 260
+
+' -------------------------
+' Collections principales
+' -------------------------
+
+class users <<collection>> {
+  _id: ObjectId
+  email: String (unique, required)
+  passwordHash: String (required)
+  role: \"USER\" | \"ADMIN\"
+  isActive: Boolean
+
+  verifyCodeHash: String?
+  verifyCodeExpiry: Date?
+  verifyTokenHash: String?
+  verifyTokenExpiry: Date?
+  verifyTokenUsedAt: Date?
+  verifyTokenUsedBy: \"CODE\" | \"LINK\" | null
+
+  resetTokenHash: String?
+  resetTokenExpiry: Date?
+  deletedAt: Date?
+
+  refreshTokens[]: { tokenHash, expiresAt, device }
+  profile: { firstName, lastName, phone, riskPreference, preferredCategories[] }
+
+  createdAt: Date
+  updatedAt: Date
+}
+
+class projects <<collection>> {
+  _id: ObjectId
+  creatorId: ObjectId -> users._id
+  title: String (required)
+  description: String
+  category: String
+  fundingGoal: Number (min=1)
+  currentFunding: Number
+
+  status: \"DRAFT\" | \"AWAITING_AI\" | \"UNDER_REVIEW\" | \"APPROVED\" | \"ACTIVE\" | \"REJECTED\" | \"FUNDED\" | \"CLOSED\" | \"SUSPENDED\"
+  aiStatus: \"PENDING\" | \"COMPLETED\" | \"FAILED\"
+  aiJobId: String
+  aiQueuedAt: Date?
+  aiNextRetryAt: Date?
+  aiLastError: String
+  aiAutoRetryCount: Number
+  aiAnalysisRetries: Number (max=3)
+  rejectionReason: String
+  rejectedBy: ObjectId? -> users._id
+  rejectedAt: Date?
+
+  startAt: Date (required)
+  deadline: Date (required)
+  isArchived: Boolean
+  isCreatorDeleted: Boolean
+  fundedAt: Date?
+  publishedAt: Date?
+  images[]: String
+  documents[]: String
+
+  aiAnalysis?: {
+    riskScore: Number?
+    riskLevel: \"LOW\" | \"MEDIUM\" | \"HIGH\"
+    successProbability: Number?
+    analyzedAt: Date?
+    report: { summary, advantages[], disadvantages[], improvements[], removals[], questionsToClarify[] }
+    sourcesUsed[]: { url, title, domain }
+    meta: { method, model }
+  }
+
+  createdAt: Date
+  updatedAt: Date
+}
+
+class investments <<collection>> {
+  _id: ObjectId
+  investorId: ObjectId -> users._id
+  projectId: ObjectId -> projects._id
+  amount: Number (min=1)
+  status: \"INITIATED\" | \"CANCELLING\" | \"CANCELLED\" | \"SUCCESS\" | \"FAILED\" | \"REFUNDED\"
+  paymentAttempts: Number
+
+  cancelReason?: \"USER_REQUESTED\" | \"PROJECT_DEACTIVATED\" | \"PAYMENT_TIMEOUT\" | \"FRAUDULENT\" | \"USER_DEACTIVATED\" | \"ACCOUNT_DELETION\"
+  cancelledAt?: Date
+  cancellingStartedAt?: Date
+  scheduledForDeactivation: Boolean
+  cancellationGracePeriodMinutes: Number
+
+  createdAt: Date
+  updatedAt: Date
+}
+
+class transactions <<collection>> {
+  _id: ObjectId
+  investmentId: ObjectId -> investments._id
+  provider: \"FLOUCI\" | \"KONNECT\" | \"D17\"
+  providerPaymentId: String (required)
+  amount: Number (required)
+  status: \"PENDING\" | \"SUCCEEDED\" | \"FAILED\" | \"REFUNDED\" | \"CANCELLED\"
+  cancelledAt?: Date
+  paymentMethod: String
+  attemptNumber: Number
+  refundStatus: \"NOT_ATTEMPTED\" | \"PENDING\" | \"SUCCEEDED\" | \"FAILED\"
+  refundAttempts: Number
+  lastRefundAttemptAt?: Date
+  refundedAt?: Date
+  createdAt: Date
+  updatedAt: Date
+}
+
+class payouts <<collection>> {
+  _id: ObjectId
+  projectId: ObjectId -> projects._id
+  creatorId: ObjectId -> users._id
+  amount: Number (required)
+  status: \"PENDING\" | \"READY\" | \"COMPLETED\" | \"CANCELLED\" | \"FAILED\"
+  bankDetails: String? (chiffré AES-256-GCM)
+  failureReason: String
+  notes: String
+  bankDetailsProvidedAt?: Date
+  completedAt?: Date
+  createdAt: Date
+}
+
+class notifications <<collection>> {
+  _id: ObjectId
+  userId: ObjectId -> users._id
+  type: NotificationType (liste définie dans `backend/models/Notification.js`)
+  title: String
+  message: String
+  read: Boolean
+  adminRead: Boolean
+  relatedEntityId?: ObjectId
+  relatedEntityType?: \"PROJECT\" | \"INVESTMENT\" | \"REPORT\" | \"PAYOUT\" | \"USER\" | null
+  createdAt: Date
+}
+
+note right of notifications
+  NotificationType (enum exact):\n
+  - PROJECT_CREATED\n
+  - PROJECT_UPDATED\n
+  - PROJECT_SUBMITTED\n
+  - PROJECT_ARCHIVED\n
+  - PROJECT_DELETED\n
+  - PROJECT_APPROVED\n
+  - PROJECT_REJECTED\n
+  - PROJECT_AUTO_REJECTED\n
+  - PROJECT_PUBLISHED\n
+  - PROJECT_FUNDED\n
+  - PROJECT_WARNING\n
+  - PROJECT_FUNDING_GOAL_LOST\n
+  - NEW_INVESTMENT\n
+  - PAYMENT_SUCCESS\n
+  - PAYMENT_FAILED\n
+  - PAYMENT_CANCELLED\n
+  - PAYMENT_REFUNDED\n
+  - OVERFUND_REFUNDED\n
+  - PROJECT_EXPIRED\n
+  - REPORT_RESOLVED\n
+  - PAYOUT_COMPLETED\n
+  - PAYOUT_BANK_DETAILS_REQUEST\n
+  - PAYOUT_READY_FOR_APPROVAL\n
+  - PAYOUT_CANCELLED\n
+  - PROJECT_REACTIVATED\n
+  - PROJECT_SUSPENDED\n
+  - CANCELLATION_FAILED\n
+  - REFUND_FAILED\n
+  - ACCOUNT_DELETED\n
+  - NEW_REPORT\n
+  - USER_DEACTIVATED\n
+  - PAYOUT_FAILED\n
+  - USER_REACTIVATED\n
+  - PASSWORD_RESET_REQUESTED\n
+  - PROJECT_AI_REPORT_READY
+end note
+
+class reports <<collection>> {
+  _id: ObjectId
+  reporterId: ObjectId -> users._id
+  projectId: ObjectId -> projects._id
+  commentId?: ObjectId -> comments._id
+  type: \"FRAUD\" | \"INAPPROPRIATE_CONTENT\" | \"SPAM\" | \"OTHER\"
+  description: String
+  status: \"PENDING\" | \"RESOLVED\" | \"DISMISSED\"
+  resolvedBy?: ObjectId -> users._id
+  resolution: String
+  resolvedAt?: Date
+  createdAt: Date
+}
+
+class comments <<collection>> {
+  _id: ObjectId
+  projectId: ObjectId -> projects._id
+  userId: ObjectId -> users._id
+  authorLabel: String
+  content: String (max=1000)
+  isHidden: Boolean
+  hiddenReason: String
+  hiddenAt?: Date
+  hiddenBy?: ObjectId -> users._id
+  deletedAt?: Date
+  deletedBy?: ObjectId -> users._id
+  deletedByRole: \"USER\" | \"ADMIN\"
+  createdAt: Date
+  updatedAt: Date
+}
+
+class auditLogs <<collection>> {
+  _id: ObjectId
+  actorId: ObjectId -> users._id
+  actorRole: \"USER\" | \"ADMIN\"
+  action: String
+  targetType: String
+  targetId: ObjectId
+  details: Mixed (mongoose.Schema.Types.Mixed)
+  timestamp: Date
+}
+
+note top of auditLogs
+  Collection réelle : \"auditLogs\" (camelCase)\n
+  Attention : le nom de classe PlantUML est identique au nom de collection.
+end note
+
+' -------------------------
+' Collections “techniques” (échecs & reprises)
+' -------------------------
+
+class failedPayoutEvents <<collection>> {
+  _id: ObjectId
+  payoutId: ObjectId -> payouts._id
+  error: String
+  retryCount: Number
+  resolved: Boolean
+  resolvedBy?: ObjectId -> users._id
+  resolvedAt?: Date
+  createdAt: Date
+}
+
+class failedRefundEvents <<collection>> {
+  _id: ObjectId
+  investmentId: ObjectId -> investments._id
+  projectId: ObjectId -> projects._id
+  error: String
+  retryCount: Number
+  reason: \"OVERFUNDING\" | \"EXPIRY\" | \"USER_REQUESTED\" | \"USER_DEACTIVATED\" | \"ACCOUNT_DELETION\" | \"PROJECT_DEACTIVATED\"
+  resolved: Boolean
+  resolvedBy?: ObjectId -> users._id
+  resolvedAt?: Date
+  createdAt: Date
+}
+
+class failedCancellationEvents <<collection>> {
+  _id: ObjectId
+  investmentId: ObjectId -> investments._id
+  error: String
+  retryCount: Number
+  reason: \"CANCELLATION_FAILED\" | \"POST_UPDATE_FAILED\" | \"STUCK_CANCELLING\" | \"PROJECT_DEACTIVATED\"
+  resolved: Boolean
+  resolvedBy?: ObjectId -> users._id
+  resolvedAt?: Date
+  createdAt: Date
+}
+
+class failedWorkflowEvents <<collection>> {
+  _id: ObjectId
+  projectId?: ObjectId -> projects._id
+  workflowType: String
+  payload: Mixed (mongoose.Schema.Types.Mixed)
+  error: String
+  retryCount: Number
+  resolved: Boolean
+  resolvedBy?: ObjectId -> users._id
+  resolvedAt?: Date
+  createdAt: Date
+}
+
+' -------------------------
+' Relations (références ObjectId)
+' -------------------------
+users "1" --> "0..*" projects : creatorId
+users "1" --> "0..*" investments : investorId
+projects "1" --> "0..*" investments : projectId
+investments "1" --> "0..*" transactions : investmentId
+projects "1" --> "0..1" payouts : projectId
+users "1" --> "0..*" payouts : creatorId
+users "1" --> "0..*" notifications : userId
+users "1" --> "0..*" reports : reporterId
+projects "1" --> "0..*" reports : projectId
+projects "1" --> "0..*" comments : projectId
+users "1" --> "0..*" comments : userId
+users "1" --> "0..*" auditLogs : actorId
+
+payouts "1" --> "0..*" failedPayoutEvents : payoutId
+investments "1" --> "0..*" failedRefundEvents : investmentId
+projects "1" --> "0..*" failedRefundEvents : projectId
+investments "1" --> "0..*" failedCancellationEvents : investmentId
+projects "1" --> "0..*" failedWorkflowEvents : projectId (sparse)
+
+' -------------------------
+' Index structurants (extraits des `schema.index(...)`)
+' -------------------------
+note right of users
+  Index:\n
+  - email unique\n
+  - isActive\n
+  - deletedAt\n
+  - verifyTokenHash\n
+  - verifyCodeHash
+end note
+
+note right of projects
+  Index:\n
+  - (status, deadline)\n
+  - creatorId\n
+  - (status, startAt)\n
+  - (status, isArchived)\n
+  - aiAnalysis.analyzedAt\n
+  - text(title, description)
+end note
+
+note right of investments
+  Index:\n
+  - (investorId, status)\n
+  - projectId\n
+  - (status, updatedAt)\n
+  - (status, cancellingStartedAt)\n
+  - (scheduledForDeactivation, updatedAt)
+end note
+
+note right of transactions
+  Index (idempotence webhook):\n
+  - unique(provider, providerPaymentId)\n
+  - unique(investmentId, attemptNumber)\n
+  - (status, createdAt)
+end note
+
+note right of payouts
+  Index:\n
+  - unique(projectId)\n
+  - (creatorId, status)\n
+  - status
+end note
+
+note right of notifications
+  Index:\n
+  - (userId, createdAt desc)\n
+  - read\n
+  - adminRead
+end note
+
+note right of reports
+  Index:\n
+  - reporterId\n
+  - projectId\n
+  - (status, createdAt desc)\n
+  - (reporterId, projectId, type)\n
+  - (reporterId, commentId, type)
+end note
+
+note right of comments
+  Index:\n
+  - (projectId, createdAt desc)\n
+  - (isHidden, createdAt desc)\n
+  - (deletedAt, createdAt desc)\n
+  - projectId\n
+  - userId\n
+  - isHidden\n
+  - deletedAt
+end note
+
+note right of auditLogs
+  Index:\n
+  - (actorId, timestamp desc)\n
+  - (targetId, targetType)\n
+  - (timestamp desc)\n
+  - (action, timestamp desc)
+end note
+
+note right of failedRefundEvents
+  Index:\n
+  - investmentId\n
+  - (resolved, createdAt desc)\n
+  - (projectId, reason, resolved)
+end note
+
+note right of failedPayoutEvents
+  Index:\n
+  - payoutId\n
+  - (resolved, createdAt desc)
+end note
+
+note right of failedCancellationEvents
+  Index:\n
+  - investmentId\n
+  - (resolved, createdAt desc)
+end note
+
+note right of failedWorkflowEvents
+  Index:\n
+  - (resolved, createdAt desc)\n
+  - projectId (sparse)\n
+  - (workflowType, resolved)
+end note
+
+@enduml
+

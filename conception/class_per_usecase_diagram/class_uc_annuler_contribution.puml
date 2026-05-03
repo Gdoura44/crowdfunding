@@ -1,0 +1,38 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Annuler contribution »
+' Alignement : `backend/routes/api/investmentRoutes.js`, `backend/services/investmentService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Annuler contribution »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class InvestmentRoutes <<controller>> {
+  +POST /api/investments/:id/cancel()
+}
+
+class InvestmentService <<service>> {
+  +cancelInvestment({ investorId, investmentId })
+}
+
+class Investment <<model>> {
+  +status
+  +cancelReason
+  +cancellationGracePeriodMinutes
+}
+
+class Transaction <<model>> {
+  +investmentId
+  +status
+}
+
+InvestmentRoutes ..> InvestmentService
+InvestmentService ..> Investment
+InvestmentService ..> Transaction
+
+@enduml

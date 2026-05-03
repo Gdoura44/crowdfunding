@@ -1,0 +1,94 @@
+@startuml
+title Séquence métier — Inscription
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité : polices ~11–12 pt visibles,
+' DPI 240, retour à la ligne des messages. Inclure juste après la ligne title.
+' Export PNG pour Word/LaTeX : viser largeur <= zone utile A4 (~17 cm).
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam handwritten false
+skinparam HyperlinkUnderline false
+
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam footerFontSize 10
+skinparam headerFontSize 10
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+skinparam BoxPadding 8
+skinparam LifeLineBorderColor #444444
+skinparam LifeLineBackgroundColor #FEFEFE
+skinparam ArrowColor #222222
+skinparam ActorBorderColor #222222
+skinparam ActorBackgroundColor #EEF6FF
+skinparam ParticipantBorderColor #333333
+skinparam ParticipantBackgroundColor #FFFFFF
+
+skinparam DatabaseBackgroundColor #F8F8F8
+skinparam EntityBackgroundColor #F8FFF8
+skinparam ControlBackgroundColor #FFF8F0
+skinparam BoundaryBackgroundColor #F5F5FF
+actor "Visiteur" as user
+boundary "Inscription" as UI
+control "Contrôleur" as Svc
+entity "Base de données" as DB
+
+user -> UI: Saisir le formulaire d'inscription
+UI -> Svc: POST /api/auth/register { email, password, ... }
+
+Svc -> Svc: Valider le corps (Zod / schéma)
+Svc -> DB: Vérifier unicité de l'e-mail (collection users)
+DB --> Svc: résultat
+
+alt E-mail déjà utilisé
+  Svc --> UI: 409 « Cette adresse e-mail est déjà utilisée. Connectez-vous ou utilisez une autre adresse. »
+  UI --> user: Afficher le message
+else E-mail disponible
+  Svc -> Svc: Hacher le mot de passe (bcrypt)
+  Svc -> Svc: Générer le jeton de vérification + hachage + date d'expiration
+  Svc -> DB: Insérer User (isActive=false, champs jeton selon modèle)
+  Svc -> Svc: Envoyer e-mail de vérification\n(code OTP **6 chiffres** + lien de secours)\n(dev: lien affiché dans les logs si SMTP indisponible)
+  Svc --> UI: 201 { message, userId, email, emailSent, emailDevFallback, devVerificationLink? }
+  UI --> user: Message « Vérifiez votre e-mail »
+
+  alt Vérification par code (flux principal)
+    user -> UI: Saisir le code OTP reçu par e-mail
+    UI -> Svc: POST /api/auth/verify-email-code { email, code }
+    Svc -> DB: Retrouver l'utilisateur et valider le code (hash + expiration)
+    DB --> Svc: user (ou null)
+    alt Code invalide/expiré
+      Svc --> UI: 400 Erreur de vérification
+    else Code valide
+      Svc -> DB: Mettre à jour User (isActive=true)\n+ marquer verifyTokenUsedBy=\"CODE\"\n+ verifyTokenUsedAt = now()
+      Svc --> UI: 200 E-mail vérifié
+      UI --> user: Redirection vers la connexion
+    end
+  else Vérification par lien (secours)
+    user -> UI: Clic sur le lien reçu par e-mail (navigateur)
+    UI -> Svc: GET /api/auth/verify-email?token=...
+    Svc -> DB: Retrouver l'utilisateur et valider le jeton
+    DB --> Svc: user (ou null)
+    alt Jeton invalide ou expiré
+      Svc --> UI: 400 Lien invalide ou expiré
+    else Jeton valide
+      Svc -> DB: Mettre à jour User (isActive=true)\n+ marquer verifyTokenUsedBy=\"LINK\"\n+ verifyTokenUsedAt = now()
+      Svc --> UI: 200 E-mail vérifié
+      UI --> user: Redirection vers la connexion
+    end
+  end
+end
+
+note right of Svc
+  **Implémentation :** routes `authRoutes` + `authService.registerUser` / `verifyEmailWithToken`.
+  L'e-mail est envoyé directement (mailer). En dev, le lien peut être loggé en fallback.
+end note
+@enduml

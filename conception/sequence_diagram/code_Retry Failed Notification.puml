@@ -1,0 +1,83 @@
+@startuml
+title Séquence métier — Relancer une notification en échec (Notification)
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité : polices ~11–12 pt visibles,
+' DPI 240, retour à la ligne des messages. Inclure juste après la ligne title.
+' Export PNG pour Word/LaTeX : viser largeur <= zone utile A4 (~17 cm).
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam handwritten false
+skinparam HyperlinkUnderline false
+
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam footerFontSize 10
+skinparam headerFontSize 10
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+skinparam BoxPadding 8
+skinparam LifeLineBorderColor #444444
+skinparam LifeLineBackgroundColor #FEFEFE
+skinparam ArrowColor #222222
+skinparam ActorBorderColor #222222
+skinparam ActorBackgroundColor #EEF6FF
+skinparam ParticipantBorderColor #333333
+skinparam ParticipantBackgroundColor #FFFFFF
+
+skinparam DatabaseBackgroundColor #F8F8F8
+skinparam EntityBackgroundColor #F8FFF8
+skinparam ControlBackgroundColor #FFF8F0
+skinparam BoundaryBackgroundColor #F5F5FF
+actor Admin as admin
+boundary "Administration" as UI
+control "Contrôleur" as Svc
+entity "Base de données" as DB
+queue "BullMQ : send-email" as Queue
+
+admin -> UI: Consulter les notifications en échec (file d’échec)
+UI -> Svc: GET /api/admin/failed-notifications
+Svc -> DB: Trouver les FailedWorkflowEvents (workflowType="notification", resolved=false)
+DB --> Svc: events
+Svc --> UI: list
+UI --> admin: Afficher les événements d’e-mail en échec
+
+admin -> UI: Choisir un événement, cliquer « Relancer »
+UI -> Svc: POST /api/admin/retry-notification { eventId }
+
+Svc -> DB: Trouver le FailedWorkflowEvent par id
+DB --> Svc: event
+
+alt event.resolved == false
+  Svc -> DB: Trouver la notification d’origine via données.notificationId
+  DB --> Svc: notification (if exists)
+  
+  alt notification existe
+    Svc -> Queue: enqueueEmailForNotification(notificationId) (sans bloquer)
+    Svc -> DB: Mettre à jour event.resolved = true, resolvedBy = admin.id, resolvedAt = now()
+    Svc -> DB: AuditLog (RETRY_NOTIFICATION_SUCCESS)
+    Svc --> UI: 200
+    UI --> admin: Relance demandée (envoi e-mail)
+  else notification absente / données invalides
+    Svc -> DB: Mettre à jour event.resolved = true (pas de relance possible)
+    Svc --> UI: 200 Événement clôturé (notification introuvable)
+  end
+else
+  Svc --> UI: 400 Déjà clôturé
+end
+
+note right of Svc
+  - Failed notifications are stored in `FailedWorkflowEvent` with `workflowType="notification"`
+  - Payload contient au minimum `notificationId` (le reste est optionnel selon les versions)
+  - La relance est effectuée sans bloquer via `enqueueEmailForNotification(notificationId)`
+  - L’événement est marqué `resolved=true` pour éviter les doublons
+end note
+@enduml

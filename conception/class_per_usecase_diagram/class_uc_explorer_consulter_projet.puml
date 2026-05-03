@@ -1,0 +1,41 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Explorer / consulter projet »
+' Alignement : `backend/routes/api/projectRoutes.js`, `backend/services/projectService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Explorer / consulter projet »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class ProjectRoutes <<controller>> {
+  +GET /api/projects/public(limit?)
+  +GET /api/projects/:id()
+}
+
+class ProjectService <<service>> {
+  +listPublicProjects({ limit? })
+  +getProjectById(projectId, viewerUserId?)
+}
+
+class Project <<model>> {
+  +title
+  +status
+  +currentFunding
+  +fundingGoal
+  +aiAnalysis
+}
+
+ProjectRoutes ..> ProjectService
+ProjectService ..> Project
+
+note bottom of ProjectService
+  optionalAuth : visiteur ou utilisateur connecté\n
+  (masquage champs sensibles selon rôle / propriété).
+end note
+
+@enduml

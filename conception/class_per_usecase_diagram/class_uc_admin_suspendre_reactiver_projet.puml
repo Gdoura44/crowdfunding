@@ -1,0 +1,37 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Suspendre / Réactiver projet » (admin)
+' Alignement : `backend/routes/api/adminRoutes.js`, `backend/services/adminProjectService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Admin : suspendre / réactiver projet »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class AdminRoutes <<controller>> {
+  +POST /api/admin/projects/:id/deactivate(reason?)
+  +POST /api/admin/projects/:id/reactivate()
+}
+
+class RequireAdmin <<middleware>> {
+  +requireAdmin()
+}
+
+class AdminProjectService <<service>> {
+  +deactivateProject({ adminId, projectId, reason? })
+  +reactivateProject({ adminId, projectId })
+}
+
+class Project <<model>> {
+  +status
+}
+
+AdminRoutes ..> RequireAdmin
+AdminRoutes ..> AdminProjectService
+AdminProjectService ..> Project
+
+@enduml

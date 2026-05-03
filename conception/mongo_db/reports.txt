@@ -1,0 +1,82 @@
+{
+  "_id": ObjectId,
+  "reporterId": { "type": "ObjectId", "ref": "User", "index": true, "required": true },
+  "projectId": { "type": "ObjectId", "ref": "Project", "index": true, "required": true },
+  "commentId": { "type": "ObjectId", "ref": "Comment", "index": true, "required": false },
+  "type": {
+    "type": "string",
+    "required": true,
+    "enum": ["FRAUD", "INAPPROPRIATE_CONTENT", "SPAM", "OTHER"]
+  },
+  "description": "string",
+  "status": {
+    "type": "string",
+    "enum": ["PENDING", "RESOLVED", "DISMISSED"],
+    "default": "PENDING"
+  },
+  "resolvedBy": { "type": "ObjectId", "ref": "User" },
+
+  // « resolution » obligatoire dès que status → RESOLVED ou DISMISSED.
+  // Contrôle effectué côté service (reportService).
+  "resolution": "string",
+
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "resolvedAt": "Date"
+}
+
+// Indexes
+db.reports.createIndex({ reporterId: 1 });
+db.reports.createIndex({ projectId: 1 });
+db.reports.createIndex({ status: 1, createdAt: -1 });
+
+// Index optionnels d’optimisation pour la détection de doublons (volumes élevés).
+db.reports.createIndex({ reporterId: 1, projectId: 1, type: 1 });
+db.reports.createIndex({ reporterId: 1, commentId: 1, type: 1 });
+
+// ============================================================================
+// RÈGLES MÉTIER (appliquées dans reportService)
+// ============================================================================
+//
+// **1. Anti-auto-signalement :**
+// reporterId NE DOIT PAS être égal à project.creatorId : un créateur ne peut pas
+// signaler son propre projet (ni ses propres commentaires).
+//
+// **2. Anti-doublon :**
+// Un utilisateur ne peut soumettre qu’UN SEUL signalement actif par
+// (projet, type) ou par (commentaire, type).
+// Un nouveau signalement n’est autorisé que si le précédent a été DISMISSED.
+//
+// Requête de détection :
+//   db.reports.findOne({
+//     reporterId, projectId, type,
+//     status: { $in: ["PENDING", "RESOLVED"] }
+//   })
+//
+// Variante commentaire : remplacer projectId par commentId.
+//
+// **3. Résolution :**
+// Lorsqu’un admin passe le statut à RESOLVED ou DISMISSED :
+//   - resolution : chaîne non vide obligatoire
+//   - resolvedBy : ObjectId de l’admin
+//   - resolvedAt : auto-défini si manquant
+//
+// **4. Immuabilité post-résolution :**
+// Une fois RESOLVED/DISMISSED, le signalement n’est plus modifiable
+// (intégrité de la piste d’audit).
+//
+// ============================================================================
+// FLUX DE NOTIFICATIONS
+// ============================================================================
+//
+// **Soumission d’un signalement (utilisateur) :**
+// - NEW_REPORT envoyé à tous les admins
+//   • relatedEntityType : "REPORT"
+//   • relatedEntityId : reportId
+//
+// **Résolution (admin) :**
+// - REPORT_RESOLVED envoyé :
+//     1. Au signalant (reporterId)
+//     2. Au créateur du projet (si status=RESOLVED et action prise)
+//   • relatedEntityType : "REPORT"
+//   • relatedEntityId : reportId
+// ============================================================================

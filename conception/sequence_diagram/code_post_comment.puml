@@ -1,0 +1,58 @@
+@startuml
+title Séquence métier — Publier un commentaire (campagne publique)
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam responseMessageBelowArrow true
+skinparam linetype ortho
+
+actor Utilisateur as user
+boundary "Fiche projet" as UI
+control "API (ProjectRoutes)" as API
+control "Limiteur de débit" as RL
+entity "Base de données" as DB
+
+user -> UI: Écrire un commentaire + Publier
+UI -> API: POST /api/projects/:projectId/comments { content }
+
+API -> RL: Vérifier limite (4/min par user)
+alt limite dépassée
+  RL --> API: bloqué
+  API --> UI: 429 Trop de commentaires
+  UI --> user: Message: "Vous commentez trop vite…"
+else ok
+  RL --> API: ok
+  API -> DB: Charger Project + vérifier status ACTIVE & non archivé
+  DB --> API: project
+  alt projet non public / archivé
+    API --> UI: 409 Commentaires indisponibles
+  else public
+    API -> DB: Vérifier user != creatorId
+    alt user == creatorId
+      API --> UI: 400 Interdit (auteur du projet)
+    else autorisé
+      API -> DB: Créer Comment(projectId,userId,authorLabel,content)
+      DB --> API: comment
+      API --> UI: 201 Commentaire publié + commentaire
+      UI --> user: Afficher le commentaire
+    end
+  end
+end
+
+note right of API
+  Commentaires affichés publiquement uniquement si :
+  - projet ACTIVE et non archivé
+  - comment.isHidden == false
+  - comment.deletedAt non défini
+end note
+
+@enduml
+

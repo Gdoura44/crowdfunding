@@ -1,0 +1,113 @@
+{
+  "_id": ObjectId,
+  "investmentId": { "type": "ObjectId", "ref": "Investment", "index": true, "required": true },
+  "provider": { "type": "string", "enum": ["FLOUCI", "KONNECT", "D17"], "default": "FLOUCI" },
+
+  "providerPaymentId": { "type": "string", "index": true, "required": true },
+  // Les transactions sont créées UNIQUEMENT après la réponse du provider (providerPaymentId présent).
+  // Jamais insérées avant l’appel provider, donc providerPaymentId est toujours disponible.
+
+  "amount": { "type": "number", "required": true },
+  "status": {
+    "type": "string",
+    "enum": ["PENDING", "SUCCEEDED", "FAILED", "REFUNDED", "CANCELLED"],
+    "default": "PENDING"
+  },
+
+  // Pour tracer la fin d’une annulation
+  "cancelledAt": { "type": "Date" },
+  "paymentMethod": "string",
+
+  // attemptNumber démarre à 1 pour la première transaction d’un investissement.
+  // Chaque relance crée une NOUVELLE Transaction sous le même Investment,
+  // avec attemptNumber = Investment.paymentAttempts (après incrément).
+  "attemptNumber": { "type": "number", "default": 1, "min": 1 },
+
+  // Suivi du remboursement — indépendant du statut principal
+  "refundStatus": {
+    "type": "string",
+    "enum": ["NOT_ATTEMPTED", "PENDING", "SUCCEEDED", "FAILED"],
+    "default": "NOT_ATTEMPTED"
+  },
+  "refundAttempts": { "type": "number", "default": 0 },
+  "lastRefundAttemptAt": "Date",
+  
+  // Ajouté pour tracer la fin d’un remboursement
+  "refundedAt": { "type": "Date" },
+  // Renseigné quand refundStatus → SUCCEEDED
+
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "updatedAt": { "type": "Date", "default": "Date.now" }
+}
+
+// Indexes
+db.transactions.createIndex({ provider: 1, providerPaymentId: 1 }, { unique: true });
+db.transactions.createIndex({ investmentId: 1, attemptNumber: 1 }, { unique: true });
+db.transactions.createIndex({ status: 1, createdAt: 1 });
+
+// ============================================================================
+// RÈGLES DE TRANSITION D’ÉTAT: status vs refundStatus
+// ============================================================================
+//
+// **Principe central :**
+// - `status` suit le cycle de vie du PAIEMENT
+// - `refundStatus` suit le cycle de vie du REMBOURSEMENT (indépendant mais lié)
+//
+// **Règles de transition :**
+//
+// 1. **Flux de paiement :**
+//    PENDING → SUCCEEDED (le webhook confirme le paiement)
+//    PENDING → FAILED (le webhook signale un échec ou timeout)
+//    PENDING → CANCELLED (annulation confirmée par le provider ; l’Investment associé
+//    peut être CANCELLING le temps de l’annulation, mais Transaction.status ne passe jamais à CANCELLING)
+//
+// 2. **Flux de remboursement (à partir de status=SUCCEEDED) :**
+//    refundStatus : NOT_ATTEMPTED → PENDING (remboursement initié)
+//    refundStatus : PENDING → SUCCEEDED (provider confirme le remboursement)
+//    refundStatus : PENDING → FAILED (provider rejette le remboursement)
+//    refundStatus : FAILED → PENDING (relance manuelle admin)
+//
+// 3. **Règles autoritaires :**
+//    - status PEUT valoir "REFUNDED" UNIQUEMENT si refundStatus = "SUCCEEDED"
+//    - Lorsque refundStatus → SUCCEEDED :
+//        • status → "REFUNDED"
+//        • refundedAt → horodatage courant
+//        • Investment.status → "REFUNDED"
+//    - Si refundStatus = "FAILED" :
+//        • status conserve sa valeur précédente (SUCCEEDED ou FAILED)
+//        • FailedRefundEvent créé pour traitement admin
+//        • Investment.status reste inchangé jusqu’à résolution
+//
+// 4. **Plusieurs tentatives de remboursement :**
+//    - refundAttempts incrémenté à chaque relance
+//    - lastRefundAttemptAt mis à jour à chaque tentative
+//    - L’admin peut relancer indéfiniment via UC_RetryRefund
+//    - Chaque relance : refundStatus FAILED → PENDING, refundAttempts++
+//
+// 5. **Combinaisons interdites (vérifiées côté service) :**
+//     status="REFUNDED" + refundStatus="NOT_ATTEMPTED" (impossible)
+//     status="REFUNDED" + refundStatus="PENDING" (le remboursement doit être confirmé)
+//     status="REFUNDED" + refundStatus="FAILED" (contradictoire)
+//     status="SUCCEEDED" + refundStatus="SUCCEEDED" → bascule vers status="REFUNDED"
+//
+// 6. **refundStatus invalide pour paiements échoués :**
+//    Si transaction.status = "FAILED", refundStatus DOIT rester "NOT_ATTEMPTED".
+//    Aucun remboursement ne doit être initié sur un paiement échoué. Le service DOIT l’interdire.
+//
+// **Logique de relance :**
+// - Relance paiement : créer une NOUVELLE Transaction sous le même Investment, attemptNumber++.
+// - Relance remboursement : mettre à jour la MÊME Transaction, refundAttempts++.
+//
+// ============================================================================
+
+// ============================================================================
+// MODÈLE DE RELANCE (clarification)
+// ============================================================================
+// - Un Investment peut avoir plusieurs Transactions (relances).
+// - Investment.paymentAttempts trace le total des tentatives.
+// - Chaque Transaction.attemptNumber correspond à une tentative.
+// - Quand un paiement réussit, Investment.status devient SUCCESS,
+//   et aucune nouvelle Transaction n’est créée pour cet Investment.
+// - Un paiement échoué laisse l’Investment en FAILED; l’utilisateur peut relancer,
+//   ce qui crée une nouvelle Transaction sous le même Investment.
+// ============================================================================

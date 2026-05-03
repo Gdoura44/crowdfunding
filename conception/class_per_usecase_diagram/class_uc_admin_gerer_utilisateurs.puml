@@ -1,0 +1,41 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Gérer utilisateurs » (admin)
+' Alignement : `backend/routes/api/adminRoutes.js`, `backend/services/adminUserService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Admin : gérer utilisateurs »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class AdminRoutes <<controller>> {
+  +GET /api/admin/users(limit?)
+  +PATCH /api/admin/users/:id/active(isActive)
+  +POST /api/admin/users/:id/reactivate()
+}
+
+class RequireAdmin <<middleware>> {
+  +requireAdmin()
+}
+
+class AdminUserService <<service>> {
+  +listUsers({ limit? })
+  +setUserActive({ userId, isActive })
+  +reactivateUser({ adminId, userId })
+}
+
+class User <<model>> {
+  +email
+  +isActive
+  +role
+}
+
+AdminRoutes ..> RequireAdmin
+AdminRoutes ..> AdminUserService
+AdminUserService ..> User
+
+@enduml

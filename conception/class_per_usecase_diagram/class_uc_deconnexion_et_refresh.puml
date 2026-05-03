@@ -1,0 +1,39 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Déconnexion » et prolongation de session
+' Alignement : `backend/routes/api/authRoutes.js`, `backend/services/authService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Déconnexion / prolonger session »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class AuthRoutes <<controller>> {
+  +POST /api/auth/logout()
+  +POST /api/auth/refresh(device?)
+}
+
+class AuthService <<service>> {
+  +logoutUser(userId, refreshPlain)
+  +refreshSession(refreshPlain, device?)
+}
+
+class User <<model>> {
+  +refreshTokens[]
+}
+
+class RefreshToken <<embedded>> {
+  +tokenHash
+  +expiresAt
+  +device
+}
+
+AuthRoutes ..> AuthService
+AuthService ..> User
+User *-- "0..*" RefreshToken
+
+@enduml

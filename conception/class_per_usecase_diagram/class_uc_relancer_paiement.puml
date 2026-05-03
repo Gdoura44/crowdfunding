@@ -1,0 +1,37 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Relancer paiement »
+' Alignement : `backend/routes/api/investmentRoutes.js`, `backend/services/investmentService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Relancer paiement »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class InvestmentRoutes <<controller>> {
+  +POST /api/investments/:id/retry()
+}
+
+class InvestmentService <<service>> {
+  +retryInvestmentPayment({ investorId, investmentId })
+}
+
+class Investment <<model>> {
+  +status
+  +paymentAttempts
+}
+
+class Transaction <<model>> {
+  +attemptNumber
+  +status
+}
+
+InvestmentRoutes ..> InvestmentService
+InvestmentService ..> Investment
+InvestmentService ..> Transaction
+
+@enduml

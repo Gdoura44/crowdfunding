@@ -1,0 +1,85 @@
+@startuml
+title Séquence métier — Réactiver un projet (admin)
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité : polices ~11–12 pt visibles,
+' DPI 240, retour à la ligne des messages. Inclure juste après la ligne title.
+' Export PNG pour Word/LaTeX : viser largeur <= zone utile A4 (~17 cm).
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam handwritten false
+skinparam HyperlinkUnderline false
+
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam footerFontSize 10
+skinparam headerFontSize 10
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+skinparam BoxPadding 8
+skinparam LifeLineBorderColor #444444
+skinparam LifeLineBackgroundColor #FEFEFE
+skinparam ArrowColor #222222
+skinparam ActorBorderColor #222222
+skinparam ActorBackgroundColor #EEF6FF
+skinparam ParticipantBorderColor #333333
+skinparam ParticipantBackgroundColor #FFFFFF
+
+skinparam DatabaseBackgroundColor #F8F8F8
+skinparam EntityBackgroundColor #F8FFF8
+skinparam ControlBackgroundColor #FFF8F0
+skinparam BoundaryBackgroundColor #F5F5FF
+actor Admin as admin
+boundary "Administration" as UI
+control "Contrôleur" as Svc
+entity "Base de données" as DB
+queue "BullMQ : risk-analysis" as Queue
+
+admin -> UI: Choisir un projet suspendu, cliquer « Réactiver »
+UI -> Svc: POST /api/admin/projects/:id/reactivate
+
+Svc -> DB: Trouver le projet par id
+DB --> Svc: project
+
+alt préconditions non satisfaites
+  alt projet archivé
+    Svc --> UI: 400 « Projet archivé : réactivation impossible »
+  else project.status != SUSPENDED
+    Svc --> UI: 409 « Le projet doit être SUSPENDED pour être réactivé »
+  else objectif déjà atteint (currentFunding >= fundingGoal)
+    Svc --> UI: 400 « Le projet a déjà atteint son objectif de financement »
+  else remboursements OVERFUNDING non résolus
+    Svc --> UI: 400 « Des remboursements de surfinancement sont encore en attente »
+  else investissements en cours de désactivation (scheduledForDeactivation=true)
+    Svc --> UI: 400 « Des investissements sont encore en traitement (annulation/remboursement) »
+  end
+else
+  ' 1) Vérifier la fraîcheur de l’analyse IA (maxAgeDays = 30)
+  Svc -> DB: Lire aiAnalysis.analyzedAt
+  DB --> Svc: analyzedAt
+  Svc -> Svc: aiFresh = (analyzedAt récent) ?
+
+  alt analyse IA obsolète
+    Svc -> DB: aiAnalysisRetries=0 ; aiStatus=PENDING\ntransitionProjectStatus(project, AWAITING_AI,\n action: "ADMIN_REACTIVATE_PROJECT_REQUIRES_AI")
+    Svc -> DB: AuditLog REACTIVATE_PROJECT (details: { aiFresh:false })
+    Svc -> DB: Notification PROJECT_REACTIVATED (message: « nouvelle analyse va démarrer »)
+    Svc --> UI: 200 { project } (analyse relancée)
+    Svc -> Queue: (sans bloquer) enqueueRiskAnalysisJob(project)\n(ne doit pas bloquer)\n(puis e-mails notification via emailQueue)
+    UI --> admin: Projet réactivé, analyse en cours
+  else analyse IA récente
+    Svc -> DB: transitionProjectStatus(project, UNDER_REVIEW,\n action: "ADMIN_REACTIVATE_PROJECT")
+    Svc -> DB: AuditLog REACTIVATE_PROJECT (details: { aiFresh:true })
+    Svc -> DB: Notification PROJECT_REACTIVATED (message: « repasse en revue »)
+    Svc --> UI: 200 { project }
+    UI --> admin: Projet réactivé (en revue)
+  end
+end
+@enduml

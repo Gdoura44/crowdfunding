@@ -1,0 +1,85 @@
+@startuml
+title Séquence métier — Relancer l’analyse IA (admin)
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité : polices ~11–12 pt visibles,
+' DPI 240, retour à la ligne des messages. Inclure juste après la ligne title.
+' Export PNG pour Word/LaTeX : viser largeur <= zone utile A4 (~17 cm).
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam handwritten false
+skinparam HyperlinkUnderline false
+
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam footerFontSize 10
+skinparam headerFontSize 10
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+skinparam BoxPadding 8
+skinparam LifeLineBorderColor #444444
+skinparam LifeLineBackgroundColor #FEFEFE
+skinparam ArrowColor #222222
+skinparam ActorBorderColor #222222
+skinparam ActorBackgroundColor #EEF6FF
+skinparam ParticipantBorderColor #333333
+skinparam ParticipantBackgroundColor #FFFFFF
+
+skinparam DatabaseBackgroundColor #F8F8F8
+skinparam EntityBackgroundColor #F8FFF8
+skinparam ControlBackgroundColor #FFF8F0
+skinparam BoundaryBackgroundColor #F5F5FF
+actor Admin as admin
+boundary "Administration (projets)" as UI
+control "Contrôleur" as Svc
+entity "Base de données" as DB
+queue "File risk-analysis (BullMQ)" as Queue
+
+admin -> UI: Onglet « Projets » admin, projet éligible (IA en échec / obsolète / bloqué)
+UI -> Svc: POST /api/admin/projects/:id/retry-ai
+
+note right of Svc
+  **Code** : `adminProjectService.retryAiAnalysis`.
+  - Vérifie `canAdminRetryAi(project)` (états éligibles : AWAITING_AI bloqué, UNDER_REVIEW avec FAILED, etc.).
+  - Plafond `aiAnalysisRetries < 3` (réinitialisé manuellement si besoin).
+  - Repasse le projet en AWAITING_AI + aiStatus PENDING + reset `aiJobId/aiLastError`.
+  - Met à jour `aiQueuedAt = now` et incrémente `aiAnalysisRetries`.
+  - Re-enfile le job BullMQ `risk-analysis` (sans bloquer, mode stub si REDIS_URL absent).
+  - Listing admin : `GET /api/admin/projects?status=...` (filtre uniquement par status côté code).
+end note
+
+Svc -> DB: Project.findById(id)
+DB --> Svc: project
+
+alt aiAnalysisRetries >= 3
+  Svc --> UI: 400 « Limite de relance atteinte (3 tentatives). »
+else !canAdminRetryAi(project)
+  Svc --> UI: 409 « Relance impossible dans l’état actuel du projet. »
+else OK (préconditions remplies)
+  Svc -> DB: transitionProjectStatus(project, AWAITING_AI, action: "ADMIN_RETRY_AI")
+  Svc -> DB: project.aiStatus = PENDING ; aiJobId = "" ; aiQueuedAt = now ; aiLastError = "" ; aiAnalysisRetries++
+  Svc -> DB: project.save()
+  Svc -> Queue: enqueueRiskAnalysisJob(project)
+  Svc -> DB: si jobId retourné → project.aiJobId = jobId ; save()
+  Svc -> DB: AuditLog.create({ actorRole: ADMIN, action: "RETRY_AI_ANALYSIS" })
+  Svc --> UI: 200 { project, message: « Relance de l’analyse IA demandée. » }
+  UI --> admin: Confirmation « Analyse IA relancée »
+end
+
+note over Svc
+  **Articulation avec le cron `retry-stuck-ai`** (interne) :
+  - Toutes les 10 min (`INTERNAL_CRON_INTERVAL_MIN`), `cronService.retryStuckAiAnalyses` détecte les projets
+    AWAITING_AI bloqués depuis > X minutes (quota Gemini, n8n indisponible, etc.) et relance leur job BullMQ.
+  - L’action « retry-ai » manuelle de l’admin reste utile pour forcer immédiatement une relance ou
+    repartir d’un état FAILED.
+end note
+
+@enduml

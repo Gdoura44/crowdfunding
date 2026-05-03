@@ -1,0 +1,62 @@
+@startuml
+title Séquence métier — Désactiver un utilisateur
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité : polices ~11–12 pt visibles,
+' DPI 240, retour à la ligne des messages. Inclure juste après la ligne title.
+' Export PNG pour Word/LaTeX : viser largeur <= zone utile A4 (~17 cm).
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam handwritten false
+skinparam HyperlinkUnderline false
+
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam footerFontSize 10
+skinparam headerFontSize 10
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+skinparam BoxPadding 8
+skinparam LifeLineBorderColor #444444
+skinparam LifeLineBackgroundColor #FEFEFE
+skinparam ArrowColor #222222
+skinparam ActorBorderColor #222222
+skinparam ActorBackgroundColor #EEF6FF
+skinparam ParticipantBorderColor #333333
+skinparam ParticipantBackgroundColor #FFFFFF
+
+skinparam DatabaseBackgroundColor #F8F8F8
+skinparam EntityBackgroundColor #F8FFF8
+skinparam ControlBackgroundColor #FFF8F0
+skinparam BoundaryBackgroundColor #F5F5FF
+actor Admin as admin
+boundary "Administration" as UI
+control "Contrôleur" as Svc
+entity "Base de données" as DB
+
+admin -> UI: Choisir un utilisateur, cliquer « Désactiver »
+UI -> Svc: PATCH /api/admin/users/:id/active { isActive: false }
+
+Svc -> DB: Trouver l’utilisateur par id
+DB --> Svc: user
+
+alt utilisateur existe ET user.role != ADMIN
+  Svc -> DB: Mettre à jour user.isActive = false
+  Svc --> UI: 200 { user: { id, email, role, isActive } }
+  UI --> admin: Confirmation « utilisateur désactivé »
+else
+  Svc --> UI: 404 Introuvable (ou 403 si compte ADMIN)
+end
+
+note right of Svc
+  **Implémentation réelle :** `adminUserService.setUserActive`.\nLe code actuel ne déclenche pas de workflow d'annulation des investissements.\n(Le diagramme décrit ici uniquement la mise à jour de `isActive`.)
+end note
+@enduml

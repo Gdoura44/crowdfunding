@@ -1,0 +1,35 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Modifier projet »
+' Alignement : `backend/routes/api/projectRoutes.js`, `backend/services/projectService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Modifier projet »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class ProjectRoutes <<controller>> {
+  +GET /api/projects/:id/edit()
+  +PUT /api/projects/:id(données)
+}
+
+class ProjectService <<service>> {
+  +getProjectForEdit(creatorId, projectId)
+  +updateProject(creatorId, projectId, changes)
+}
+
+class Project <<model>> {
+  +creatorId
+  +status
+  +title
+  +description
+}
+
+ProjectRoutes ..> ProjectService
+ProjectService ..> Project
+
+@enduml

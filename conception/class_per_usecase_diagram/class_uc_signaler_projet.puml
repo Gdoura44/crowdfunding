@@ -1,0 +1,33 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Signaler un projet »
+' Alignement : `backend/routes/api/reportRoutes.js`, `backend/services/reportService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Signaler un projet »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class ReportRoutes <<controller>> {
+  +POST /api/reports/(projectId, type, description?)
+}
+
+class ReportService <<service>> {
+  +createReport({ reporterId, projectId, type, description? })
+}
+
+class Report <<model>> {
+  +reporterId
+  +projectId
+  +type
+  +status
+}
+
+ReportRoutes ..> ReportService
+ReportService ..> Report
+
+@enduml

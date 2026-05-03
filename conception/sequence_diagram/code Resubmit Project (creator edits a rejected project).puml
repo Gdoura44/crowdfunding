@@ -1,0 +1,72 @@
+@startuml
+title Séquence métier — Soumettre à nouveau un projet (Project, REJECTED)
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité : polices ~11–12 pt visibles,
+' DPI 240, retour à la ligne des messages. Inclure juste après la ligne title.
+' Export PNG pour Word/LaTeX : viser largeur <= zone utile A4 (~17 cm).
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam handwritten false
+skinparam HyperlinkUnderline false
+
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam footerFontSize 10
+skinparam headerFontSize 10
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+skinparam BoxPadding 8
+skinparam LifeLineBorderColor #444444
+skinparam LifeLineBackgroundColor #FEFEFE
+skinparam ArrowColor #222222
+skinparam ActorBorderColor #222222
+skinparam ActorBackgroundColor #EEF6FF
+skinparam ParticipantBorderColor #333333
+skinparam ParticipantBackgroundColor #FFFFFF
+
+skinparam DatabaseBackgroundColor #F8F8F8
+skinparam EntityBackgroundColor #F8FFF8
+skinparam ControlBackgroundColor #FFF8F0
+skinparam BoundaryBackgroundColor #F5F5FF
+actor "Utilisateur (créateur)" as user
+boundary "GestionProjet" as UI
+control "Contrôleur" as Svc
+entity "Base de données" as DB
+
+user -> UI: Ouvrir un projet rejeté, cliquer « Modifier / Renvoyer »
+UI -> Svc: GET /api/projects/:id/edit
+Svc -> DB: Trouver le projet par id et creatorId (user.id)
+DB -> Svc: project
+alt project.status == "REJECTED" ET utilisateur est le créateur
+  Svc -> UI: project data (editable)
+  UI -> user: Afficher le formulaire de modification
+
+  user -> UI: Modifier les champs, cliquer « Renvoyer »
+  UI -> Svc: PUT /api/projects/:id/resubmit { champs mis à jour }
+
+  Svc -> Svc: Validation Zod + règles dates (startAt/deadline) + fundingGoal
+  Svc -> DB: Mettre à jour les champs du projet (normalisation dates à 00:00)
+  note right of DB
+    Après update, le service force la transition :\n
+    - status = AWAITING_AI (action RESUBMIT_REJECTED_PROJECT)\n
+    - aiStatus = PENDING ; aiAnalysisRetries = 0\n
+    - clear rejectionReason/rejectedBy/rejectedAt
+  end note
+
+  Svc -> DB: writeAudit(action=\"RESUBMIT_PROJECT\", details:{ fields })
+  Svc -> Svc: enqueueRiskAnalysisJob(Project) (BullMQ/n8n)
+  Svc -> UI: 200 { project, message: "Projet renvoyé pour analyse et revue." }
+  UI -> user: Message succès + retour page Project
+else
+  Svc -> UI: 403 « Projet non renvoyable dans cet état » (ou 404)
+end
+@enduml

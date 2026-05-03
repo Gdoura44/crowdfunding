@@ -1,0 +1,134 @@
+@startuml
+title Séquence métier — Supprimer le compte
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité : polices ~11–12 pt visibles,
+' DPI 240, retour à la ligne des messages. Inclure juste après la ligne title.
+' Export PNG pour Word/LaTeX : viser largeur <= zone utile A4 (~17 cm).
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam handwritten false
+skinparam HyperlinkUnderline false
+
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam footerFontSize 10
+skinparam headerFontSize 10
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+skinparam BoxPadding 8
+skinparam LifeLineBorderColor #444444
+skinparam LifeLineBackgroundColor #FEFEFE
+skinparam ArrowColor #222222
+skinparam ActorBorderColor #222222
+skinparam ActorBackgroundColor #EEF6FF
+skinparam ParticipantBorderColor #333333
+skinparam ParticipantBackgroundColor #FFFFFF
+
+skinparam DatabaseBackgroundColor #F8F8F8
+skinparam EntityBackgroundColor #F8FFF8
+skinparam ControlBackgroundColor #FFF8F0
+skinparam BoundaryBackgroundColor #F5F5FF
+actor "Utilisateur" as user
+boundary "CompteUtilisateur" as UI
+control "Contrôleur" as Svc
+entity "Base de données" as DB
+
+user -> UI: Cliquer sur « Supprimer mon compte »
+UI -> Svc: POST /api/users/delete-account
+Svc -> Svc: Authentifier l’utilisateur
+
+Svc -> DB: Démarrer une transaction MongoDB
+Svc -> DB: Trouver l’utilisateur par id
+DB --> Svc: user
+
+alt compte déjà supprimé ou suppression impossible
+  Svc -> Svc: Annuler la transaction
+  Svc --> UI: 400 « Compte déjà supprimé ou suppression impossible. »
+else
+  ' ===== 1. Vérifier l’absence de payouts en attente =====
+  Svc -> DB: Trouver les projets creatorId=user.id et status IN ["ACTIVE","CLOSED"]
+  DB --> Svc: creatorProjects
+  loop each project in creatorProjects
+    Svc -> DB: Trouver un payout projectId=project.id et status IN ["PENDING","READY"]
+    DB --> Svc: pendingPayout
+    alt payout en attente existe
+      Svc -> Svc: Annuler la transaction
+      Svc --> UI: 400 « Suppression impossible : vous avez un virement en attente (PENDING/READY). »
+    end
+  end
+  Svc -> DB: Trouver les projets creatorId=user.id et status IN ["ACTIVE","APPROVED","UNDER_REVIEW","AWAITING_AI"]
+  DB --> Svc: activeProjects
+  alt activeProjects not empty
+    Svc -> Svc: Annuler la transaction
+    Svc --> UI: 400 « Suppression impossible : vous avez des projets actifs/en cours. Archivez-les d’abord. »
+  end
+
+  ' ===== 2. Vérifier l’absence d’investissements en cours (INITIATED/CANCELLING) =====
+  Svc -> DB: Trouver les investissements investorId=user.id et status IN ["INITIATED","CANCELLING"]
+  DB --> Svc: activeInvestments
+  alt activeInvestments not empty
+    Svc -> Svc: Annuler la transaction
+    Svc --> UI: 400 « Suppression impossible : vous avez des investissements INITIATED/CANCELLING. Annulez-les d’abord. »
+  end
+
+  ' ===== 3. Vérifier que tous les SUCCESS sont déjà remboursés =====
+  Svc -> DB: Trouver les investissements investorId=user.id et status="SUCCESS"
+  DB --> Svc: successInvestments
+  loop each investment in successInvestments
+    Svc -> DB: Trouver la transaction liée (investmentId=investment.id)
+    DB --> Svc: transaction
+    alt transaction.refundStatus != "SUCCEEDED"
+      Svc -> Svc: Annuler la transaction
+      Svc --> UI: 400 « Suppression impossible : des remboursements sont encore en cours. Merci d’attendre la fin des remboursements. »
+    end
+  end
+
+  ' ===== 4. Marquer les projets comme “créateur supprimé” =====
+  Svc -> DB: Trouver les projets où creatorId=user.id
+  DB --> Svc: userProjects
+  loop each project in userProjects
+  Svc -> DB: Mettre à jour project.isCreatorDeleted = true
+  ' creatorId reste inchangé (jamais mis à null)
+end
+
+' Effacer bankDetails sur les payouts non COMPLETED (confidentialité)
+Svc -> DB: Trouver les payouts creatorId=user.id et status IN ["PENDING","READY","FAILED"]
+DB --> Svc: userPayouts
+loop each payout in userPayouts
+  Svc -> DB: Mettre à jour payout.bankDetails = null   ' exigence confidentialité
+end
+' Pour les payouts COMPLETED, conserver bankDetails pour la traçabilité (virement déjà effectué)
+
+  ' ===== 5. Anonymiser l’utilisateur et marquer deletedAt =====
+  Svc -> DB: Anonymiser user (email, nom, téléphone, password, tokens)
+  Svc -> DB: Set isActive = false, deletedAt = now()
+  Svc -> DB: AuditLog (action="DELETE_ACCOUNT", targetType="User", targetId=user.id)
+  Svc -> DB: Notification (in-app) pour l’utilisateur (type ACCOUNT_DELETED, relatedEntityType="USER", relatedEntityId=user.id)
+  Svc -> DB: Commit transaction
+  Svc --> UI: 200
+  UI --> user: « Compte supprimé avec succès. »
+end
+
+note right of Svc
+  **Suppression de compte (règles bloquantes, appliquées dans accountService) :**
+  - Les données personnelles sont anonymisées immédiatement (piste d’audit conservée).
+  - La suppression est **bloquée** si :
+      • un payout existe en statut PENDING/READY
+      • un investissement est en INITIATED/CANCELLING
+      • un investissement SUCCESS dont le remboursement n’est pas terminé (refundStatus != SUCCEEDED)
+      • un projet créé par l’utilisateur est dans un statut actif/en cours (ACTIVE/APPROVED/UNDER_REVIEW/AWAITING_AI/FUNDED)
+  - Sur les projets : `isCreatorDeleted = true` et `creatorId` est conservé (jamais null).
+  - Sur les payouts non COMPLETED : `bankDetails` est effacé (confidentialité).
+  - Une notification `ACCOUNT_DELETED` est créée pour traçabilité.
+end note
+
+@enduml

@@ -1,0 +1,38 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Soumettre analyse risque » (file d’attente IA)
+' Alignement : `backend/routes/api/projectRoutes.js`, `backend/services/projectService.js`,
+'             `backend/integrations/riskAnalysisQueue.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Soumettre analyse risque »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class ProjectRoutes <<controller>> {
+  +POST /api/projects/:id/submit-for-ai()
+}
+
+class ProjectService <<service>> {
+  +submitProjectForAi(creatorId, projectId)
+}
+
+class Project <<model>> {
+  +status
+  +aiStatus
+  +aiJobId
+}
+
+class RiskAnalysisQueue <<integration>> {
+  +enqueueRiskAnalysisJob(project)
+}
+
+ProjectRoutes ..> ProjectService
+ProjectService ..> Project
+ProjectService ..> RiskAnalysisQueue
+
+@enduml

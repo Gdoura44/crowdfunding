@@ -1,0 +1,37 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Gérer retraits admin » (liste)
+' Alignement : `backend/routes/api/adminRoutes.js`, `backend/services/payoutService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Admin : consulter retraits »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class AdminRoutes <<controller>> {
+  +GET /api/admin/payouts(status?, limit?)
+}
+
+class RequireAdmin <<middleware>> {
+  +requireAdmin()
+}
+
+class PayoutService <<service>> {
+  +listAdminPayouts({ status?, limit? })
+}
+
+class Payout <<model>> {
+  +status
+  +amount
+  +creatorId
+}
+
+AdminRoutes ..> RequireAdmin
+AdminRoutes ..> PayoutService
+PayoutService ..> Payout
+
+@enduml

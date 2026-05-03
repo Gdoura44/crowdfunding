@@ -1,0 +1,32 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Gérer mes projets » (liste)
+' Alignement : `backend/routes/api/projectRoutes.js`, `backend/services/projectService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Lister mes projets »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class ProjectRoutes <<controller>> {
+  +GET /api/projects/mine()
+}
+
+class ProjectService <<service>> {
+  +listMyProjects(creatorId)
+}
+
+class Project <<model>> {
+  +creatorId
+  +title
+  +status
+}
+
+ProjectRoutes ..> ProjectService
+ProjectService ..> Project
+
+@enduml

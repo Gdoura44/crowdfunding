@@ -1,0 +1,36 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Valider / Rejeter projet » (admin)
+' Alignement : `backend/routes/api/adminRoutes.js`, `backend/services/adminProjectService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Admin : valider ou rejeter projet »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class AdminRoutes <<controller>> {
+  +POST /api/admin/projects/:id/validate(decision, feedback?)
+}
+
+class RequireAdmin <<middleware>> {
+  +requireAdmin()
+}
+
+class AdminProjectService <<service>> {
+  +validateProject({ adminId, projectId, decision, feedback? })
+}
+
+class Project <<model>> {
+  +status
+  +rejectionReason
+}
+
+AdminRoutes ..> RequireAdmin
+AdminRoutes ..> AdminProjectService
+AdminProjectService ..> Project
+
+@enduml

@@ -1,0 +1,36 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Saisir coordonnées bancaires »
+' Alignement : `backend/routes/api/payoutRoutes.js`, `backend/services/payoutService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Saisir coordonnées bancaires »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class PayoutRoutes <<controller>> {
+  +PUT /api/payouts/:id/bank-details(bankDetails)
+}
+
+class PayoutService <<service>> {
+  +provideBankDetails(creatorId, payoutId, bankDetailsJson)
+}
+
+class Payout <<model>> {
+  +bankDetails
+  +bankDetailsProvidedAt
+  +status
+}
+
+PayoutRoutes ..> PayoutService
+PayoutService ..> Payout
+
+note bottom of Payout
+  Stockage chiffré (AES-GCM) côté serveur.
+end note
+
+@enduml

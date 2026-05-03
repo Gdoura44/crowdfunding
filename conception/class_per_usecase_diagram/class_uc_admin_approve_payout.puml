@@ -1,0 +1,62 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — Cas d’utilisation : Admin approuve un retrait (payout)
+' Objectif : classes impliquées dans le contrôle admin + exécution du paiement
+' Alignement : `backend/routes/api/adminRoutes.js`, `backend/services/payoutService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC "Admin approuve un retrait"
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class AdminRoutes <<controller>> {
+  +GET /api/admin/payouts(status?)
+  +POST /api/admin/payouts/:id/approve(notes?)
+}
+
+class RequireAdmin <<middleware>> {
+  +requireAdmin()
+}
+
+class PayoutService <<service>> {
+  +listAdminPayouts({ status?, limit? })
+  +approvePayout({ adminId, payoutId, notes? })
+}
+
+class Payout <<model>> {
+  +projectId
+  +creatorId
+  +amount
+  +status
+  +bankDetails (nullable)
+  +failureReason
+  +notes
+  +bankDetailsProvidedAt
+  +completedAt
+}
+
+class FailedPayoutEvent <<model>> {
+  +payoutId
+  +error
+  +retryCount
+  +resolved
+  +resolvedBy
+  +resolvedAt
+}
+
+AdminRoutes ..> RequireAdmin
+AdminRoutes ..> PayoutService
+PayoutService ..> Payout
+PayoutService ..> FailedPayoutEvent : (si échec paiement)
+
+note bottom of Payout
+  Les coordonnées bancaires sont stockées chiffrées (AES-GCM)\n
+  et ne sont jamais renvoyées en clair à l’UI.
+end note
+
+@enduml
+

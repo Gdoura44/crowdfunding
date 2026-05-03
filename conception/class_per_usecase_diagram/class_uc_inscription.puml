@@ -1,0 +1,71 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — Cas d’utilisation : Inscription
+' Objectif : montrer les classes impliquées dans l’inscription + vérification e-mail (OTP/lien)
+' Alignement : `backend/routes/api/authRoutes.js`, `backend/services/authService.js`, `backend/models/User.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC "Inscription"
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 220
+
+class AuthRoutes <<controller>> {
+  +POST /api/auth/register()
+  +GET /api/auth/verify-email(token)
+  +POST /api/auth/verify-email-code(email, code)
+}
+
+class AuthService <<service>> {
+  +registerUser({ email, password, firstName, lastName, phone })
+  +verifyEmailWithToken(token)
+  +verifyEmailWithCode({ email, code })
+  +resendVerificationEmail(email)
+}
+
+class User <<model>> {
+  +email
+  +passwordHash
+  +isActive
+  +verifyCodeHash
+  +verifyCodeExpiry
+  +verifyTokenHash
+  +verifyTokenExpiry
+  +verifyTokenUsedAt
+  +verifyTokenUsedBy
+  +profile
+  +refreshTokens[]
+}
+
+class UserProfile <<embedded>> {
+  +firstName
+  +lastName
+  +phone
+}
+
+class EmailUtil <<util>> {
+  +sendMail(...)
+}
+
+class CryptoTokens <<util>> {
+  +randomUrlToken(...)
+  +sha256Hex(...)
+}
+
+AuthRoutes ..> AuthService
+AuthService ..> User
+User *-- UserProfile
+AuthService ..> EmailUtil
+AuthService ..> CryptoTokens
+
+note bottom of User
+  OTP : code 6 chiffres (hashé)\n
+  Lien : token aléatoire (hashé)\n
+  verifyTokenUsedBy : \"CODE\" ou \"LINK\"
+end note
+
+@enduml
+

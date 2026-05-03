@@ -1,0 +1,34 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Masquer / Rétablir commentaire » (admin)
+' Alignement : `backend/routes/api/adminRoutes.js`, modèle `Comment`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Admin : modérer commentaires »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class AdminRoutes <<controller>> {
+  +GET /api/admin/comments(limit?, projectId?, q?, includeHidden?)
+  +PATCH /api/admin/comments/:id/hide(reason)
+  +PATCH /api/admin/comments/:id/unhide()
+}
+
+class RequireAdmin <<middleware>> {
+  +requireAdmin()
+}
+
+class Comment <<model>> {
+  +isHidden
+  +hiddenReason
+  +hiddenBy
+}
+
+AdminRoutes ..> RequireAdmin
+AdminRoutes ..> Comment
+
+@enduml

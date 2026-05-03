@@ -1,0 +1,89 @@
+@startuml
+title Séquence métier — Valider un projet
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité : polices ~11–12 pt visibles,
+' DPI 240, retour à la ligne des messages. Inclure juste après la ligne title.
+' Export PNG pour Word/LaTeX : viser largeur <= zone utile A4 (~17 cm).
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam handwritten false
+skinparam HyperlinkUnderline false
+
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam footerFontSize 10
+skinparam headerFontSize 10
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+skinparam BoxPadding 8
+skinparam LifeLineBorderColor #444444
+skinparam LifeLineBackgroundColor #FEFEFE
+skinparam ArrowColor #222222
+skinparam ActorBorderColor #222222
+skinparam ActorBackgroundColor #EEF6FF
+skinparam ParticipantBorderColor #333333
+skinparam ParticipantBackgroundColor #FFFFFF
+
+skinparam DatabaseBackgroundColor #F8F8F8
+skinparam EntityBackgroundColor #F8FFF8
+skinparam ControlBackgroundColor #FFF8F0
+skinparam BoundaryBackgroundColor #F5F5FF
+actor Admin as admin
+boundary "Administration" as UI
+control "Contrôleur" as Svc
+entity "Base de données" as DB
+queue "BullMQ : send-email" as Queue
+
+admin -> UI: Revoir le projet (rapport IA + détails)
+UI -> Svc: POST /api/admin/projects/:id/validate { decision, feedback }
+
+Svc -> DB: findById(projectId)
+DB --> Svc: project
+
+alt project.status == UNDER_REVIEW && aiStatus == COMPLETED && aiAnalysis présent
+  ' Contrôle de fraîcheur IA (analyzedAt dans les 30 derniers jours)
+  alt aiAnalysis.analyzedAt < maintenant - 30 jours
+    Svc --> UI: 400 « Analyse IA trop ancienne. Relancez l’analyse avant la validation. »
+  else project.deadline < maintenant
+    Svc --> UI: 400 « Date limite dépassée. »
+  else decision == "APPROVED"
+    Svc -> DB: withOptionalTransaction(...)
+    Svc -> DB: transitionProjectStatus(project, APPROVED,\n action: "ADMIN_APPROVE_PROJECT")
+    Svc -> DB: project.save({ session })
+    Svc -> DB: AuditLog.create({ actorRole: ADMIN, action: "VALIDATE_PROJECT", details: { decision: "APPROVED", feedback } }, session)
+    Svc -> DB: Notification.create({ userId: creatorId, type: PROJECT_APPROVED, relatedEntityId: project._id }, session)
+    Svc -> Queue: enqueueEmailForNotifications(notifications)\n(sans bloquer ; selon la politique e-mails)
+    Svc --> UI: 200 { project, message: « Projet approuvé. » }
+    UI --> admin: « Projet approuvé »
+  else decision == "REJECTED"
+    ' Aucun contrôle d’investissement nécessaire (UNDER_REVIEW, pas encore ACTIVE).
+    Svc -> DB: withOptionalTransaction(...)
+    Svc -> DB: transitionProjectStatus(project, REJECTED,\n action: "ADMIN_REJECT_PROJECT")\n; rejectionReason=feedback ; rejectedBy=admin.id ; rejectedAt=now
+    Svc -> DB: project.save({ session })
+    Svc -> DB: AuditLog.create({ actorRole: ADMIN, action: "VALIDATE_PROJECT", details: { decision: "REJECTED", feedback } }, session)
+    Svc -> DB: Notification.create({ userId: creatorId, type: PROJECT_REJECTED, message inclut la raison }, session)
+    Svc -> Queue: enqueueEmailForNotifications(notifications)\n(sans bloquer ; selon la politique e-mails)
+    Svc --> UI: 200 { project, message: « Projet à corriger. » }
+    UI --> admin: « Projet rejeté »
+  end
+else aiStatus != COMPLETED
+  Svc --> UI: 400 « Analyse IA non terminée. »
+else status != UNDER_REVIEW
+  Svc --> UI: 409 « État invalide : le projet doit être en cours de revue (UNDER_REVIEW). »
+end
+
+note right of Svc
+  **Pas de contrôle d’investissements** : le projet est UNDER_REVIEW (jamais ACTIVE), aucun investissement possible.
+  **Notifications** : in-app créée dans la transaction (si replica set Mongo) ; e-mail mis en file après commit (BullMQ).
+  **Politique e-mails** : seules les notifications critiques (auth, paiement, payout, décisions admin, rapport IA) déclenchent un e-mail.
+end note
+@enduml

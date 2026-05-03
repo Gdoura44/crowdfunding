@@ -1,0 +1,60 @@
+@startuml
+title Séquence métier — Déconnexion
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité : polices ~11–12 pt visibles,
+' DPI 240, retour à la ligne des messages. Inclure juste après la ligne title.
+' Export PNG pour Word/LaTeX : viser largeur <= zone utile A4 (~17 cm).
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam handwritten false
+skinparam HyperlinkUnderline false
+
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam footerFontSize 10
+skinparam headerFontSize 10
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+skinparam BoxPadding 8
+skinparam LifeLineBorderColor #444444
+skinparam LifeLineBackgroundColor #FEFEFE
+skinparam ArrowColor #222222
+skinparam ActorBorderColor #222222
+skinparam ActorBackgroundColor #EEF6FF
+skinparam ParticipantBorderColor #333333
+skinparam ParticipantBackgroundColor #FFFFFF
+
+skinparam DatabaseBackgroundColor #F8F8F8
+skinparam EntityBackgroundColor #F8FFF8
+skinparam ControlBackgroundColor #FFF8F0
+skinparam BoundaryBackgroundColor #F5F5FF
+actor "Utilisateur" as user
+boundary "Session" as UI
+control "Contrôleur" as Svc
+entity "Base de données" as DB
+
+user -> UI: Cliquer sur « Déconnexion »
+UI -> Svc: POST /api/auth/logout
+
+Svc -> Svc: Extraire le refresh_token depuis le cookie
+Svc -> DB: Retirer ce token de user.refreshTokens (par tokenHash)
+Svc -> UI: Effacer les cookies (Set-Cookie: ...; Max-Age=0)
+Svc --> UI: 200 { message: "Déconnecté." }
+UI -> UI: Vider l’état local (user)
+UI --> user: Rediriger vers l’accueil / connexion
+
+note right of Svc
+  - Le refresh token courant est supprimé (déconnexion de l’appareil courant).
+  - Le cookie access_token est expiré côté navigateur.
+  - Les autres appareils restent connectés (sessions distinctes).
+end note
+@enduml

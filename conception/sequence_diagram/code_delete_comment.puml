@@ -1,0 +1,41 @@
+@startuml
+title Séquence métier — Supprimer mon commentaire
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG)
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam responseMessageBelowArrow true
+skinparam linetype ortho
+
+actor Utilisateur as user
+boundary "Fiche projet" as UI
+control "API (ProjectRoutes)" as API
+entity "Base de données" as DB
+
+user -> UI: Cliquer "Supprimer" sur son commentaire
+UI -> API: DELETE /api/projects/:projectId/comments/:commentId
+
+API -> DB: Trouver le commentaire par (commentId, projectId)
+DB --> API: comment
+
+alt commentaire introuvable
+  API --> UI: 404 Commentaire introuvable
+else trouvé
+  alt comment.userId != user.id
+    API --> UI: 403 Interdit (pas propriétaire)
+  else propriétaire
+    API -> DB: Suppression logique + masquage (deletedAt, deletedBy, deletedByRole=USER,\n isHidden=true, reason="Supprimé par l’auteur")
+    API --> UI: 200 Commentaire supprimé
+    UI --> user: Retirer le commentaire de la liste
+  end
+end
+
+@enduml
+

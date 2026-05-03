@@ -1,0 +1,74 @@
+@startuml
+title Séquence métier — Connexion
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité : polices ~11–12 pt visibles,
+' DPI 240, retour à la ligne des messages. Inclure juste après la ligne title.
+' Export PNG pour Word/LaTeX : viser largeur <= zone utile A4 (~17 cm).
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam handwritten false
+skinparam HyperlinkUnderline false
+
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam footerFontSize 10
+skinparam headerFontSize 10
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+skinparam BoxPadding 8
+skinparam LifeLineBorderColor #444444
+skinparam LifeLineBackgroundColor #FEFEFE
+skinparam ArrowColor #222222
+skinparam ActorBorderColor #222222
+skinparam ActorBackgroundColor #EEF6FF
+skinparam ParticipantBorderColor #333333
+skinparam ParticipantBackgroundColor #FFFFFF
+
+skinparam DatabaseBackgroundColor #F8F8F8
+skinparam EntityBackgroundColor #F8FFF8
+skinparam ControlBackgroundColor #FFF8F0
+skinparam BoundaryBackgroundColor #F5F5FF
+actor "Utilisateur" as user
+boundary "Connexion" as UI
+control "Contrôleur" as Svc
+entity "Base de données" as DB
+
+user -> UI: Saisir e-mail et mot de passe
+UI -> Svc: POST /api/auth/login { email, password }
+
+' Limitation globale du débit sur /api (express-rate-limit, fenêtre 15 min)
+Svc -> Svc: Vérifier quota /api (voir API_RATE_LIMIT_MAX dans .env)
+alt quota /api dépassé
+  Svc --> UI: 429 { message: "Trop de requêtes en peu de temps. Merci de réessayer plus tard." }
+  UI --> user: Message « trop de requêtes », réessayer plus tard
+else
+  Svc -> DB: Trouver l’utilisateur par e-mail
+  DB --> Svc: user (avec passwordHash)
+
+  alt identifiants valides (bcrypt.compare)
+    alt user.isActive == false
+      Svc --> UI: 403 « Compte non vérifié ou désactivé. Vérifiez vos e-mails (ou renvoyez le lien). »
+    else
+      Svc -> Svc: Générer accessToken (JWT) + refreshToken (aléatoire)\n+ hacher refreshToken pour stockage
+      Svc -> DB: Ajouter refreshTokens[] (tokenHash, expiresAt, device) + limiter à MAX_REFRESH_TOKENS
+      Svc --> UI: Set-Cookie: access_token=...; HttpOnly; SameSite=Lax\n(Secure uniquement en production)
+      Svc --> UI: Set-Cookie: refresh_token=...; HttpOnly; SameSite=Lax\n(Secure uniquement en production)
+      Svc --> UI: 200 { message: "Connecté", user } (pas de jetons dans le corps)
+      UI -> UI: Mettre à jour l’état authentifié côté client
+      UI --> user: Rediriger vers l’espace utilisateur
+    end
+  else identifiants invalides
+    Svc --> UI: 401 « Identifiants invalides. »
+    UI --> user: Afficher le message
+  end
+end
+@enduml

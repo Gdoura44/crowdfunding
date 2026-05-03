@@ -1,0 +1,77 @@
+@startuml
+title Séquence métier — Fournir les coordonnées bancaires (Payout)
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité : polices ~11–12 pt visibles,
+' DPI 240, retour à la ligne des messages. Inclure juste après la ligne title.
+' Export PNG pour Word/LaTeX : viser largeur <= zone utile A4 (~17 cm).
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam handwritten false
+skinparam HyperlinkUnderline false
+
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam footerFontSize 10
+skinparam headerFontSize 10
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+skinparam BoxPadding 8
+skinparam LifeLineBorderColor #444444
+skinparam LifeLineBackgroundColor #FEFEFE
+skinparam ArrowColor #222222
+skinparam ActorBorderColor #222222
+skinparam ActorBackgroundColor #EEF6FF
+skinparam ParticipantBorderColor #333333
+skinparam ParticipantBackgroundColor #FFFFFF
+
+skinparam DatabaseBackgroundColor #F8F8F8
+skinparam EntityBackgroundColor #F8FFF8
+skinparam ControlBackgroundColor #FFF8F0
+skinparam BoundaryBackgroundColor #F5F5FF
+actor "Utilisateur (créateur)" as user
+boundary "PayoutCreateur" as UI
+control "Contrôleur" as Svc
+entity "Base de données" as DB
+queue "BullMQ : send-email" as Queue
+
+user -> UI: Consulter les virements, choisir « Renseigner mes coordonnées bancaires »
+UI -> Svc: GET /api/payouts/:id
+Svc -> DB: Trouver le payout par id (payout.creatorId = user.id)
+' Statut attendu : PENDING (pas d’état "AWAITING_BANK_DETAILS" dans le code) =====
+DB --> Svc: payout (status = PENDING)
+Svc --> UI: détails du payout
+UI --> user: Afficher le formulaire
+
+user -> UI: Saisir les coordonnées bancaires, valider
+UI -> Svc: PUT /api/payouts/:id/bank-details { bankDetails }
+
+Svc -> Svc: Valider le format des coordonnées bancaires
+alt validation échoue
+  Svc --> UI: 400 « Coordonnées bancaires invalides : <raison> »
+else validation passes
+  Svc -> Svc: Chiffrer bankDetails (AES-256-GCM via cryptoSeal.seal)
+  Svc -> DB: Mettre à jour payout.bankDetails = encryptedValue,\nstatus = READY, bankDetailsProvidedAt = now()
+Svc -> DB: AuditLog (action = \"PROVIDE_BANK_DETAILS\")
+Svc -> DB: Notification (créateur) type PAYOUT_BANK_DETAILS_REQUEST\n+ Notification(s) admin (type PAYOUT_READY_FOR_APPROVAL)
+  Svc -> Queue: Enfiler envoi e-mail pour les notifications créées
+  Svc --> UI: 200 { payout, message }
+  UI --> user: Coordonnées enregistrées. Un administrateur validera le retrait.
+end
+
+note right of Svc
+  - Les coordonnées bancaires sont chiffrées au repos (AES-256-GCM) avant stockage.
+  - Elles sont stockées uniquement sur ce payout (pas dans le profil utilisateur).
+  - Après saisie, le payout passe à l’état READY (prêt à approbation).
+  - Notifications créées pour le créateur et les admins (PAYOUT_READY_FOR_APPROVAL).
+  - **E-mails:** envoi asynchrone via BullMQ (`emailQueue`) après création des notifications.
+end note
+@enduml

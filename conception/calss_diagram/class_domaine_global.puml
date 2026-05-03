@@ -1,0 +1,694 @@
+@startuml
+title "Diagramme de classes — domaine et services (vue conceptuelle)"
+left to right direction
+
+' --- Style A4 (spécifique diagramme de classes) ---
+scale max 1200 width
+skinparam dpi 150
+skinparam shadowing false
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam backgroundColor #FFFFFF
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam ArrowColor #2C3E50
+skinparam linetype ortho
+skinparam nodesep 55
+skinparam ranksep 85
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 9
+skinparam stereotypeFontSize 9
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #F9F9F9
+  BorderColor #2C3E50
+  ArrowColor #2C3E50
+}
+skinparam ArrowFontSize 10
+skinparam ArrowFontColor #2C3E50
+skinparam ArrowThickness 1.2
+skinparam Padding 6
+skinparam RoundCorner 4
+
+' =========================
+' ÉNUMÉRATIONS (ordre alphabétique)
+' =========================
+enum AIStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum CancelReason {
+  USER_REQUESTED
+  PROJECT_DEACTIVATED
+  PAYMENT_TIMEOUT
+  FRAUDULENT
+  USER_DEACTIVATED
+  ACCOUNT_DELETION
+}
+
+enum FailedCancellationReason {
+  CANCELLATION_FAILED
+  POST_UPDATE_FAILED
+  STUCK_CANCELLING
+  PROJECT_DEACTIVATED
+}
+
+enum FailedRefundReason {
+  OVERFUNDING
+  EXPIRY
+  USER_REQUESTED
+  USER_DEACTIVATED
+  ACCOUNT_DELETION
+  PROJECT_DEACTIVATED
+}
+
+enum InvestmentStatus {
+  INITIATED
+  CANCELLING
+  CANCELLED
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum NotificationType {
+  ACCOUNT_DELETED
+  CANCELLATION_FAILED
+  NEW_INVESTMENT
+  NEW_REPORT
+  OVERFUND_REFUNDED
+  PASSWORD_RESET_REQUESTED
+  PAYMENT_CANCELLED
+  PAYMENT_FAILED
+  PAYMENT_REFUNDED
+  PAYMENT_SUCCESS
+  PAYOUT_BANK_DETAILS_REQUEST
+  PAYOUT_CANCELLED
+  PAYOUT_COMPLETED
+  PAYOUT_FAILED
+  PAYOUT_READY_FOR_APPROVAL
+  PROJECT_APPROVED
+  PROJECT_ARCHIVED
+  PROJECT_AUTO_REJECTED
+  PROJECT_CREATED
+  PROJECT_DELETED
+  PROJECT_EXPIRED
+  PROJECT_FUNDED
+  PROJECT_FUNDING_GOAL_LOST
+  PROJECT_PUBLISHED
+  PROJECT_AI_REPORT_READY
+  PROJECT_REJECTED
+  PROJECT_REACTIVATED
+  PROJECT_SUBMITTED
+  PROJECT_SUSPENDED
+  PROJECT_UPDATED
+  PROJECT_WARNING
+  REFUND_FAILED
+  REPORT_RESOLVED
+  USER_DEACTIVATED
+  USER_REACTIVATED
+}
+
+enum PayoutStatus {
+  PENDING
+  READY
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum ProjectStatus {
+  DRAFT
+  AWAITING_AI
+  UNDER_REVIEW
+  APPROVED
+  ACTIVE
+  FUNDED
+  SUSPENDED
+  REJECTED
+  CLOSED
+}
+
+enum Provider {
+  FLOUCI
+  KONNECT
+  D17
+}
+
+enum RefundStatus {
+  NOT_ATTEMPTED
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum RelatedEntityType {
+  PROJECT
+  INVESTMENT
+  REPORT
+  PAYOUT
+  USER
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportType {
+  FRAUD
+  INAPPROPRIATE_CONTENT
+  SPAM
+  OTHER
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+' =========================
+' ENTITÉS PRINCIPALES
+' =========================
+class User {
+  +ObjectId id
+  +String email
+  +String passwordHash
+  +Role role
+  +Boolean isActive
+  +String verifyTokenHash
+  +Date verifyTokenExpiry
+  +String verifyCodeHash
+  +Date verifyCodeExpiry
+  +Date verifyTokenUsedAt
+  +String verifyTokenUsedBy
+  +String resetTokenHash
+  +Date resetTokenExpiry
+  +RefreshToken[] refreshTokens
+  +Date createdAt
+  +Date updatedAt
+  +Date deletedAt
+  --
+  <<embedded>>
+  +UserProfile profile
+}
+
+class UserProfile {
+  +String firstName
+  +String lastName
+  +String phone
+  +RiskLevel riskPreference
+  +String[] preferredCategories
+}
+
+class RefreshToken {
+  +String tokenHash
+  +Date expiresAt
+  +String device
+}
+
+class Project {
+  +ObjectId id
+  +String title
+  +String description
+  +String category
+  +Number fundingGoal
+  +Number currentFunding
+  +Number aiAnalysisRetries
+  +String aiJobId
+  +Date aiQueuedAt
+  +Date aiNextRetryAt
+  +String aiLastError
+  +Number aiAutoRetryCount
+  +ProjectStatus status
+  +AIStatus aiStatus
+  +ObjectId creatorId
+  +Date startAt
+  +Date deadline
+  +String rejectionReason
+  +ObjectId rejectedBy
+  +Date rejectedAt
+  +Boolean isArchived
+  +Boolean isCreatorDeleted
+  +Date fundedAt
+  +Date publishedAt
+  +Date createdAt
+  +Date updatedAt
+  +String[] images
+  +String[] documents
+  --
+  <<embedded>>
+  +AIAnalysis aiAnalysis
+}
+
+class AIAnalysis {
+  +Number riskScore
+  +RiskLevel riskLevel
+  +Number successProbability
+  +Date analyzedAt
+  --
+  <<embedded>>
+  +AIReport report
+  +AISource[] sourcesUsed
+  +AIMeta meta
+}
+
+class AIReport {
+  +String summary
+  +String[] advantages
+  +String[] disadvantages
+  +String[] improvements
+  +String[] removals
+  +String[] questionsToClarify
+}
+
+class AISource {
+  +String url
+  +String title
+  +String domain
+}
+
+class AIMeta {
+  +String method
+  +String model
+}
+
+class AuditLog {
+  +ObjectId id
+  +ObjectId actorId
+  +Role actorRole
+  +String action
+  +String targetType
+  +ObjectId targetId
+  +Object details
+  +Date timestamp
+}
+
+class Investment {
+  +ObjectId id
+  +ObjectId investorId
+  +ObjectId projectId
+  +Number amount
+  +InvestmentStatus status
+  +Number paymentAttempts
+  +CancelReason cancelReason
+  +Date cancelledAt
+  +Boolean scheduledForDeactivation
+  +Date createdAt
+  +Date updatedAt
+  +Date cancellingStartedAt
+  +Number cancellationGracePeriodMinutes
+}
+
+class Transaction {
+  +ObjectId id
+  +ObjectId investmentId
+  +Provider provider
+  +String providerPaymentId
+  +Number amount
+  +TransactionStatus status
+  +String paymentMethod
+  +Number attemptNumber
+  +Date createdAt
+  +Date updatedAt
+  +Date cancelledAt
+  +RefundStatus refundStatus
+  +Number refundAttempts
+  +Date lastRefundAttemptAt
+  +Date refundedAt
+}
+
+class Report {
+  +ObjectId id
+  +ObjectId reporterId
+  +ObjectId projectId
+  +ObjectId commentId
+  +ReportType type
+  +String description
+  +ReportStatus status
+  +ObjectId resolvedBy
+  +String resolution
+  +Date createdAt
+  +Date resolvedAt
+}
+
+class Comment {
+  +ObjectId id
+  +ObjectId projectId
+  +ObjectId userId
+  +String authorLabel
+  +String content
+  +Boolean isHidden
+  +String hiddenReason
+  +Date hiddenAt
+  +ObjectId hiddenBy
+  +Date deletedAt
+  +ObjectId deletedBy
+  +Role deletedByRole
+  +Date createdAt
+  +Date updatedAt
+}
+
+class Notification {
+  +ObjectId id
+  +ObjectId userId
+  +NotificationType type
+  +String title
+  +String message
+  +Boolean read
+  +Boolean adminRead
+  +ObjectId relatedEntityId
+  +RelatedEntityType relatedEntityType
+  +Date createdAt
+}
+
+class FailedWorkflowEvent {
+  +ObjectId id
+  +ObjectId projectId
+  +String workflowType
+  +Objet données
+  +String error
+  +Number retryCount
+  +Date createdAt
+  +Boolean resolved
+  +ObjectId resolvedBy
+  +Date resolvedAt
+}
+
+class FailedCancellationEvent {
+  +ObjectId id
+  +ObjectId investmentId
+  +String error
+  +FailedCancellationReason reason
+  +Number retryCount
+  +Date createdAt
+  +Boolean resolved
+  +ObjectId resolvedBy
+  +Date resolvedAt
+}
+
+class FailedRefundEvent {
+  +ObjectId id
+  +ObjectId projectId
+  +ObjectId investmentId
+  +String error
+  +FailedRefundReason reason
+  +Number retryCount
+  +Date createdAt
+  +Boolean resolved
+  +ObjectId resolvedBy
+  +Date resolvedAt
+}
+
+class FailedPayoutEvent {
+  +ObjectId id
+  +ObjectId payoutId
+  +String error
+  +Number retryCount
+  +Date createdAt
+  +Boolean resolved
+  +ObjectId resolvedBy
+  +Date resolvedAt
+}
+
+class Payout {
+  +ObjectId id
+  +ObjectId projectId
+  +ObjectId creatorId
+  +Number amount
+  +PayoutStatus status
+  +String bankDetails
+  +String notes
+  +String failureReason
+  +Date createdAt
+  +Date bankDetailsProvidedAt
+  +Date completedAt
+}
+
+' =========================
+' SERVICES ET FLUX
+' =========================
+class AuthService {
+  +registerUser(...)
+  +loginUser(...)
+  +refreshSession(String refreshPlain, String device?)
+  +logoutUser(ObjectId userId, String refreshPlain)
+  note right
+    Fichier : `backend/services/authService.js`
+  end note
+}
+
+class ProjectService {
+  +createDraftProject(ObjectId creatorId, ...)
+  +updateProject(ObjectId creatorId, ObjectId projectId, ...)
+  +resubmitRejectedProject(ObjectId creatorId, ObjectId projectId, ...)
+  +submitProjectForAi(ObjectId creatorId, ObjectId projectId)
+  +searchPublicProjects(params)
+  note right
+    Fichier : `backend/services/projectService.js`
+  end note
+}
+
+class InvestmentService {
+  +createInvestment({ investorId, projectId, amount })
+  +handleMockWebhook(req)
+  +confirmMockPaymentFromClient(données)
+  +cancelInvestment({ investorId, investmentId })
+  +retryInvestmentPayment({ investorId, investmentId })
+  note right
+    Fichier : `backend/services/investmentService.js`
+  end note
+}
+
+class PayoutService {
+  +provideBankDetails(ObjectId creatorId, ObjectId payoutId, String bankDetailsJson)
+  +approvePayout(ObjectId adminId, ObjectId payoutId, String notes?)
+  note right
+    Fichier : `backend/services/payoutService.js`
+  end note
+}
+
+class ReportService {
+  +createReport({ reporterId, projectId, type, description? })
+  +listAdminReports({ status?, limit? })
+  +resolveReport({ adminId, reportId, resolution, actionOnProject?, actionOnComment?, status? })
+  note right
+    Fichier : `backend/services/reportService.js`
+  end note
+}
+
+class NotificationService {
+  +listUserNotifications(ObjectId userId, { limit? })
+  +markAsRead(ObjectId userId, ObjectId notificationId)
+  +listAllNotificationsForAdmin({ limit?, unreadOnly? })
+  +markAdminRead(ObjectId notificationId)
+  note right
+    Fichier : `backend/services/notificationService.js`
+  end note
+}
+
+class AdminProjectService {
+  +validateProject(ObjectId adminId, ObjectId projectId, String decision, String feedback?)
+  +publishProject(ObjectId adminId, ObjectId projectId)
+  +revokeApproval(ObjectId adminId, ObjectId projectId, String reason)
+  +deactivateProject(ObjectId adminId, ObjectId projectId, String reason?)
+  +reactivateProject(ObjectId adminId, ObjectId projectId)
+  +retryAiAnalysis(ObjectId adminId, ObjectId projectId)
+  note right
+    Fichier : `backend/services/adminProjectService.js`
+  end note
+}
+
+class AdminUserService {
+  +setUserActive(ObjectId userId, Boolean isActive)
+  +reactivateUser(ObjectId adminId, ObjectId userId)
+  note right
+    Fichier : `backend/services/adminUserService.js`
+  end note
+}
+
+class AdminOpsService {
+  +listFailedRefunds(resolved?, limit?)
+  +listFailedPayouts(resolved?, limit?)
+  +listFailedNotifications(resolved?, limit?)
+  +retryRefundsOnce(limit?)
+  +retryPayoutsOnce(limit?)
+  +retryNotificationOnce(ObjectId adminId, ObjectId eventId)
+  note right
+    Fichier : `backend/services/adminOpsService.js`
+  end note
+}
+
+class CronService {
+  +expireProjects(...)
+  +cleanupStuckStates(...)
+  +retryFailedRefunds(...)
+  +retryFailedPayouts(...)
+  +retryStuckAi(...)
+  note right
+    Fichier : `backend/services/cronService.js`
+  end note
+}
+
+class SessionCronService {
+  +cleanupExpiredRefreshTokens()
+  note right
+    Fichier : `backend/services/sessionCronService.js`
+  end note
+}
+
+class WorkflowRoutesInternal {
+  +POST /internal/run-risk-analysis(données)
+  +POST /internal/update-ai-analysis(données)
+  +POST /internal/mark-ai-failed(données)
+  note right
+    Fichiers : `backend/routes/internal/workflowRoutes.js`
+  end note
+}
+
+class WorkflowInternalService {
+  +updateAiAnalysisFromWorkflow(...)
+  note right
+    Fichier : `backend/services/workflowInternalService.js`
+  end note
+}
+
+class GeminiRiskService {
+  +analyzeProjectRisk(Project project, sources?)
+  note right
+    Fichier : `backend/services/geminiRiskService.js`
+  end note
+}
+
+class RiskAnalysisQueue {
+  +enqueueRiskAnalysisJob(Project project)
+  note right
+    Fichier : `backend/integrations/riskAnalysisQueue.js`
+  end note
+}
+
+class EmailQueue {
+  +enqueueEmailForNotification(ObjectId notificationId)
+  +enqueueEmailForNotifications(Notification[] notifications)
+  note right
+    Fichier : `backend/integrations/emailQueue.js`
+  end note
+}
+
+class MockPaymentProvider {
+  +createPaymentLink(amount, currency, referenceId)
+  +refundPayment(...)
+  +cancelPayment(...)
+  +signPayload(raw)
+  note right
+    Fichier : `backend/integrations/mockPaymentProvider.js`
+  end note
+}
+
+' =========================
+' RELATIONS
+' =========================
+User "1" -- "0..*" Project : crée
+User "1" -- "0..*" Investment : investit
+User "1" -- "0..*" Report : signale
+User "1" -- "0..*" Comment : commente
+User "1" -- "0..*" Notification : reçoit
+User "1" *-- "0..*" RefreshToken : possède
+User "1" -- "0..*" AuditLog : effectue
+
+Project "1" *-- "1" AIAnalysis : contient
+Project "1" -- "0..*" Investment : reçoit
+Project "1" -- "0..*" Report : est_signalé_dans
+Project "1" -- "0..*" Comment : possède
+Project "1" -- "0..*" FailedWorkflowEvent : peut_avoir
+Project "1" -- "0..1" Payout : génère
+
+Investment "1" -- "0..*" Transaction : génère
+Investment "1" -- "0..*" FailedCancellationEvent : peut_avoir
+Investment "1" -- "0..*" FailedRefundEvent : peut_avoir
+
+Payout "1" -- "0..*" FailedPayoutEvent : peut_avoir
+
+Report "0..*" --> "0..1" User : résolu_par
+Report "0..*" --> "0..1" Comment : cible_commentaire
+
+Notification --> Project
+Notification --> Investment
+Notification --> Report
+Notification --> Payout
+
+FailedRefundEvent "0..*" --> "1" Project : référence
+
+AuthService ..> User
+ProjectService ..> Project
+InvestmentService ..> Investment
+InvestmentService ..> Transaction
+PayoutService ..> Payout
+ReportService ..> Report
+NotificationService ..> Notification
+AdminProjectService ..> Project
+AdminUserService ..> User
+AdminOpsService ..> FailedRefundEvent
+AdminOpsService ..> FailedPayoutEvent
+AdminOpsService ..> FailedWorkflowEvent
+CronService ..> Project
+CronService ..> Investment
+CronService ..> FailedRefundEvent
+CronService ..> FailedPayoutEvent
+SessionCronService ..> User
+WorkflowInternalService ..> Project
+WorkflowInternalService ..> Notification
+GeminiRiskService ..> Project
+RiskAnalysisQueue ..> Project
+EmailQueue ..> Notification
+InvestmentService ..> MockPaymentProvider
+GeminiRiskService ..> Gemini : API externe
+
+note bottom of ProjectStatus
+  Flux : DRAFT → AWAITING_AI → UNDER_REVIEW → APPROVED → ACTIVE → FUNDED → CLOSED.
+  Archivage : DRAFT, AWAITING_AI, UNDER_REVIEW, REJECTED.
+end note
+
+note bottom of Project
+  currentFunding : incrément atomique (historique). FUNDED : payout via cron **close-funded-projects**.
+  Réactivation SUSPENDED : ré-analyse si IA périmée (> 30 j).
+end note
+
+note bottom of Payout
+  Montant = fundingGoal à la clôture financée. RIB chiffrés **AES-256-GCM** sur le document Payout.
+end note
+
+note bottom of Investment
+  Annulation : fenêtre **cancellationGracePeriodMinutes** après paiement réussi.
+  CANCELLING bloqué : **cleanup-stuck-states** + FailedCancellationEvent.
+end note
+
+note bottom of User
+  Refresh tokens : max **5** (FIFO). Compte : règles **accountService**.
+end note
+
+note bottom of FailedWorkflowEvent
+  Collections Failed* : relances admin. AuditLog : actorId + actorRole.
+end note
+
+@enduml
+

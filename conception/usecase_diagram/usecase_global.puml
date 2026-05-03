@@ -1,0 +1,250 @@
+@startuml
+title Cas d'utilisation (métier) — Plateforme de financement collaboratif
+
+top to bottom direction
+skinparam dpi 300
+scale 0.9
+
+skinparam shadowing false
+skinparam backgroundColor White
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam wrapWidth 200
+skinparam maxMessageSize 150
+
+skinparam defaultFontSize 11
+skinparam actorFontSize 11
+skinparam packageFontSize 11
+skinparam usecaseFontSize 11
+
+skinparam padding 12
+skinparam roundcorner 10
+skinparam packageBorderThickness 1
+skinparam actorStyle awesome
+skinparam packagePadding 10
+skinparam usecaseSeparatorSpace 18
+skinparam packageSeparatorSpace 18
+
+skinparam usecaseBackgroundColor #FAFAFA
+skinparam usecaseBorderColor #333333
+skinparam packageBackgroundColor #E8F0F7
+skinparam packageBorderColor #3A5A7A
+skinparam arrowColor #333333
+
+' ========== Acteurs humains (gauche) ==========
+actor "Visiteur" as VIS
+actor "Utilisateur" as USR
+
+' ========== Acteurs externes (droite) ==========
+actor "Administrateur" as ADM
+actor "Passerelle\nde paiement (mock)" as PAY
+
+' ========== Système (centre) ==========
+rectangle "Plateforme de financement collaboratif" as SYS {
+
+  ' Version simple (style académique) : pas de package.
+  ' On utilise des UC "gérants" + sous-UC inclus (factorisation), sans multiplier les liens.
+
+  ' --- UC transversaux ---
+  usecase "S'authentifier" as UC_Auth
+
+  ' --- Comptes ---
+  usecase "Gérer mon compte" as UC_Account
+  usecase "Créer un compte" as UC_Register
+  usecase "Vérifier compte" as UC_Verify
+  usecase "Se connecter" as UC_Login
+  usecase "Récupérer mot\nde passe" as UC_ForgotPwd
+  usecase "Déconnexion et\nrefresh session" as UC_Session
+  usecase "Gérer profil" as UC_Profile
+  usecase "Supprimer\ncompte" as UC_DeleteAcc
+
+  ' --- Projets (utilisateur) ---
+  usecase "Explorer projets" as UC_Browse
+  usecase "Consulter projet" as UC_ViewProject
+  usecase "Rechercher projets" as UC_Search
+  usecase "Gérer mes projets" as UC_ManageMyProjects
+  usecase "Créer projet" as UC_CreateProject
+  usecase "Modifier projet" as UC_EditProject
+  usecase "Soumettre analyse\nrisque" as UC_SubmitRisk
+  usecase "Renvoyer après\nrejet" as UC_Resubmit
+  usecase "Archiver/Supprimer\nprojet" as UC_ArchiveDelete
+  usecase "Consulter rapport\nrisque" as UC_ViewRiskReport
+  usecase "Gérer commentaires" as UC_Comments
+
+  ' --- Finances ---
+  usecase "Gérer mes finances" as UC_MyFinance
+  usecase "Contribuer" as UC_Invest
+  usecase "Consulter mes\ncontributions" as UC_ListInvest
+  usecase "Annuler\ncontribution" as UC_CancelInvest
+  usecase "Relancer\npaiement" as UC_RetryPayment
+  usecase "Consulter\nretraits" as UC_ListPayouts
+  usecase "Saisir coordonnées\nbancaires" as UC_BankDetails
+  usecase "Obtenir\nrecommandations" as UC_Reco
+
+  ' --- Échanges / confiance ---
+  usecase "Interagir avec\nun projet" as UC_Interact
+  usecase "Consulter\nnotifications" as UC_Notifs
+  usecase "Signaler projet" as UC_ReportProject
+  usecase "Signaler\ncommentaire" as UC_ReportComment
+  usecase "Mes signalements" as UC_MyReports
+  usecase "Discuter avec\nassistant" as UC_Chat
+
+  ' --- Administration ---
+  usecase "Gérer projets\n(admin)" as UC_AdminProjects
+  usecase "Valider/Rejeter\nprojet" as UC_ValidateReject
+  usecase "Publier projet" as UC_Publish
+  usecase "Annuler\napprobation" as UC_Revoke
+  usecase "Suspendre/\nRéactiver projet" as UC_SuspendReactivate
+  usecase "Relancer analyse\nIA" as UC_AdminRetryRisk
+  usecase "Modérer\ncommentaires" as UC_Moderation
+  usecase "Traiter\nsignalements" as UC_HandleReports
+  usecase "Gérer utilisateurs" as UC_AdminUsers
+  usecase "Activer/Désactiver\nutilisateur" as UC_UserActive
+  usecase "Gérer retraits\n(admin)" as UC_AdminPayouts
+  usecase "Approuver retrait" as UC_ApprovePayout
+
+  ' --- Mise en page : regroupements + alignement manuel ---
+  together {
+    UC_Browse
+    UC_Search
+    UC_ViewProject
+  }
+
+  together {
+    UC_Account
+    UC_Register
+    UC_Verify
+    UC_Login
+    UC_ForgotPwd
+    UC_Session
+    UC_Profile
+    UC_DeleteAcc
+  }
+
+  together {
+    UC_ManageMyProjects
+    UC_CreateProject
+    UC_EditProject
+    UC_SubmitRisk
+    UC_Resubmit
+    UC_ArchiveDelete
+    UC_ViewRiskReport
+    UC_Comments
+  }
+
+  together {
+    UC_MyFinance
+    UC_Invest
+    UC_ListInvest
+    UC_CancelInvest
+    UC_RetryPayment
+    UC_ListPayouts
+    UC_BankDetails
+    UC_Reco
+  }
+
+  together {
+    UC_Interact
+    UC_Notifs
+    UC_ReportProject
+    UC_ReportComment
+    UC_MyReports
+    UC_Chat
+  }
+
+  together {
+    UC_AdminProjects
+    UC_ValidateReject
+    UC_Publish
+    UC_Revoke
+    UC_SuspendReactivate
+    UC_AdminRetryRisk
+    UC_Moderation
+    UC_HandleReports
+    UC_AdminUsers
+    UC_UserActive
+    UC_AdminPayouts
+    UC_ApprovePayout
+  }
+
+  ' Colonnes (gauche -> droite) par UC représentatifs
+  UC_Browse -[hidden]right- UC_Account
+  UC_Account -[hidden]right- UC_ManageMyProjects
+  UC_ManageMyProjects -[hidden]right- UC_MyFinance
+  UC_MyFinance -[hidden]right- UC_Interact
+  UC_Interact -[hidden]right- UC_AdminProjects
+}
+
+' ========== Ancrage gauche/droite (éviter croisements) ==========
+VIS -[hidden]right- SYS
+USR -[hidden]right- SYS
+VIS -[hidden]down- USR
+
+SYS -[hidden]right- ADM
+ADM -[hidden]down- PAY
+
+' ========== Associations ==========
+VIS --> UC_Browse
+VIS --> UC_ViewProject
+VIS --> UC_Search
+VIS --> UC_Register
+VIS --> UC_Login
+VIS --> UC_ForgotPwd
+VIS --> UC_Verify
+
+USR --> UC_Account
+USR --> UC_ManageMyProjects
+USR --> UC_MyFinance
+USR --> UC_Interact
+
+ADM --> UC_AdminProjects
+ADM --> UC_Moderation
+ADM --> UC_AdminUsers
+ADM --> UC_AdminPayouts
+
+PAY --> UC_Invest
+
+' ========== Include / Extend (simple) ==========
+' Règle : "UC gérant" inclut l'authentification + ses sous-fonctions.
+UC_Account ..> UC_Auth : <<include>>
+UC_Account ..> UC_Profile : <<include>>
+UC_Account ..> UC_DeleteAcc : <<include>>
+UC_Account ..> UC_Session : <<include>>
+
+UC_ManageMyProjects ..> UC_Auth : <<include>>
+UC_ManageMyProjects ..> UC_CreateProject : <<include>>
+UC_ManageMyProjects ..> UC_EditProject : <<include>>
+UC_ManageMyProjects ..> UC_SubmitRisk : <<include>>
+UC_ManageMyProjects ..> UC_Resubmit : <<include>>
+UC_ManageMyProjects ..> UC_ArchiveDelete : <<include>>
+UC_ManageMyProjects ..> UC_ViewRiskReport : <<include>>
+UC_ManageMyProjects ..> UC_Comments : <<include>>
+
+UC_MyFinance ..> UC_Auth : <<include>>
+UC_MyFinance ..> UC_Invest : <<include>>
+UC_MyFinance ..> UC_ListInvest : <<include>>
+UC_MyFinance ..> UC_CancelInvest : <<include>>
+UC_MyFinance ..> UC_RetryPayment : <<include>>
+UC_MyFinance ..> UC_ListPayouts : <<include>>
+UC_MyFinance ..> UC_BankDetails : <<include>>
+UC_MyFinance ..> UC_Reco : <<include>>
+
+UC_Interact ..> UC_Auth : <<include>>
+UC_Interact ..> UC_Notifs : <<include>>
+UC_Interact ..> UC_ReportProject : <<include>>
+UC_Interact ..> UC_ReportComment : <<include>>
+UC_Interact ..> UC_MyReports : <<include>>
+UC_Interact ..> UC_Chat : <<include>>
+
+UC_AdminProjects ..> UC_ValidateReject : <<include>>
+UC_AdminProjects ..> UC_Publish : <<include>>
+UC_AdminProjects ..> UC_Revoke : <<include>>
+UC_AdminProjects ..> UC_SuspendReactivate : <<include>>
+UC_AdminProjects ..> UC_AdminRetryRisk : <<include>>
+
+UC_Moderation ..> UC_HandleReports : <<include>>
+UC_Moderation ..> UC_Comments : <<include>>
+
+UC_AdminUsers ..> UC_UserActive : <<include>>
+UC_AdminPayouts ..> UC_ApprovePayout : <<include>>
+@enduml

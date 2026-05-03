@@ -1,0 +1,56 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Opérations : relances après échecs » (admin)
+' Alignement : `backend/routes/api/adminRoutes.js`, `backend/services/adminOpsService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Admin : opérations sur échecs »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class AdminRoutes <<controller>> {
+  +GET /api/admin/ops/failed-refunds(resolved?, limit?)
+  +GET /api/admin/ops/failed-payouts(resolved?, limit?)
+  +GET /api/admin/failed-notifications(resolved?, limit?)
+  +POST /api/admin/ops/retry-refunds(limit?)
+  +POST /api/admin/ops/retry-payouts(limit?)
+  +POST /api/admin/retry-notification(eventId)
+}
+
+class RequireAdmin <<middleware>> {
+  +requireAdmin()
+}
+
+class AdminOpsService <<service>> {
+  +listFailedRefunds({ resolved?, limit? })
+  +listFailedPayouts({ resolved?, limit? })
+  +listFailedNotifications({ resolved?, limit? })
+  +retryRefundsOnce({ limit? })
+  +retryPayoutsOnce({ limit? })
+  +retryNotificationOnce({ adminId, eventId })
+}
+
+class FailedRefundEvent <<model>> {
+  +resolved
+}
+
+class FailedPayoutEvent <<model>> {
+  +resolved
+}
+
+class FailedWorkflowEvent <<model>> {
+  +workflowType
+  +resolved
+}
+
+AdminRoutes ..> RequireAdmin
+AdminRoutes ..> AdminOpsService
+AdminOpsService ..> FailedRefundEvent
+AdminOpsService ..> FailedPayoutEvent
+AdminOpsService ..> FailedWorkflowEvent : notifications en échec
+
+@enduml

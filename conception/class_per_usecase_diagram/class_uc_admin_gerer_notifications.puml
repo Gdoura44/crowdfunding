@@ -1,0 +1,39 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Gérer notifications » (admin, vue globale)
+' Alignement : `backend/routes/api/adminRoutes.js`, `backend/services/notificationService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Admin : gérer notifications »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class AdminRoutes <<controller>> {
+  +GET /api/admin/notifications(limit?, unreadOnly?)
+  +PUT /api/admin/notifications/:id/read()
+  +PATCH /api/admin/notifications/:id/read()
+}
+
+class RequireAdmin <<middleware>> {
+  +requireAdmin()
+}
+
+class NotificationService <<service>> {
+  +listAllNotificationsForAdmin({ limit?, unreadOnly? })
+  +markAdminRead(notificationId)
+}
+
+class Notification <<model>> {
+  +adminRead
+  +type
+}
+
+AdminRoutes ..> RequireAdmin
+AdminRoutes ..> NotificationService
+NotificationService ..> Notification
+
+@enduml

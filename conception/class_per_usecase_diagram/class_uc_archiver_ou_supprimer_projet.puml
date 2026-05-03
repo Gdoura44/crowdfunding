@@ -1,0 +1,33 @@
+@startuml
+' ==========================================================
+' Diagramme de classes participantes — UC « Archiver / supprimer projet »
+' Alignement : `backend/routes/api/projectRoutes.js`, `backend/services/projectService.js`
+' ==========================================================
+
+title Diagramme de classes participantes — UC « Archiver / supprimer projet »
+left to right direction
+skinparam dpi 160
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+class ProjectRoutes <<controller>> {
+  +POST /api/projects/:id/archive()
+  +DELETE /api/projects/:id()
+}
+
+class ProjectService <<service>> {
+  +archiveProject(creatorId, projectId)
+  +deleteProject(creatorId, projectId)
+}
+
+class Project <<model>> {
+  +isArchived
+  +status
+}
+
+ProjectRoutes ..> ProjectService
+ProjectService ..> Project
+
+@enduml

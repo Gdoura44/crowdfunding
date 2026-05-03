@@ -1,0 +1,43 @@
+@startuml
+' ==========================================================
+' Diagramme de collaboration (contexte / boîte noire)
+ ' Chapitre 2 — Capture des besoins
+' Périmètre : interactions externes (acteurs ↔ système)
+' ==========================================================
+
+title Diagramme de collaboration — Contexte du système (boîte noire)
+left to right direction
+skinparam dpi 180
+skinparam shadowing false
+skinparam linetype ortho
+skinparam wrapWidth 220
+
+actor "Visiteur" as VIS
+actor "Utilisateur" as USR
+actor "Administrateur" as ADM
+
+cloud "Passerelle\npaiement (mock)" as PAY
+cloud "Service d'analyse\nrisque (orchestrateur)" as RISK
+cloud "Messagerie\nSMTP" as SMTP
+
+rectangle "Système : Plateforme de\nfinancement collaboratif" as SYS
+
+VIS --> SYS : "1. Consulter projets (GET /api/projects/public)\n2. Rechercher (GET /api/projects/search)\n3. S'inscrire / récupérer mot de passe"
+ USR --> SYS : "1. Gérer compte/profil\n2. Créer projet + soumettre l'analyse\n3. Investir (paiement simulé)\n4. Commenter / signaler / notifications"
+ADM --> SYS : "1. Valider/publier/suspendre projets\n2. Modérer commentaires\n3. Traiter signalements\n4. Approuver retraits"
+
+SYS --> PAY : "Créer lien paiement (mock)\nRéférence investmentId"
+PAY --> SYS : "Webhook paiement signé\nPOST /api/webhooks/mock-payments"
+
+SYS --> RISK : "Demande analyse risque\nPOST /internal/run-risk-analysis\n(contrat interne)"
+RISK --> SYS : "Rapport structuré + statuts\nPOST /internal/update-ai-analysis"
+
+SYS --> SMTP : "Envoi e-mails critiques\n(vérification, sécurité, paiements,\nretraits, décisions admin)"
+
+note bottom of SYS
+  Les appels externes passent par l'API REST `/api/*`.\n
+  Les workflows/cron utilisent `/internal/*` (bearer partagé).
+end note
+
+@enduml
+

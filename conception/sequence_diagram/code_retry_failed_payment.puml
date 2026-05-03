@@ -1,0 +1,80 @@
+@startuml
+title Séquence métier — Relancer un paiement en échec (Transaction)
+' ------------------------------------------------------------------
+' Style impression A4 (PFE FSEG) — lisibilité : polices ~11–12 pt visibles,
+' DPI 240, retour à la ligne des messages. Inclure juste après la ligne title.
+' Export PNG pour Word/LaTeX : viser largeur <= zone utile A4 (~17 cm).
+' ------------------------------------------------------------------
+scale max 1550 width
+skinparam dpi 240
+skinparam shadowing false
+skinparam handwritten false
+skinparam HyperlinkUnderline false
+
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam ArrowFontSize 11
+skinparam arrowThickness 1.25
+skinparam wrapWidth 220
+skinparam NoteFontSize 10
+skinparam LegendFontSize 10
+skinparam footerFontSize 10
+skinparam headerFontSize 10
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+skinparam BoxPadding 8
+skinparam LifeLineBorderColor #444444
+skinparam LifeLineBackgroundColor #FEFEFE
+skinparam ArrowColor #222222
+skinparam ActorBorderColor #222222
+skinparam ActorBackgroundColor #EEF6FF
+skinparam ParticipantBorderColor #333333
+skinparam ParticipantBackgroundColor #FFFFFF
+
+skinparam DatabaseBackgroundColor #F8F8F8
+skinparam EntityBackgroundColor #F8FFF8
+skinparam ControlBackgroundColor #FFF8F0
+skinparam BoundaryBackgroundColor #F5F5FF
+actor "Investisseur" as inv
+boundary "Investissement" as UI
+control "Contrôleur" as Svc
+entity "Base de données" as DB
+participant "Passerelle de paiement" as PG
+
+inv -> UI: Ouvrir un investissement en échec, cliquer « Relancer le paiement »
+UI -> Svc: POST /api/investments/:id/retry
+
+Svc -> DB: findOne({ _id: investmentId, investorId })
+DB --> Svc: investment
+alt investment.status != "FAILED"
+  Svc --> UI: 400 « Seuls les investissements en échec peuvent être relancés. »
+else
+  Svc -> DB: charger le projet, vérifier (status = ACTIVE, deadline non dépassée, currentFunding < goal)
+  alt projet non investissable
+    Svc --> UI: 400 « Projet non disponible pour investissement. »
+  else
+    Svc -> DB: charger la dernière Transaction (attemptNumber max) pour cet investissement
+    Svc -> Svc: nextAttempt = lastTx.attemptNumber + 1
+
+    Svc -> PG: mockProvider.createPaymentLink(amount, currency=\"TND\", referenceId = investment._id)
+    PG --> Svc: { paymentUrl, providerPaymentId, provider }
+
+    Svc -> DB: withOptionalTransaction(...)
+    Svc -> DB: Investment.status = "INITIATED" ; paymentAttempts++
+    Svc -> DB: Transaction.create({ provider, providerPaymentId, amount,\nstatus: \"PENDING\", attemptNumber: nextAttempt })
+    Svc --> UI: 200 { paymentUrl, providerPaymentId, investment }
+    UI --> inv: Redirection vers la page de paiement
+  end
+end
+
+note right of Svc
+  **Retry (code actuel)** :
+  - Réutilise le même Investment (pas de doublon comptable).
+  - Crée une nouvelle Transaction (attemptNumber++) et remet Investment à INITIATED.
+  - Pas de plafond fixe de tentatives ; chaque retry est tracé via attemptNumber.
+  - Provider = MockPaymentProvider (intégration bancaire simulée).
+  - **withOptionalTransaction** : enveloppe les écritures critiques en session si replica set Mongo dispo.
+end note
+@enduml
