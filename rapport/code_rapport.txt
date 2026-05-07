@@ -60,7 +60,7 @@
 
 % Images: all paths are resolved from folder \texttt{images/} (next to this file). Missing files show a framed placeholder so the PDF still builds (Overleaf / work in progress).
 % Uniquement des sous-dossiers réellement présents sous \texttt{rapport/images/} (les figures ch.~3 restent attendues dans \texttt{diagrams\_images/} au même niveau que ce fichier).
-\graphicspath{{images/}{images/usecase_diagram/}{images/collaboration_diagram/}{images/mongoDB_physique/}{images/diagrams_images/}}
+\graphicspath{{images/}{images/usecase_diagram/}{images/collaboration_diagram/}{images/mongoDB_physique/}{images/sequence_diagram/}{images/class_per_usecase_diagram/}{images/diagrams_images/}}
 
 \newcommand{\RapportMissingFigure}[1]{%
   \fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{%
@@ -70,14 +70,17 @@
     \vspace{1em}%
   }}%
 }
-% Chemins relatifs à \texttt{rapport/images/} : \texttt{usecase\_diagram/}, \texttt{collaboration\_diagram/}, \texttt{diagrams\_images/}, ou fichier directement sous \texttt{images/}.
+% Chemins relatifs à \texttt{rapport/images/} : \texttt{usecase\_diagram/}, \texttt{collaboration\_diagram/},
+% \texttt{sequence\_diagram/}, \texttt{class\_per\_usecase\_diagram/}, \texttt{diagrams\_images/}, ou fichier directement sous \texttt{images/}.
 \newcommand{\safeincludegraphics}[2][]{%
   \IfFileExists{images/#2}{\RapportIncludegraphics[#1]{images/#2}}{%
   \IfFileExists{images/usecase_diagram/#2}{\RapportIncludegraphics[#1]{images/usecase_diagram/#2}}{%
   \IfFileExists{images/collaboration_diagram/#2}{\RapportIncludegraphics[#1]{images/collaboration_diagram/#2}}{%
+  \IfFileExists{images/sequence_diagram/#2}{\RapportIncludegraphics[#1]{images/sequence_diagram/#2}}{%
+  \IfFileExists{images/class_per_usecase_diagram/#2}{\RapportIncludegraphics[#1]{images/class_per_usecase_diagram/#2}}{%
   \IfFileExists{images/diagrams_images/#2}{\RapportIncludegraphics[#1]{images/diagrams_images/#2}}{%
     \RapportMissingFigure{#2}%
-  }}}}%
+  }}}}}}%
 }
 \newcommand{\RapportLogoHead}{%
   \IfFileExists{images/logo_fseg_sfax.jpg}{%
@@ -762,26 +765,30 @@ Ce chapitre a délimité le système en «\,boîte noire\,», identifié \textbf
 \label{chap:conception}
 
 \section{Introduction}
-Ce chapitre traduit les besoins capturés au chapitre~\ref{chap:besoins} en une conception UML détaillée et exécutable. Il présente d'abord la \textbf{réalisation conceptuelle} des cas d'utilisation les plus critiques sous forme de diagrammes de séquence (acteurs, contrôleurs, services, base de données et systèmes partenaires). Il dresse ensuite le \textbf{modèle du domaine} (diagramme de classes), décrit l'\textbf{architecture du futur logiciel} (couches, composants, intégration n8n, choix structurants) et formalise les \textbf{schémas physiques des données} retenus pour MongoDB. Une conclusion synthétise les choix de conception et fait le pont vers l'implémentation.
+Ce chapitre traduit les besoins capturés au chapitre~\ref{chap:besoins} en une conception UML conforme au plan (version~2). Il présente d'abord la \textbf{réalisation conceptuelle} des cas d'utilisation les plus structurants sous forme de diagrammes de séquence, en adoptant la notation attendue (acteurs, \textbf{IHM}, \textbf{contrôleur} et classes métier manipulées). Il complète chaque séquence par un diagramme de \textbf{classes participantes} (vue statique des classes mobilisées par le cas). Il dresse ensuite le \textbf{modèle du domaine} (diagramme de classes global), décrit l'\textbf{architecture du futur logiciel} et formalise les \textbf{schémas physiques des données} retenus pour MongoDB. Une conclusion synthétise les choix de conception et prépare l'implémentation.
 
 \clearpage
 \section{Réalisation conceptuelle des cas d'utilisation}
-Les diagrammes de séquence suivants décrivent le flux d'interactions entre les acteurs et les objets du système pour les cas d'utilisation les plus significatifs identifiés au chapitre~\ref{chap:besoins}. Ils servent de spécification pour la réalisation technique.
+Les diagrammes de séquence suivants décrivent le flux d'interactions entre les acteurs et les objets du système pour dix cas d'utilisation représentatifs identifiés au chapitre~\ref{chap:besoins}. Chaque séquence est complétée par un diagramme de classes participantes afin d'assurer la cohérence entre la vue dynamique (interactions) et la vue statique (classes mobilisées). Ces diagrammes sont alignés sur les règles métier et sur l'implémentation livrée.
+
+\medskip
+\noindent
+\textbf{Cas retenus.} Inscription, authentification, rafraîchissement de session, annulation de contribution, création et soumission d'un projet, investissement (paiement démo + \textit{webhook}), validation/rejet d'un projet (administration), fourniture de coordonnées bancaires, approbation d'un retrait (administration) et mise à jour de l'état d'un projet (suspension/réactivation).
 
 \subsection{Inscription}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{diagrams_images/register.png}
+    \safeincludegraphics[width=\textwidth]{UC_Inscription.png}
     \caption{Diagramme de séquence – Inscription}
     \label{fig:register}
 \end{figure}
 
 \noindent
-\textbf{Description :} Ce diagramme illustre le processus d’inscription. Le backend valide les champs, hache le mot de passe, crée un compte \textit{inactif} puis envoie un e-mail contenant un \textbf{code OTP (4–6 chiffres)} (et un lien en secours). Le compte est activé après saisie du code (ou clic du lien).
+\textbf{Description :} Ce diagramme illustre le processus d’inscription. Le système valide les champs, hache le mot de passe, crée un compte \textit{inactif} puis envoie un e-mail contenant un \textbf{code OTP (6 chiffres)} (et un lien de vérification en secours). Le compte est activé après saisie du code (ou clic du lien).
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{diagrams_images/class/class_register.png}
+    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Inscription.png}
     \caption{Diagramme de classes participantes -- Inscription}
     \label{fig:class_register}
 \end{figure}
@@ -789,157 +796,167 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Authentification}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{diagrams_images/login.png}
+    \safeincludegraphics[width=\textwidth]{UC_Authentification.png}
     \caption{Diagramme de séquence – Authentification}
     \label{fig:login}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{diagrams_images/class/class_login.png}
+    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Authentification.png}
     \caption{Diagramme de classes participantes -- Authentification}
     \label{fig:class_login}
 \end{figure}
+\noindent
+\textbf{Description :} L'utilisateur renseigne ses identifiants. Après vérification, une session est ouverte et l'utilisateur accède à l'espace authentifié. Le cas couvre également la règle d'accès \textit{compte actif} (compte vérifié / non désactivé).
 
-\subsection{Rafraîchissement du jeton}
+\subsection{Rafraîchissement de session}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{diagrams_images/refresh_t.png}
-    \caption{Diagramme de séquence – Rafraîchissement du jeton JWT}
+    \safeincludegraphics[width=\textwidth]{UC_Rafraichissement_Session.png}
+    \caption{Diagramme de séquence – Rafraîchissement de session}
     \label{fig:refresh}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{diagrams_images/class/class_refresh.png}
-    \caption{Diagramme de classes participantes -- Rafraîchissement du jeton}
+    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Rafraichissement_Session.png}
+    \caption{Diagramme de classes participantes -- Rafraîchissement de session}
     \label{fig:class_refresh}
 \end{figure}
+\noindent
+\textbf{Description :} Lorsque la session arrive à expiration, le système la prolonge de façon transparente en renouvelant les jetons côté serveur, sans demander à l'utilisateur de ressaisir son mot de passe.
 
-\subsection{Réinitialisation du mot de passe}
+\subsection{Annuler une contribution}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{diagrams_images/forget_pass.png}
-    \caption{Diagramme de séquence – Réinitialisation du mot de passe}
-    \label{fig:forgot_password}
+    \safeincludegraphics[width=\textwidth]{UC_Annuler_Contribution.png}
+    \caption{Diagramme de séquence – Annuler une contribution}
+    \label{fig:cancel_contribution}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{diagrams_images/class/class_forgot.png}
-    \caption{Diagramme de classes participantes -- Réinitialisation du mot de passe}
-    \label{fig:class_forgot}
+    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Annuler_Contribution.png}
+    \caption{Diagramme de classes participantes -- Annuler une contribution}
+    \label{fig:class_cancel_contribution}
 \end{figure}
+\noindent
+\textbf{Description :} L'investisseur annule une contribution tant que les conditions d'annulation sont respectées (fenêtre de grâce / paiement en cours). Le système met à jour les statuts et notifie l'utilisateur du résultat.
 
-\subsection{Créer un projet (avec n8n)}
+\subsection{Créer et soumettre un projet}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{diagrams_images/create_project.png}
-    \caption{Diagramme de séquence – Créer un projet (avec n8n)}
+    \safeincludegraphics[width=\textwidth]{UC_Creer_et_Soumettre_Projet.png}
+    \caption{Diagramme de séquence – Créer et soumettre un projet}
     \label{fig:create}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{diagrams_images/class/class_create_project.png}
-    \caption{Diagramme de classes participantes -- Création de projet}
+    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Creer_et_Soumettre_Projet.png}
+    \caption{Diagramme de classes participantes -- Créer et soumettre un projet}
     \label{fig:class_create_project}
 \end{figure}
+\noindent
+\textbf{Description :} Le porteur de projet crée un brouillon puis le soumet. Le système passe le projet en attente d'analyse et prépare la revue administrative selon les règles métier.
 
-\subsection{Investir dans un projet}
+\subsection{Investir dans un projet (paiement démo + \textit{webhook})}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{diagrams_images/investments.png}
-    \caption{Diagramme de séquence – Soutenir un projet (paiement simulé)}
+    \safeincludegraphics[width=\textwidth]{UC_Investir_(Paiement_Demo_Webhook).png}
+    \caption{Diagramme de séquence – Investir (paiement démo + \textit{webhook})}
     \label{fig:invest}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{diagrams_images/class/class_invest.png}
-    \caption{Diagramme de classes participantes -- Soutenir un projet}
+    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Investir_(Paiement_Demo_Webhook).png}
+    \caption{Diagramme de classes participantes -- Investir}
     \label{fig:class_invest}
 \end{figure}
+\noindent
+\textbf{Description :} L'investisseur initie un paiement de démonstration. La confirmation arrive ensuite de façon asynchrone via \textit{webhook}, ce qui met à jour la transaction et l'investissement et déclenche les notifications associées.
 
 \subsection{Valider un projet (Admin)}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{diagrams_images/validate_p.png}
+    \safeincludegraphics[width=\textwidth]{UC_Valider_ou_Rejeter_Projet_(Admin).png}
     \caption{Diagramme de séquence – Valider un projet}
     \label{fig:validate}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{diagrams_images/class/class_validate.png}
+    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Valider_ou_Rejeter_Projet_(Admin).png}
     \caption{Diagramme de classes participantes -- Valider un projet}
     \label{fig:class_validate}
 \end{figure}
+\noindent
+\textbf{Description :} L'administrateur examine un projet en revue et décide de l'approuver ou de le rejeter. La décision est journalisée et une notification est envoyée au créateur.
 
-\subsection{Désactiver un utilisateur (Admin)}
+\subsection{Fournir les coordonnées bancaires}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{diagrams_images/deactivate_user.png}
-    \caption{Diagramme de séquence – Désactivation d'un utilisateur (Admin)}
-    \label{fig:admin_deactivate}
+    \safeincludegraphics[width=\textwidth]{UC_Fournir_Coordonnees_Bancaires.png}
+    \caption{Diagramme de séquence – Fournir les coordonnées bancaires}
+    \label{fig:bank_details}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{diagrams_images/class/class_deactivate_user.png}
-    \caption{Diagramme de classes participantes -- Désactivation d'un utilisateur}
-    \label{fig:class_deactivate_user}
+    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Fournir_Coordonnees_Bancaires.png}
+    \caption{Diagramme de classes participantes -- Fournir les coordonnées bancaires}
+    \label{fig:class_bank_details}
 \end{figure}
+\noindent
+\textbf{Description :} Le créateur renseigne ses coordonnées bancaires pour un retrait en attente. Le retrait passe à l'état prêt pour validation, et l'administration est alertée.
 
-\subsection{Voir les projets recommandés}
+\subsection{Approuver un retrait (Admin)}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{diagrams_images/recommend_p.png}
-    \caption{Diagramme de séquence – Voir les projets recommandés}
-    \label{fig:recommend}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \safeincludegraphics[width=0.8\textwidth]{diagrams_images/class/class_recommend.png}
-    \caption{Diagramme de classes participantes -- Recommandations}
-    \label{fig:class_recommend}
-\end{figure}
-
-\subsection{Signaler un projet}
-\begin{figure}[H]
-    \centering
-    \safeincludegraphics[width=\textwidth]{diagrams_images/report_p.png}
-    \caption{Diagramme de séquence – Signaler un projet}
-    \label{fig:report}
+    \safeincludegraphics[width=\textwidth]{UC_Approuver_Retrait_(Admin).png}
+    \caption{Diagramme de séquence – Approuver un retrait (Admin)}
+    \label{fig:approve_payout}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{diagrams_images/class/class_report.png}
-    \caption{Diagramme de classes participantes -- Signalement d'un projet}
-    \label{fig:class_report}
+    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Approuver_Retrait_(Admin).png}
+    \caption{Diagramme de classes participantes -- Approuver un retrait}
+    \label{fig:class_approve_payout}
 \end{figure}
+\noindent
+\textbf{Description :} L'administrateur approuve un retrait prêt à être traité. Le système initie un virement de démonstration, met à jour l'état du retrait, journalise l'action et notifie le créateur.
 
-\subsection{Workflow n8n (exemple interne)}
+\subsection{Mise à jour de l'état d'un projet (Admin)}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{diagrams_images/n8n.png}
-    \caption{Exemple de workflow n8n pour l'analyse de risque}
-    \label{fig:n8n_workflow}
+    \safeincludegraphics[width=\textwidth]{UC_Suspendre_ou_Reactiver_Projet_(Admin).png}
+    \caption{Diagramme de séquence – Mise à jour de l'état d'un projet (suspension / réactivation)}
+    \label{fig:update_project_state}
 \end{figure}
+
+\begin{figure}[H]
+    \centering
+    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Mise_a_jour_Etat_Projet_(Admin).png}
+    \caption{Diagramme de classes participantes -- Mise à jour de l'état d'un projet}
+    \label{fig:class_update_project_state}
+\end{figure}
+\noindent
+\textbf{Description :} L'administrateur met à jour l'état d'un projet (suspension ou réactivation) selon les règles de cycle de vie. L'opération est tracée et une notification est envoyée au créateur.
 
 \clearpage
 \section{Modèle du domaine}
 \begin{sidewaysfigure}[p]
     \centering
-    \safeincludegraphics[width=\textwidth]{diagrams_images/class_diag.png}
-    \caption{Diagramme de classes du domaine}
+    \safeincludegraphics[width=\textwidth]{class_diagram/Modele_Domaine_FSEG_ClassesOnly.png}
+    \caption{Diagramme de classes du domaine (modèle du domaine)}
     \label{fig:class}
 \end{sidewaysfigure}
 
 \noindent
-\textbf{Lecture du diagramme.} Le diagramme de classes présente la structure statique du domaine métier. Il identifie les entités principales (\texttt{User}, \texttt{Project}, \texttt{Investment}, \texttt{Transaction}, \texttt{Report}, \texttt{Notification}, \texttt{Comment}, \texttt{Payout}) ainsi que leurs attributs et relations. Les collections d'événements (\texttt{FailedWorkflowEvents}, \texttt{FailedCancellationEvents}, \texttt{FailedRefund}, \texttt{FailedPayoutEvents}) servent à tracer les échecs définitifs et à permettre des relances contrôlées par l'administrateur (\textit{dead-letter queues}). Les invariants métier importants apparaissent au niveau des contraintes : un projet ne peut pas dépasser son objectif (mise à jour conditionnelle atomique de \texttt{currentFunding}), un investissement \texttt{INITIATED} dispose d'une durée d'expiration explicite (\texttt{expireAt}), et chaque \texttt{Transaction} est associée à au plus un investissement avec un identifiant fournisseur unique (idempotence des \textit{webhooks}). L'orchestration n8n et les interactions inter-services sont décrites dans la section précédente (réalisation conceptuelle des cas d'utilisation).
+\textbf{Lecture du diagramme.} Le diagramme de classes ci-dessus constitue le \textbf{modèle du domaine} de la plateforme. Il présente les principales entités métier (\textbf{Utilisateur}, \textbf{Projet}, \textbf{Investissement}, \textbf{Transaction}, \textbf{Retrait}, \textbf{Notification}, \textbf{Commentaire}, \textbf{Signalement}) ainsi que leurs attributs, opérations et relations (avec multiplicités). Les énumérations (rôle, statuts, types de notification) rendent explicites les cycles de vie et les règles de gestion. Les contraintes fondamentales y sont résumées : (i) unicité de l'e-mail, (ii) la collecte d'un projet ne dépasse pas l'objectif de financement, et (iii) au plus un retrait par projet. Ce modèle sert de référence aux sections suivantes (architecture et schémas physiques MongoDB).
 
 \clearpage
 \section{Architecture du futur logiciel}
