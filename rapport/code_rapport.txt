@@ -769,75 +769,23 @@ Ce chapitre traduit les besoins capturés au chapitre~\ref{chap:besoins} en une 
 
 \clearpage
 \section{Réalisation conceptuelle des cas d'utilisation}
-Les diagrammes de séquence suivants décrivent le flux d'interactions entre les acteurs et les objets du système pour dix cas d'utilisation représentatifs identifiés au chapitre~\ref{chap:besoins}. Chaque séquence est complétée par un diagramme de classes participantes afin d'assurer la cohérence entre la vue dynamique (interactions) et la vue statique (classes mobilisées). Ces diagrammes sont alignés sur les règles métier et sur l'implémentation livrée.
+Les diagrammes de séquence suivants décrivent le flux d'interactions entre les acteurs et les objets du système pour un ensemble de cas d'utilisation représentatifs identifiés au chapitre~\ref{chap:besoins}. Chaque séquence est complétée par un diagramme de classes participantes afin d'assurer la cohérence entre la vue dynamique (interactions) et la vue statique (classes mobilisées). Ces diagrammes sont alignés sur les règles métier et sur l'implémentation livrée.
 
 \medskip
 \noindent
-\textbf{Cas retenus.} Inscription, authentification, rafraîchissement de session, annulation de contribution, création et soumission d'un projet, investissement (paiement démo + \textit{webhook}), validation/rejet d'un projet (administration), fourniture de coordonnées bancaires, approbation d'un retrait (administration) et mise à jour de l'état d'un projet (suspension/réactivation).
-
-\subsection{Inscription}
-\begin{figure}[H]
-    \centering
-    \safeincludegraphics[width=\textwidth]{UC_Inscription.png}
-    \caption{Diagramme de séquence – Inscription}
-    \label{fig:register}
-\end{figure}
-
-\noindent
-\textbf{Description :} Ce diagramme illustre le processus d’inscription. Le système valide les champs, hache le mot de passe, crée un compte \textit{inactif} puis envoie un e-mail contenant un \textbf{code OTP (6 chiffres)} (et un lien de vérification en secours). Le compte est activé après saisie du code (ou clic du lien).
-
-\begin{figure}[H]
-    \centering
-    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Inscription.png}
-    \caption{Diagramme de classes participantes -- Inscription}
-    \label{fig:class_register}
-\end{figure}
-
-\subsection{Authentification}
-\begin{figure}[H]
-    \centering
-    \safeincludegraphics[width=\textwidth]{UC_Authentification.png}
-    \caption{Diagramme de séquence – Authentification}
-    \label{fig:login}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Authentification.png}
-    \caption{Diagramme de classes participantes -- Authentification}
-    \label{fig:class_login}
-\end{figure}
-\noindent
-\textbf{Description :} L'utilisateur renseigne ses identifiants. Après vérification, une session est ouverte et l'utilisateur accède à l'espace authentifié. Le cas couvre également la règle d'accès \textit{compte actif} (compte vérifié / non désactivé).
-
-\subsection{Rafraîchissement de session}
-\begin{figure}[H]
-    \centering
-    \safeincludegraphics[width=\textwidth]{UC_Rafraichissement_Session.png}
-    \caption{Diagramme de séquence – Rafraîchissement de session}
-    \label{fig:refresh}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Rafraichissement_Session.png}
-    \caption{Diagramme de classes participantes -- Rafraîchissement de session}
-    \label{fig:class_refresh}
-\end{figure}
-\noindent
-\textbf{Description :} Lorsque la session arrive à expiration, le système la prolonge de façon transparente en renouvelant les jetons côté serveur, sans demander à l'utilisateur de ressaisir son mot de passe.
+\textbf{Cas retenus.} Annulation de contribution, création et soumission d'un projet, investissement (paiement démo + \textit{webhook}), validation/rejet d'un projet (administration), fourniture de coordonnées bancaires, approbation d'un retrait (administration) et mise à jour de l'état d'un projet (suspension/réactivation).
 
 \subsection{Annuler une contribution}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{UC_Annuler_Contribution.png}
+    \safeincludegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{UC_Annuler_Contribution.png}
     \caption{Diagramme de séquence – Annuler une contribution}
     \label{fig:cancel_contribution}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Annuler_Contribution.png}
+    \safeincludegraphics[width=0.8\textwidth,height=0.70\textheight,keepaspectratio]{class_per_usecase_diagram/UC_Annuler_Contribution.png}
     \caption{Diagramme de classes participantes -- Annuler une contribution}
     \label{fig:class_cancel_contribution}
 \end{figure}
@@ -847,14 +795,14 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Créer et soumettre un projet}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{UC_Creer_et_Soumettre_Projet.png}
+    \safeincludegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{UC_Creer_et_Soumettre_Projet.png}
     \caption{Diagramme de séquence – Créer et soumettre un projet}
     \label{fig:create}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Creer_et_Soumettre_Projet.png}
+    \safeincludegraphics[width=0.8\textwidth,height=0.70\textheight,keepaspectratio]{class_per_usecase_diagram/UC_Creer_et_Soumettre_Projet.png}
     \caption{Diagramme de classes participantes -- Créer et soumettre un projet}
     \label{fig:class_create_project}
 \end{figure}
@@ -864,14 +812,14 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Investir dans un projet (paiement démo + \textit{webhook})}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{UC_Investir_(Paiement_Demo_Webhook).png}
+    \safeincludegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{UC_Investir_(Paiement_Demo_Webhook).png}
     \caption{Diagramme de séquence – Investir (paiement démo + \textit{webhook})}
     \label{fig:invest}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Investir_(Paiement_Demo_Webhook).png}
+    \safeincludegraphics[width=0.8\textwidth,height=0.70\textheight,keepaspectratio]{class_per_usecase_diagram/UC_Investir_(Paiement_Demo_Webhook).png}
     \caption{Diagramme de classes participantes -- Investir}
     \label{fig:class_invest}
 \end{figure}
@@ -881,14 +829,14 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Valider un projet (Admin)}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{UC_Valider_ou_Rejeter_Projet_(Admin).png}
+    \safeincludegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{UC_Valider_ou_Rejeter_Projet_(Admin).png}
     \caption{Diagramme de séquence – Valider un projet}
     \label{fig:validate}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Valider_ou_Rejeter_Projet_(Admin).png}
+    \safeincludegraphics[width=0.8\textwidth,height=0.70\textheight,keepaspectratio]{class_per_usecase_diagram/UC_Valider_ou_Rejeter_Projet_(Admin).png}
     \caption{Diagramme de classes participantes -- Valider un projet}
     \label{fig:class_validate}
 \end{figure}
@@ -898,14 +846,14 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Fournir les coordonnées bancaires}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{UC_Fournir_Coordonnees_Bancaires.png}
+    \safeincludegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{UC_Fournir_Coordonnees_Bancaires.png}
     \caption{Diagramme de séquence – Fournir les coordonnées bancaires}
     \label{fig:bank_details}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Fournir_Coordonnees_Bancaires.png}
+    \safeincludegraphics[width=0.8\textwidth,height=0.70\textheight,keepaspectratio]{class_per_usecase_diagram/UC_Fournir_Coordonnees_Bancaires.png}
     \caption{Diagramme de classes participantes -- Fournir les coordonnées bancaires}
     \label{fig:class_bank_details}
 \end{figure}
@@ -915,14 +863,14 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Approuver un retrait (Admin)}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{UC_Approuver_Retrait_(Admin).png}
+    \safeincludegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{UC_Approuver_Retrait_(Admin).png}
     \caption{Diagramme de séquence – Approuver un retrait (Admin)}
     \label{fig:approve_payout}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Approuver_Retrait_(Admin).png}
+    \safeincludegraphics[width=0.8\textwidth,height=0.70\textheight,keepaspectratio]{class_per_usecase_diagram/UC_Approuver_Retrait_(Admin).png}
     \caption{Diagramme de classes participantes -- Approuver un retrait}
     \label{fig:class_approve_payout}
 \end{figure}
@@ -932,14 +880,14 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Mise à jour de l'état d'un projet (Admin)}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth]{UC_Suspendre_ou_Reactiver_Projet_(Admin).png}
+    \safeincludegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{UC_Suspendre_ou_Reactiver_Projet_(Admin).png}
     \caption{Diagramme de séquence – Mise à jour de l'état d'un projet (suspension / réactivation)}
     \label{fig:update_project_state}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.8\textwidth]{class_per_usecase_diagram/UC_Mise_a_jour_Etat_Projet_(Admin).png}
+    \safeincludegraphics[width=0.8\textwidth,height=0.70\textheight,keepaspectratio]{class_per_usecase_diagram/UC_Mise_a_jour_Etat_Projet_(Admin).png}
     \caption{Diagramme de classes participantes -- Mise à jour de l'état d'un projet}
     \label{fig:class_update_project_state}
 \end{figure}
@@ -1015,41 +963,22 @@ Les décisions suivantes ont été prises pour satisfaire les exigences non fonc
 
 \section{Schémas physiques des données}
 \subsection{Schéma physique (MongoDB)}
-Le schéma physique est dérivé du diagramme de classes. Les collections MongoDB sont définies comme suit (les schémas complets sont donnés ci‑après) :
+Le schéma physique est dérivé du modèle du domaine et des schémas Mongoose. Comme la solution repose sur une base \textbf{NoSQL} (MongoDB), la structure est présentée sous forme de \textbf{collections} et de \textbf{références} (\textit{ObjectId}) plutôt que sous forme de tables relationnelles. Dans ce rapport, la description est fournie \textbf{sans figures} afin d'éviter toute dépendance à des exports/outils externes.
 \begin{itemize}
     \item \texttt{users} : stocke les identifiants, le rôle, le statut actif, les jetons de réinitialisation, et le profil (préférences de risque, catégories).
     \item \texttt{projects} : contient les détails du projet ainsi que l'analyse IA embarquée (\texttt{aiAnalysis}).
     \item \texttt{investments} : lie un investisseur à un projet avec un montant et un statut.
     \item \texttt{transactions} : enregistre les informations de paiement (démo / extensible).
+    \item \texttt{payouts} : stocke les retraits (statut, coordonnées bancaires chiffrées, suivi du virement).
+    \item \texttt{comments} : stocke les commentaires (modération, masquage, suppression).
     \item \texttt{reports} : gère les signalements.
     \item \texttt{notifications} : stocke les notifications in‑app.
+    \item \texttt{auditLogs} : journalise les actions sensibles (traçabilité).
     \item \texttt{failedWorkflowEvents} : stocke les échecs des workflows n8n pour reprise manuelle.
     \item \texttt{failedCancellationEvents} : stocke les échecs d'annulation de paiement lors de la désactivation d'un utilisateur.
+    \item \texttt{failedRefundEvents} : stocke les échecs de remboursement (sur-financement, expiration, etc.).
+    \item \texttt{failedPayoutEvents} : stocke les échecs de traitement des retraits.
 \end{itemize}
-
-\subsubsection{Collection \texttt{users}}
-\safelstinputlisting[caption={Schéma de la collection \protect\texttt{users}},label=lst:users]{user.txt}
-
-\subsubsection{Collection \texttt{projects}}
-\safelstinputlisting[caption={Schéma de la collection \protect\texttt{projects}},label=lst:projects]{projects.txt}
-
-\subsubsection{Collection \texttt{investments}}
-\safelstinputlisting[caption={Schéma de la collection \protect\texttt{investments}},label=lst:investments]{investments.txt}
-
-\subsubsection{Collection \texttt{transactions}}
-\safelstinputlisting[caption={Schéma de la collection \protect\texttt{transactions}},label=lst:transactions]{transactions.txt}
-
-\subsubsection{Collection \texttt{reports}}
-\safelstinputlisting[caption={Schéma de la collection \protect\texttt{reports}},label=lst:reports]{reports.txt}
-
-\subsubsection{Collection \texttt{notifications}}
-\safelstinputlisting[caption={Schéma de la collection \protect\texttt{notifications}},label=lst:notifications]{notifs.txt}
-
-\subsubsection{Collection \texttt{failedWorkflowEvents}}
-\safelstinputlisting[caption={Schéma de la collection \protect\texttt{failedWorkflowEvents}},label=lst:failedWorkflow]{failedWorkflowEvents.txt}
-
-\subsubsection{Collection \texttt{failedCancellationEvents}}
-\safelstinputlisting[caption={Schéma de la collection \protect\texttt{failedCancellationEvents}},label=lst:failedCancellation]{failedCancellationEvents.txt}
 
 \subsection{Justification du modèle NoSQL}
 Le choix de MongoDB repose sur la nature semi-structurée des données. Les projets contiennent des champs variables (images, documents, analyse IA) qui évoluent au fil du temps. Un modèle relationnel imposerait des tables supplémentaires ou des colonnes redondantes, tandis que MongoDB permet d'ajouter des champs sans migration. De plus, la possibilité d'utiliser des sous-documents (embedding) pour \texttt{profile} et \texttt{aiAnalysis} améliore les performances de lecture.
@@ -1068,23 +997,6 @@ Pour optimiser les performances, les index suivants sont créés :
     \item \texttt{failedCancellationEvents.resolved} et \texttt{failedCancellationEvents.createdAt} : idem.
 \end{itemize}
 Les relations sont gérées par références (ObjectId). L'embedding est utilisé pour les profils utilisateur et l'analyse IA dans les projets. En MongoDB, les jointures sont effectuées au niveau de l'application en utilisant les méthodes \texttt{populate} (avec Mongoose) ou des requêtes manuelles.
-
-\subsection{Analyse IA (LLM) orchestrée via n8n}
-Le backend délègue l’analyse IA à n8n : lors de la soumission, n8n appelle le service LLM avec un timeout adapté et des retentatives. Le résultat est enregistré sous forme de \textbf{rapport} (résumé, avantages, inconvénients, améliorations, questions) dans \texttt{project.aiAnalysis.report}.
-
-Un exemple de prompt (simplifié) utilisé pour l'évaluation du risque :
-
-\begin{lstlisting}[language=, caption=Prompt pour l'analyse de risque]
-Analyse le projet suivant :
-Titre : ${project.title}
-Catégorie : ${project.category}
-Description : ${project.description}
-Objectif de financement : ${project.fundingGoal} TND
-
-Retourne un JSON structuré incluant : résumé, avantages, inconvénients, améliorations, éléments à retirer, et questions.
-\end{lstlisting}
-
-La réponse est ensuite validée côté backend, puis stockée dans MongoDB. Le rapport est affiché au créateur et à l’administration pour améliorer la transparence et accélérer la revue.
 
 \subsection{Dictionnaire des données}
 Le tableau \ref{tab:dictionary} présente une description détaillée des principaux champs des collections.
@@ -1121,7 +1033,7 @@ investments & investorId & Référence vers l'utilisateur investisseur. \\
 & projectId & Référence vers le projet. \\
 & amount & Montant investi (strictement positif). \\
 & status & État de l'investissement (INITIATED, SUCCESS, FAILED, CANCELLING, CANCELLED, REFUNDED). \\
-& expireAt & Date limite avant nettoyage automatique des investissements en \texttt{INITIATED}. \\
+& updatedAt & Date de dernière mise à jour (utilisée pour repérer les contributions restées en \texttt{INITIATED} trop longtemps). \\
 \hline
 transactions & investmentId & Référence vers l'investissement. \\
 & provider & Fournisseur de paiement (mock en démonstration). \\
@@ -1181,9 +1093,9 @@ Les principaux outils et bibliothèques utilisés sont les suivants :
 \begin{itemize}
     \item \textbf{Backend} : Node.js (v20.11.1), Express (v4.19.2), Mongoose (v8.2) pour l'accès à MongoDB, Zod pour la validation, BullMQ + ioredis pour les files asynchrones, Nodemailer pour l'envoi d'e-mails, jsonwebtoken (v9.0.2) et bcrypt (v5.1.1) pour la sécurité.
     \item \textbf{Frontend} : React (v18.3.1) avec Vite, Axios pour les appels API (avec intercepteurs de rafraîchissement de session), Tailwind CSS pour le style.
-    \item \textbf{Base de données} : MongoDB 6+ (replica set requis pour les transactions multi-documents) — déploiement local et MongoDB Atlas pour la démonstration.
-    \item \textbf{Orchestration et IA} : n8n (v1.40.0) pour les workflows d'analyse de risque ; service LLM (Gemini) sollicité par n8n pour l'analyse et directement par le backend pour le chatbot (\texttt{/api/projects/:id/chat}), avec timeouts et retentatives.
-    \item \textbf{Outillage} : Visual Studio Code, Git/GitHub pour le versionnage, PlantUML pour la modélisation UML, Postman pour le test manuel des API.
+    \item \textbf{Base de données} : MongoDB 6+ (replica set requis pour les transactions multi-documents) — déploiement local et instance managée utilisée pour la démonstration.
+    \item \textbf{Orchestration et IA} : n8n (v1.40.0) pour les workflows d'analyse de risque ; service LLM sollicité par n8n pour l'analyse et directement par le backend pour le chatbot (\texttt{/api/projects/:id/chat}), avec timeouts et retentatives.
+    \item \textbf{Outillage} : Visual Studio Code, Git/GitHub pour le versionnage, Enterprise Architect 15 pour la modélisation UML, Postman pour le test manuel des API.
     \item \textbf{Tests} : scripts E2E Node.js (\texttt{e2e-lifecycle-payout-api.js}, \texttt{e2e-lifecycle-scenarios.js}, \texttt{e2e-edgecases-api.js}, \texttt{e2e-interactions.js}) + tests manuels guidés sur l'interface.
 \end{itemize}
 
@@ -1203,9 +1115,9 @@ Le tableau~\ref{tab:tech} synthétise les technologies retenues et la justificat
         Files asynchrones & BullMQ + Redis & Retentatives exponentielles, DLQ, supervision des jobs (e-mails, reprises). \\
         Authentification & JWT (cookies HttpOnly) & Sans état, accès court / refresh long, protection contre l'XSS. \\
         Chiffrement RIB & AES-256-GCM & Confidentialité des coordonnées bancaires, IV unique par enregistrement. \\
-        IA (analyse / chatbot) & LLM Gemini + n8n (analyse) ; Express (chatbot) & Analyse orchestrée, retentatives, auto-rejet sur incohérence budgétaire ($\geq$30~\%), heuristiques explicables ; chatbot via \texttt{/api/projects/:id/chat}. \\
+        IA (analyse / chatbot) & Service LLM + n8n (analyse) ; Express (chatbot) & Analyse orchestrée, retentatives, auto-rejet sur incohérence budgétaire ($\geq$30~\%), heuristiques explicables ; chatbot via \texttt{/api/projects/:id/chat}. \\
         Orchestration & n8n & Découplage des workflows d'analyse ; évolutions sans toucher au cœur Express pour ces flux. \\
-        Hébergement (cible) & Vercel + Render + MongoDB Atlas & Déploiement continu, certificat SSL, sauvegardes managées. \\
+        Hébergement (cible) & Hébergement cloud managé (frontend, backend, base) & Déploiement continu, certificat SSL, sauvegardes managées. \\
         \hline
     \end{tabular}
     \caption{Technologies utilisées}
@@ -1231,21 +1143,9 @@ Les mots de passe sont hachés avec bcrypt. Le schéma utilisateur inclut un cha
     \item \texttt{axios} (frontend) — appels API et intercepteur de rafraîchissement automatique.
 \end{itemize}
 
-\subsubsection*{Extrait de code clé : intercepteur Axios de rafraîchissement}
-\begin{lstlisting}[language=javascript, caption=Intercepteur frontend pour gérer la 401 et rafraîchir le jeton]
-api.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-        const original = error.config;
-        if (error.response?.status === 401 && !original._retry) {
-            original._retry = true;
-            await api.post('/auth/refresh');
-            return api(original);
-        }
-        return Promise.reject(error);
-    }
-);
-\end{lstlisting}
+\subsubsection*{Capture VSCode à insérer : intercepteur Axios de rafraîchissement}
+\noindent
+\textbf{À faire :} insérer une capture d’écran VSCode montrant l’intercepteur Axios qui gère une réponse \texttt{401} en appelant \texttt{/api/auth/refresh}, puis en rejouant la requête initiale.
 
 \subsubsection*{Captures d'écran}
 \begin{figure}[H]
@@ -1288,37 +1188,12 @@ En cas d'indisponibilité temporaire du service IA (quota/timeout/503), le proje
     \item \texttt{zod} — validation des champs \textit{title}, \textit{description}, \textit{category}, \textit{fundingGoal}, \textit{deadline}.
     \item \texttt{multer} — réception du média et de la pièce jointe du projet.
     \item \texttt{axios} (côté backend) — appel signé vers le \textit{webhook} n8n d'analyse de risque.
-    \item \textbf{n8n} — orchestration du workflow d'analyse IA + appel LLM (Gemini).
+    \item \textbf{n8n} — orchestration du workflow d'analyse IA + appel au service LLM.
 \end{itemize}
 
-\subsubsection*{Extrait de code clé : pseudocode du calcul de risque (workflow n8n)}
-Le workflow n8n peut être décrit par le pseudocode suivant (il n'est pas codé manuellement, mais configuré via l'interface graphique de n8n) :
-
-\begin{lstlisting}[language=pseudocode, caption=Pseudocode du workflow n8n pour le calcul du risque]
-function analyzeRisk(project):
-    // Construire le prompt
-    prompt = "Analyse le projet suivant :\n" +
-             "Titre : " + project.title + "\n" +
-             "Catégorie : " + project.category + "\n" +
-             "Description : " + project.description + "\n" +
-             "Objectif de financement : " + project.fundingGoal + " TND\n\n" +
-             "Retourne un JSON structuré: summary, advantages, disadvantages, improvements, questionsToClarify."
-
-    // Appel LLM (via n8n) + retries/timeout
-    response = http.post("<LLM_ENDPOINT>", {
-        model: "<LLM_MODEL>",
-        prompt: prompt,
-        stream: false
-    })
-    report = parseJson(response.body)
-    validate(report)
-
-    // Mise à jour de MongoDB
-    db.projects.updateOne(
-        { _id: project.id },
-        { $set: { "aiAnalysis.report": report, "aiStatus": "COMPLETED" } }
-    )
-\end{lstlisting}
+\subsubsection*{Captures à insérer : workflow n8n (analyse de risque)}
+\noindent
+\textbf{À faire :} insérer une ou deux captures de l’interface n8n montrant les nœuds principaux du workflow (réception de la demande, appel LLM, validation/formatage de la réponse, mise à jour du projet, notification / gestion des erreurs).
 
 \subsubsection*{Captures d'écran}
 \begin{figure}[H]
@@ -1355,16 +1230,9 @@ Le parcours de paiement est simulé (mock) afin de valider la logique métier (s
     \item \texttt{zod} — validation du \textit{payload} de \textit{webhook} et des saisies bancaires.
 \end{itemize}
 
-\subsubsection*{Extrait de code clé : mise à jour atomique du financement}
-\begin{lstlisting}[language=javascript, caption=Garde atomique pour ne jamais dépasser \texttt{fundingGoal}]
-const result = await db.projects.updateOne(
-    { _id: projectId, $expr: { $lte: [ { $add: ["$currentFunding", amount] }, "$fundingGoal" ] } },
-    { $inc: { currentFunding: amount } }
-);
-if (result.modifiedCount === 0) {
-    // funding goal exceeded -> mark investment as FAILED
-}
-\end{lstlisting}
+\subsubsection*{Capture VSCode à insérer : mise à jour atomique du financement}
+\noindent
+\textbf{À faire :} insérer une capture d’écran VSCode montrant la mise à jour atomique qui empêche \texttt{currentFunding} de dépasser \texttt{fundingGoal} lors d’un \textit{webhook} concurrent.
 Cette approche garantit l'intégrité des données même en cas de \textit{webhooks} concurrents.
 
 \subsubsection*{Captures d'écran}
@@ -1387,27 +1255,18 @@ Cette approche garantit l'intégrité des données même en cas de \textit{webho
 
 \subsection{Nettoyage des investissements abandonnés}
 \subsubsection*{Description fonctionnelle}
-Un job planifié (cron interne) exécute régulièrement un nettoyage des investissements restés au statut \texttt{INITIATED} au-delà d’un seuil (par défaut 30 minutes), en s'appuyant sur le champ \texttt{expireAt} de la collection \texttt{investments}. Ces investissements sont automatiquement marqués \texttt{FAILED}, la transaction associée est mise à jour, et une notification est envoyée à l'investisseur. Ce mécanisme évite l'accumulation d'enregistrements orphelins et améliore l’expérience utilisateur.
+Un job planifié (cron interne) exécute régulièrement un nettoyage des investissements restés au statut \texttt{INITIATED} au-delà d’un seuil (par défaut 30 minutes), en s'appuyant sur l'horodatage \texttt{updatedAt} (ou \texttt{createdAt}) de la collection \texttt{investments}. Ces investissements sont automatiquement marqués \texttt{FAILED}, la transaction associée est mise à jour, et une notification est envoyée à l'investisseur. Ce mécanisme évite l'accumulation d'enregistrements orphelins et améliore l’expérience utilisateur.
 
 \subsubsection*{Bibliothèques utilisées}
 \begin{itemize}
     \item \texttt{node-cron} — planification du job d'expiration.
-    \item \texttt{mongoose} — requêtes ciblées sur \texttt{status: INITIATED} et \texttt{expireAt} dépassé.
+    \item \texttt{mongoose} — requêtes ciblées sur \texttt{status: INITIATED} et ancienneté (\texttt{updatedAt}/\texttt{createdAt}).
     \item \texttt{bullmq} — production d'un événement de notification consommé en aval.
 \end{itemize}
 
-\subsubsection*{Extrait de code clé : balayage périodique des investissements expirés}
-\begin{lstlisting}[language=javascript, caption=Tâche cron de nettoyage des investissements abandonnés]
-cron.schedule('*/5 * * * *', async () => {
-    const expired = await Investment.find({
-        status: 'INITIATED',
-        expireAt: { $lte: new Date() }
-    });
-    for (const inv of expired) {
-        await markInvestmentFailed(inv, { reason: 'EXPIRED' });
-    }
-});
-\end{lstlisting}
+\subsubsection*{Capture VSCode à insérer : nettoyage périodique des investissements abandonnés}
+\noindent
+\textbf{À faire :} insérer une capture d’écran VSCode montrant la tâche cron qui identifie les investissements \texttt{INITIATED} trop anciens (via \texttt{updatedAt}/\texttt{createdAt}) et les marque en échec.
 
 \subsubsection*{Capture d'écran}
 \begin{figure}[H]
@@ -1429,22 +1288,9 @@ Le moteur est implémenté dans \texttt{recommendationService.js} (\texttt{getRe
     \item \texttt{mongoose} — requêtes \texttt{find} sur \texttt{projects} et \texttt{users} (\texttt{lean()}).
 \end{itemize}
 
-\subsubsection*{Extrait de code clé (agrégation du score)}
-\begin{lstlisting}[language=javascript, caption=Logique de scoring simplifiée (\texttt{recommendationService.js})]
-// scoreCategoryMatch + scoreRiskMatch + scorePopularity + scoreRecency
-const scored = candidates
-  .map((p) => ({
-    p,
-    s:
-      scoreCategoryMatch(prefs, p.category) +
-      scoreRiskMatch(riskPref, p.aiAnalysis?.riskLevel) +
-      scorePopularity(p) +
-      scoreRecency(p),
-  }))
-  .sort((a, b) => b.s - a.s)
-  .slice(0, safeLimit)
-  .map((x) => x.p);
-\end{lstlisting}
+\subsubsection*{Capture VSCode à insérer : calcul du score de recommandation}
+\noindent
+\textbf{À faire :} insérer une capture d’écran VSCode montrant la fonction de scoring déterministe (catégories, \texttt{riskLevel}, progression, récence) et le tri/découpe.
 
 \subsubsection*{Capture d'écran}
 \begin{figure}[H]
@@ -1469,16 +1315,9 @@ Le service de notifications enregistre systématiquement les notifications \text
     \item \textbf{n8n} — orchestration des workflows d'analyse de risque ; le chatbot et la modération passent principalement par l'API Express.
 \end{itemize}
 
-\subsubsection*{Extrait de code clé : émission d'une notification critique}
-\begin{lstlisting}[language=javascript, caption=Émission combinée in-app + e-mail pour un événement critique]
-async function notifyCritical(userId, type, payload) {
-    await Notification.create({ userId, type, payload, channel: 'IN_APP' });
-    await emailQueue.add('critical-email', { userId, type, payload }, {
-        attempts: 5,
-        backoff: { type: 'exponential', delay: 60_000 }
-    });
-}
-\end{lstlisting}
+\subsubsection*{Capture VSCode à insérer : notification critique (in-app + e-mail)}
+\noindent
+\textbf{À faire :} insérer une capture d’écran VSCode montrant l’émission d’une notification in-app et l’ajout d’un job BullMQ pour l’e-mail (retentatives + backoff).
 
 \subsubsection*{Capture d'écran}
 \begin{figure}[H]
@@ -1501,13 +1340,13 @@ La validation a été effectuée au moyen de \textbf{scripts E2E Node.js} qui si
 En complément, des \textbf{tests manuels guidés} ont été réalisés sur l'interface web (parcours porteur de projet, investisseur, administrateur) afin de vérifier l'ergonomie, la cohérence des messages et la fidélité de l'affichage des statuts. Les scripts de \textit{smoke test} (\texttt{scripts/smoke.ps1}) permettent de valider rapidement la disponibilité des principaux endpoints après chaque déploiement.
 
 \subsection{Déploiement}
-La plateforme est conçue pour être déployée sur des services cloud managés :
+La plateforme est conçue pour être déployée sur un environnement cloud managé (ou sur un serveur institutionnel) avec séparation des composants :
 \begin{itemize}
-    \item \textbf{Frontend} : Vercel — déploiement continu depuis le dépôt GitHub, certificat SSL automatique, CDN global.
-    \item \textbf{Backend} : Render — hébergement de services Node.js avec gestion des variables d'environnement et des logs centralisés.
-    \item \textbf{Base de données} : MongoDB Atlas — cluster avec replica set (requis pour les transactions multi-documents), sauvegardes automatiques.
-    \item \textbf{Broker} : Redis Cloud (ou instance Redis dédiée) pour les files BullMQ.
-    \item \textbf{Orchestration} : instance n8n auto-hébergée ou n8n.cloud, avec authentification dédiée et webhooks signés.
+    \item \textbf{Frontend} : application React servie via un hébergement web (HTTPS).
+    \item \textbf{Backend} : service Node.js/Express exposant l’API REST.
+    \item \textbf{Base de données} : MongoDB (replica set requis pour les transactions multi-documents).
+    \item \textbf{Broker} : Redis pour les files BullMQ.
+    \item \textbf{Orchestration} : instance n8n (auto-hébergée) pour les workflows.
 \end{itemize}
 Les exigences de sécurité (HTTPS, secrets gérés hors code, signatures \textit{webhook}, chiffrement AES-256-GCM des RIB) sont identiques en local et en production ; seules les valeurs des secrets et l'origine CORS varient par environnement.
 
