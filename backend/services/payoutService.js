@@ -222,6 +222,8 @@ async function listAdminPayouts({ status, limit = 50 } = {}) {
       bankDetailsProvidedAt: 1,
       transferInitiatedAt: 1,
       completedAt: 1,
+      failedAt: 1,
+      cancelledAt: 1,
       createdAt: 1,
     })
     .populate({ path: "projectId", select: { title: 1, status: 1 }, options: { lean: true } })
@@ -311,11 +313,14 @@ async function confirmMockPayoutTransfer({ adminId, payoutId, providerTransferId
   }
 
   payout.status = normalized;
+  const now = new Date();
   if (normalized === "COMPLETED") {
-    payout.completedAt = new Date();
+    payout.completedAt = now;
     payout.failureReason = "";
+    payout.failedAt = undefined;
   } else {
     payout.failureReason = "Virement refusé par le prestataire (simulation)";
+    payout.failedAt = now;
   }
   await payout.save();
 
@@ -350,6 +355,7 @@ async function failPayout({ adminId, payoutId, error }) {
   if (!payout) throw new HttpError(404, "Retrait introuvable.");
   payout.status = "FAILED";
   payout.failureReason = String(error || "Transfer failed");
+  payout.failedAt = new Date();
   await payout.save();
 
   await FailedPayoutEvent.create({
@@ -394,6 +400,7 @@ async function cancelOpenPayoutForProject({ adminId, projectId, reason = "" }) {
 
   payout.status = "CANCELLED";
   payout.failureReason = String(reason || "").trim() || "Cancelled by admin";
+  payout.cancelledAt = new Date();
   await payout.save();
 
   await AuditLog.create({

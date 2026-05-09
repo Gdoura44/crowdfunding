@@ -195,8 +195,8 @@ export default function ProjectNew() {
           </div>
           <Stepper steps={["Infos", "Calendrier", "Revue"]} current={step} />
         </div>
-        <Guidance title="Guidance" variant="info">
-          Astuce: l’analyse IA se base surtout sur votre <strong>description</strong>. Une description claire et
+        <Guidance title="Rédaction & budget" variant="info">
+          L’analyse IA se base surtout sur votre <strong>description</strong>. Une description claire et
           structurée (quelques chiffres, un mini-plan, budget) aide à mieux évaluer le projet et rassure les
           contributeurs. Si votre <strong>objectif</strong> dépasse votre budget estimé, expliquez brièvement à quoi
           servira la marge (ex. plan B) ou comment elle sera utilisée.

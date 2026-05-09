@@ -9,6 +9,27 @@ import { useNavigate } from "react-router-dom";
 import Alert from "../components/ui/Alert.jsx";
 import { confirmAlert } from "react-confirm-alert";
 
+function formatPayoutTerminalAt(p) {
+  if (!p) return "—";
+  const d =
+    p.status === "COMPLETED"
+      ? p.completedAt
+      : p.status === "FAILED"
+        ? p.failedAt
+        : p.status === "CANCELLED"
+          ? p.cancelledAt
+          : null;
+  if (!d) return "—";
+  try {
+    return new Date(d).toLocaleString("fr-FR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  } catch {
+    return "—";
+  }
+}
+
 function badge(status) {
   const map = {
     PENDING: "bg-secondary",
@@ -62,7 +83,7 @@ export default function AdminPayouts() {
       confirmAlert({
         title: "Initier le virement ?",
         message:
-          "Vous serez redirigé vers la page du prestataire (simulation) pour confirmer succès/échec.",
+          "Vous serez redirigé vers l’interface prestataire pour confirmer la réussite ou l’échec du virement.",
         buttons: [
           { label: "Annuler", onClick: () => {} },
           {
@@ -108,7 +129,7 @@ export default function AdminPayouts() {
     <div>
       <PageHeader
         title="Admin · Payouts"
-        subtitle="Initier et suivre les virements (simulation provider)."
+        subtitle="Initier et suivre les virements sortants."
         actions={
           <div className="btn-group btn-group-sm">
             {["READY", "PROCESSING", "PENDING", "COMPLETED", "FAILED", "CANCELLED"].map((k) => (
@@ -148,6 +169,9 @@ export default function AdminPayouts() {
                   <th>Créateur</th>
                   <th>Montant</th>
                   <th>Statut</th>
+                  {["COMPLETED", "FAILED", "CANCELLED"].includes(tab) ? (
+                    <th>Horodatage</th>
+                  ) : null}
                   {tab === "READY" ? <th style={{ width: "1%" }}>Action</th> : null}
                 </tr>
               </thead>
@@ -186,6 +210,9 @@ export default function AdminPayouts() {
                     </td>
                     <td className="fw-semibold">{p.amount} TND</td>
                     <td>{badge(p.status)}</td>
+                    {["COMPLETED", "FAILED", "CANCELLED"].includes(tab) ? (
+                      <td className="small text-muted text-nowrap">{formatPayoutTerminalAt(p)}</td>
+                    ) : null}
                     {tab === "READY" ? (
                       <td className="text-end">
                         <button

@@ -14,9 +14,9 @@ export default function MockThreeDSStep({
         <div className="d-flex align-items-start gap-2">
           <i className="fa-solid fa-shield-halved text-primary mt-1" aria-hidden="true" />
           <div className="min-w-0">
-            <div className="fw-semibold">3D Secure (démo)</div>
+            <div className="fw-semibold">Vérification 3D Secure</div>
             <div className="small text-muted">
-              Un code OTP a été “envoyé” sur votre téléphone. Entrez le code pour continuer.
+              Un code à usage unique a été envoyé à votre adresse e-mail. Saisissez-le pour poursuivre.
             </div>
           </div>
         </div>
@@ -34,7 +34,7 @@ export default function MockThreeDSStep({
               disabled={loading}
             />
             {otpErr ? <div className="form-text text-danger">{otpErr}</div> : null}
-            <div className="form-text">Astuce démo : utilisez n’importe quel code à 6 chiffres.</div>
+            <div className="form-text">Format attendu : 6 chiffres (code transmis par e-mail).</div>
           </div>
           <div className="col-12 col-sm-6 d-flex justify-content-sm-end gap-2">
             <button type="button" className="btn btn-outline-secondary" disabled={loading} onClick={onCancel}>

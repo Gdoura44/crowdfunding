@@ -10,12 +10,12 @@ import MockCardForm from "./MockCardForm.jsx";
 import MockThreeDSStep from "./MockThreeDSStep.jsx";
 
 /**
- * Simule une page hébergée par le prestataire de paiement (PCI).
- * États : PENDING (saisie carte) → 3DS (OTP démo) → TRAITEMENT → redirection /investments.
+ * Page de paiement hébergée (flux type prestataire PCI).
+ * États : PENDING (saisie carte) → 3DS (OTP) → TRAITEMENT → redirection /investments.
  */
 export default function MockPaymentProviderPage() {
   const navigate = useNavigate();
-  const { providerPaymentId, ref, amount, currency } = useMockPaymentQuery();
+  const { providerPaymentId, amount, currency } = useMockPaymentQuery();
 
   const [status, setStatus] = useState("PENDING");
   const [loading, setLoading] = useState(false);
@@ -49,6 +49,7 @@ export default function MockPaymentProviderPage() {
           providerPaymentId,
           status: nextStatus,
           paymentMethod: "MOCK_CARD",
+          otp: status === "3DS" ? otp : undefined,
         },
         { timeout: 15000 }
       );
@@ -68,6 +69,15 @@ export default function MockPaymentProviderPage() {
     setOtpErr("");
     setPendingIntent(String(intent || "").toUpperCase());
     setStatus("3DS");
+    void investmentsApi
+      .mockSendOtp({ providerPaymentId }, { timeout: 15000 })
+      .then((res) => {
+        const previewUrl = res?.data?.previewUrl;
+        if (previewUrl) console.info("[OTP] Aperçu:", previewUrl);
+      })
+      .catch(() => {
+        // Ne pas bloquer le parcours si l’envoi échoue.
+      });
   }
 
   async function confirm3ds() {
@@ -97,7 +107,7 @@ export default function MockPaymentProviderPage() {
             <Link to="/projects">Explorer</Link>
           </li>
           <li className="breadcrumb-item active" aria-current="page">
-            Paiement (simulation)
+            Paiement sécurisé
           </li>
         </ol>
       </nav>
@@ -108,10 +118,10 @@ export default function MockPaymentProviderPage() {
             <div>
               <h1 className="h5 mb-1 d-flex align-items-center gap-2 text-dark">
                 <i className="fa-solid fa-credit-card text-primary" aria-hidden="true" />
-                Paiement (simulation)
+                Paiement sécurisé
               </h1>
               <div className="text-muted small">
-                Testez le parcours comme avec un vrai prestataire : succès ou échec, puis retour sur la campagne.
+                Complétez le formulaire, puis indiquez le résultat pour poursuivre et enregistrer votre soutien.
               </div>
             </div>
             <span
@@ -130,23 +140,17 @@ export default function MockPaymentProviderPage() {
           </div>
 
           <hr className="my-3" />
-          <Guidance title="Guidance" variant="info">
-            Renseignez des informations comme sur une vraie page de paiement (démo). Ensuite, choisissez{" "}
-            <strong>Simuler succès</strong> ou <strong>Simuler échec</strong>.
+          <Guidance title="Avant de continuer" variant="info">
+            Renseignez les champs requis, puis choisissez <strong>Poursuivre — succès</strong> ou{" "}
+            <strong>Poursuivre — échec</strong> pour lancer la vérification et finaliser l’opération.
           </Guidance>
 
           <div className="row g-3 small">
-            <div className="col-sm-6">
+            <div className="col-12 col-sm-6">
               <div className="text-muted">Montant</div>
               <div className="fw-semibold">
                 {amount} {currency}
               </div>
-            </div>
-            <div className="col-sm-6">
-              <div className="text-muted">Référence (investissement)</div>
-              <div className="fw-semibold text-truncate">{ref || "—"}</div>
-              <div className="text-muted mt-2">Identifiant de paiement</div>
-              <div className="fw-semibold text-truncate">{providerPaymentId || "—"}</div>
             </div>
           </div>
 
@@ -192,7 +196,7 @@ export default function MockPaymentProviderPage() {
                 }}
               >
                 <i className="fa-solid fa-circle-check me-2" aria-hidden="true" />
-                Simuler succès
+                Poursuivre — succès
               </button>
               <button
                 type="button"
@@ -204,7 +208,7 @@ export default function MockPaymentProviderPage() {
                 }}
               >
                 <i className="fa-solid fa-circle-xmark me-2" aria-hidden="true" />
-                Simuler échec
+                Poursuivre — échec
               </button>
               <button
                 type="button"
@@ -219,8 +223,8 @@ export default function MockPaymentProviderPage() {
           )}
 
           <div className="text-muted small mt-3">
-            Paiement simulé : en production, la saisie se ferait sur une page hébergée par le prestataire (PCI) et la
-            confirmation arriverait automatiquement via webhook.
+            Saisissez des valeurs cohérentes : elles servent uniquement à valider le formulaire avant enregistrement du
+            soutien dans l’application.
           </div>
         </div>
       </div>

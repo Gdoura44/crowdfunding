@@ -21,18 +21,28 @@ function badge(status) {
   return <span className={`badge ${map[status] || "bg-light text-dark border"}`}>{status}</span>;
 }
 
+function paymentConfirmedAtMs(tx) {
+  if (!tx || tx.status !== "SUCCEEDED") return null;
+  const raw = tx.succeededAt || tx.updatedAt || tx.createdAt;
+  if (!raw) return null;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
 function cancellationInfo(inv) {
   const tx = inv?.transaction;
   const graceMin = Number(inv?.cancellationGracePeriodMinutes || 0);
   const eligibleInitiated = inv?.status === "INITIATED" && tx?.status === "PENDING";
-  const eligibleSuccess = inv?.status === "SUCCESS" && tx?.status === "SUCCEEDED" && tx?.createdAt && graceMin > 0;
+  const confirmedMs = paymentConfirmedAtMs(tx);
+  const eligibleSuccess =
+    inv?.status === "SUCCESS" && tx?.status === "SUCCEEDED" && confirmedMs != null && graceMin > 0;
 
   if (eligibleInitiated) {
-    return { canCancel: true, label: "Annuler (paiement en attente)" };
+    return { canCancel: true, label: "Annuler · paiement en attente" };
   }
 
   if (eligibleSuccess) {
-    const deadlineMs = new Date(tx.createdAt).getTime() + graceMin * 60 * 1000;
+    const deadlineMs = confirmedMs + graceMin * 60 * 1000;
     const leftMs = deadlineMs - Date.now();
     if (leftMs <= 0) return { canCancel: false };
     const totalSeconds = Math.max(1, Math.ceil(leftMs / 1000));
@@ -42,8 +52,8 @@ function cancellationInfo(inv) {
     const ssStr = String(ss).padStart(2, "0");
     return {
       canCancel: true,
-      label: `Annuler (reste ${mmStr}:${ssStr})`,
-      policy: `Annulation possible pendant ${graceMin} minutes après le paiement.`,
+      label: `Annuler · reste ${mmStr}:${ssStr}`,
+      policy: `Annulation possible pendant ${graceMin} minutes après la confirmation du paiement (ex. validation OTP).`,
     };
   }
 
@@ -102,7 +112,7 @@ export default function MyInvestments() {
     <div>
       <PageHeader
         title="Mes investissements"
-        subtitle="Historique de vos soutiens et statut des paiements (simulation)."
+        subtitle="Historique de vos soutiens et statut des paiements."
         actions={
           <Link to="/projects" className="btn btn-outline-secondary btn-sm">
             Explorer des projets
@@ -172,7 +182,7 @@ export default function MyInvestments() {
                               setError("");
                               try {
                                 const { data } = await investmentsApi.retry(inv._id);
-                                // Si le backend renvoie paymentUrl, rediriger vers le checkout mocké.
+                                // Si le backend renvoie paymentUrl, rediriger vers la page de paiement.
                                 if (data?.paymentUrl) {
                                   window.location.assign(data.paymentUrl);
                                   return;

@@ -1,8 +1,8 @@
 export default function Guidance({ variant = "info", title = "", children }) {
   const map = {
-    info: "alert alert-info border-0 small",
-    warning: "alert alert-warning border-0 small",
-    success: "alert alert-success border-0 small",
+    info: "alert alert-info border-0 small py-2",
+    warning: "alert alert-warning border-0 small py-2",
+    success: "alert alert-success border-0 small py-2",
   };
   const cls = map[variant] || map.info;
 

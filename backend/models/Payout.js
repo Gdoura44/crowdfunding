@@ -27,6 +27,8 @@ const payoutSchema = new mongoose.Schema(
     bankDetailsProvidedAt: { type: Date },
     transferInitiatedAt: { type: Date },
     completedAt: { type: Date },
+    failedAt: { type: Date },
+    cancelledAt: { type: Date },
   },
   { timestamps: { createdAt: true, updatedAt: false }, collection: "payouts" }
 );

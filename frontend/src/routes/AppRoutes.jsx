@@ -23,7 +23,7 @@ import PayoutDetail from "../pages/PayoutDetail.jsx";
 import MyReports from "../pages/MyReports.jsx";
 import AdminProjects from "../pages/AdminProjects.jsx";
 import AdminUsers from "../pages/AdminUsers.jsx";
-import AdminNotifications from "../pages/AdminNotifications.jsx";
+import AdminEmailFailures from "../pages/AdminEmailFailures.jsx";
 import AdminReports from "../pages/AdminReports.jsx";
 import AdminPayouts from "../pages/AdminPayouts.jsx";
 import AdminComments from "../pages/AdminComments.jsx";
@@ -75,7 +75,7 @@ export default function AppRoutes() {
           <Route path="admin/reports" element={<AdminReports />} />
           <Route path="admin/payouts" element={<AdminPayouts />} />
           <Route path="admin/ops" element={<AdminOps />} />
-          <Route path="admin/notifications" element={<AdminNotifications />} />
+          <Route path="admin/email-failures" element={<AdminEmailFailures />} />
           <Route path="mock-payout-transfer" element={<MockPayoutTransfer />} />
         </Route>
       </Route>

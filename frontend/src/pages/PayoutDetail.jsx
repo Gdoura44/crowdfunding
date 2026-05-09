@@ -130,11 +130,11 @@ export default function PayoutDetail() {
               <div className="card-body">
                 <div className="fw-semibold mb-2">Coordonnées bancaires</div>
                 <div className="text-muted small mb-3">
-                  Saisissez vos informations comme sur une plateforme de paiement : elles servent à initier le virement.
-                  Les détails sont chiffrés côté serveur.
+                  Saisissez avec précision les informations du titulaire et du compte : elles servent à initier le
+                  virement. Les données sensibles sont chiffrées côté serveur.
                 </div>
                 {canEdit && (
-                  <Guidance title="Guidance" variant="info">
+                  <Guidance title="Vérification des coordonnées" variant="info">
                     Utilisez les informations exactes de votre compte bancaire. Après l’envoi, la demande passe en
                     validation admin et vous ne pourrez plus modifier les champs tant que le statut n’est pas{" "}
                     <strong>PENDING</strong>.

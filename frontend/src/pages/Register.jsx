@@ -2,8 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { authApi } from "../api/auth";
 import { extractApiError } from "../utils/apiError";
-import { passwordChecklist, suggestEmailTypo } from "../utils/formHints";
-import Guidance from "../components/ui/Guidance.jsx";
+import { suggestEmailTypo } from "../utils/formHints";
 import Alert from "../components/ui/Alert.jsx";
 
 export default function Register() {
@@ -50,6 +49,9 @@ export default function Register() {
     setError("");
     setMessage("");
     setFieldErrors([]);
+    setMessage(
+      "Après l’inscription, vous recevrez un code de vérification par e‑mail pour activer votre compte."
+    );
     try {
       const calling = callingCodeFor(form.phoneCountry);
       const phone =
@@ -83,7 +85,6 @@ export default function Register() {
     }
   }
 
-  const pw = passwordChecklist(form.password);
   const emailHint = suggestEmailTypo(form.email);
 
   return (
@@ -110,7 +111,7 @@ export default function Register() {
                 </p>
               </div>
             </div>
-            {message && <Alert variant="success">{String(message)}</Alert>}
+            {message && <Alert variant="info">{String(message)}</Alert>}
             {error && (
               <Alert variant="danger">
                 <div>{String(error)}</div>
@@ -124,12 +125,6 @@ export default function Register() {
                   </ul>
                 )}
               </Alert>
-            )}
-            {!message && !error && (
-              <Guidance title="Astuce" variant="info">
-                Après l’inscription, vous recevrez un <strong>code de vérification</strong> par e‑mail pour activer
-                votre compte.
-              </Guidance>
             )}
             <form onSubmit={onSubmit} className="vstack gap-3">
               <div className="row g-2">
@@ -179,11 +174,6 @@ export default function Register() {
                 />
                 <div className="form-text">
                   Doit contenir au moins 8 caractères, avec au moins 1 lettre et 1 chiffre.
-                </div>
-                <div className="small text-muted mt-1">
-                  <div>• 8+ caractères : {pw.min8 ? "OK" : "Non"}</div>
-                  <div>• 1 lettre : {pw.hasLetter ? "OK" : "Non"}</div>
-                  <div>• 1 chiffre : {pw.hasDigit ? "OK" : "Non"}</div>
                 </div>
               </div>
               <div>

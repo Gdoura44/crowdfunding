@@ -31,6 +31,12 @@ const transactionSchema = new mongoose.Schema(
     refundAttempts: { type: Number, default: 0, min: 0 },
     lastRefundAttemptAt: { type: Date },
     refundedAt: { type: Date },
+    /** Date à laquelle le paiement est passé à SUCCEEDED (ex. après confirmation OTP / webhook). */
+    succeededAt: { type: Date },
+    // OTP 3DS (mock UI uniquement)
+    mockOtpHash: { type: String, default: "" },
+    mockOtpExpiresAt: { type: Date },
+    mockOtpSentAt: { type: Date },
   },
   { timestamps: true, collection: "transactions" }
 );

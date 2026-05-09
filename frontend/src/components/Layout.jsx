@@ -1,7 +1,6 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
 import { useUnreadNotifications } from "../hooks/useUnreadNotifications.js";
-import { useUnreadAdminNotifications } from "../hooks/useUnreadAdminNotifications.js";
 
 function navClass({ isActive }) {
   return ["nav-link py-2 py-md-1 d-inline-flex align-items-center gap-2", isActive ? "active" : ""]
@@ -9,14 +8,11 @@ function navClass({ isActive }) {
     .join(" ");
 }
 
-// Layout global : navbar + routage. Affiche un badge +N sur “Notifications” (user/admin) en temps réel.
+// Badge +N = uniquement les notifications du compte connecté (X voit X, Y voit Y, admin idem).
 export default function Layout() {
   const { user, loading, logout, isAuthenticated } = useAuth();
-  const isAdmin = user?.role === "ADMIN";
   const userKey = user?.id || user?._id;
-  const unreadUser = useUnreadNotifications({ enabled: Boolean(isAuthenticated && userKey && !isAdmin) });
-  const unreadAdmin = useUnreadAdminNotifications({ enabled: Boolean(isAuthenticated && userKey && isAdmin) });
-  const unread = isAdmin ? unreadAdmin : unreadUser;
+  const unread = useUnreadNotifications({ enabled: Boolean(isAuthenticated && userKey) });
   const displayName =
     user?.profile?.firstName?.trim() ||
     user?.email?.split("@")[0] ||
@@ -121,6 +117,11 @@ export default function Layout() {
                               Ops
                             </NavLink>
                           </li>
+                          <li>
+                            <NavLink className="dropdown-item" to="/admin/email-failures">
+                              Échecs d’e-mail
+                            </NavLink>
+                          </li>
                         </ul>
                       </li>
                     )}
@@ -133,7 +134,7 @@ export default function Layout() {
                       </li>
                     )}
                     <li className="nav-item">
-                      <NavLink className={navClass} to={isAdmin ? "/admin/notifications" : "/notifications"}>
+                      <NavLink className={navClass} to="/notifications">
                         <span className="position-relative d-inline-flex align-items-center">
                           <i className="fa-regular fa-bell fa-fw" aria-hidden="true" />
                         </span>

@@ -59,11 +59,6 @@ export default function Login() {
                 </p>
               </div>
             </div>
-            {location.state?.from && (
-              <Alert variant="info" className="mb-3">
-                Connectez-vous pour accéder à la page demandée.
-              </Alert>
-            )}
             {error && <Alert variant="danger">{error}</Alert>}
             <form onSubmit={onSubmit} className="vstack gap-3">
               <div>

@@ -78,28 +78,44 @@ function estimateBudgetFromDescription(description) {
   let sum = 0;
   let count = 0;
   for (const l of budgetish) {
-    // Exemples: "7 800 TND", "7800TND", "7800 DT"
-    const m = l.match(/(\d[\d\s]{1,})\s*(tnd|\bdt\b|dinars?)/i);
-    if (m && m[1]) {
-      const n = normalizeTndNumber(m[1]);
-      if (n != null) {
-        sum += n;
-        count += 1;
-        continue;
-      }
-    }
-    // Solution de secours : on prend le dernier “gros nombre” d’une ligne à puces (souvent le total de la ligne).
-    if (/^\s*-\s+/.test(l)) {
-      const nums = l.match(/\d[\d\s]{2,}/g);
-      if (nums && nums.length) {
-        const last = nums[nums.length - 1];
-        const n = normalizeTndNumber(last);
+    const line = String(l || "");
+    // Ne jamais compter les lignes de total (sinon on double-compte).
+    // Ex: "Total : 13 250 TND" ou "Total > 10 000 TND"
+    if (/\btotal\b/i.test(line)) continue;
+    const hasCurrency = /(tnd|\bdt\b|dinars?)/i.test(line);
+
+    // Règle 1 (préférée): si la ligne contient "=", on prend le montant APRÈS "="
+    // car c'est généralement le total du poste (évite de compter quantité et prix unitaire).
+    // Exemple: "3 × 350 = 1 050 TND" => 1050
+    if (hasCurrency && /=/.test(line)) {
+      const rhs = line.split("=").slice(1).join("=").trim();
+      const mEq = rhs.match(/(\d[\d\s]{1,})\s*(tnd|\bdt\b|dinars?)?/i);
+      if (mEq && mEq[1]) {
+        const n = normalizeTndNumber(mEq[1]);
         if (n != null) {
           sum += n;
           count += 1;
+          continue;
         }
       }
     }
+
+    // Règle 2: montant explicite suivi d'une devise.
+    // Exemples: "7 800 TND", "7800TND", "7800 DT"
+    if (hasCurrency) {
+      const m = line.match(/(\d[\d\s]{1,})\s*(tnd|\bdt\b|dinars?)/i);
+      if (m && m[1]) {
+        const n = normalizeTndNumber(m[1]);
+        if (n != null) {
+          sum += n;
+          count += 1;
+          continue;
+        }
+      }
+    }
+
+    // Important: ne pas “deviner” sur les lignes à puces sans devise.
+    // Sinon on additionne des nombres non-budgétaires (ex: "2000L", "Semaine 6", "450 élèves", etc.)
   }
 
   if (count < 2) return { estimateTnd: null, lineItemsDetected: count };

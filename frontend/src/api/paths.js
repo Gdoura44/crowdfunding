@@ -4,7 +4,6 @@
  */
 
 export const paths = {
-  health: "/api/health",
   auth: {
     register: "/api/auth/register",
     login: "/api/auth/login",
@@ -43,8 +42,6 @@ export const paths = {
   admin: {
     projects: "/api/admin/projects",
     users: "/api/admin/users",
-    notifications: "/api/admin/notifications",
-    markAdminNotificationRead: (id) => `/api/admin/notifications/${id}/read`,
     setUserActive: (id) => `/api/admin/users/${id}/active`,
     reactivateUser: (id) => `/api/admin/users/${id}/reactivate`,
     reports: "/api/admin/reports",
@@ -74,6 +71,7 @@ export const paths = {
     cancel: (id) => `/api/investments/${id}/cancel`,
     retry: (id) => `/api/investments/${id}/retry`,
     mockConfirm: "/api/investments/mock/confirm",
+    mockSendOtp: "/api/investments/mock/send-otp",
   },
   reports: {
     create: "/api/reports",

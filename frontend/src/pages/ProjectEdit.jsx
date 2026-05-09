@@ -215,7 +215,7 @@ export default function ProjectEdit() {
                   }
                 />
                 <div className="mt-2">
-                  <Guidance title="Guidance" variant="info">
+                  <Guidance title="Description & budget" variant="info">
                     Gardez une description <strong>structurée</strong> (plan, budget, risques). Si votre projet a été{" "}
                     <strong>refusé</strong>, une mise à jour relancera l’analyse IA automatiquement après la re‑soumission.
                     <div className="mt-2">

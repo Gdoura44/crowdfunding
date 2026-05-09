@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 const Project = require("../models/Project");
 const Investment = require("../models/Investment");
 const Transaction = require("../models/Transaction");
@@ -6,6 +7,8 @@ const Notification = require("../models/Notification");
 const AuditLog = require("../models/AuditLog");
 const HttpError = require("../utils/HttpError");
 const mockProvider = require("../integrations/mockPaymentProvider");
+const User = require("../models/User");
+const { sendMailDetailed } = require("../utils/email");
 const { enqueueEmailForNotifications } = require("../integrations/emailQueue");
 const FailedCancellationEvent = require("../models/FailedCancellationEvent");
 const FailedRefundEvent = require("../models/FailedRefundEvent");
@@ -24,6 +27,15 @@ function requirePositiveAmount(amount) {
     throw new HttpError(400, "Le montant minimum est 100 TND.");
   }
   return Math.round(n * 100) / 100;
+}
+
+/** Instant de confirmation du paiement (pour délai d’annulation), pas la création du lien. */
+function paymentConfirmedAt(tx) {
+  if (!tx || String(tx.status) !== "SUCCEEDED") return null;
+  if (tx.succeededAt) return new Date(tx.succeededAt);
+  if (tx.updatedAt) return new Date(tx.updatedAt);
+  if (tx.createdAt) return new Date(tx.createdAt);
+  return null;
 }
 
 async function createInvestment({ investorId, projectId, amount }) {
@@ -196,6 +208,7 @@ async function handleMockWebhookPayload(payload) {
 
     const refunded = Boolean(refundResp && refundResp.ok);
     tx.status = refunded ? "REFUNDED" : "SUCCEEDED";
+    if (tx.status === "SUCCEEDED") tx.succeededAt = new Date();
     tx.refundStatus = refunded ? "SUCCEEDED" : "FAILED";
     tx.refundedAt = refunded ? new Date() : undefined;
     tx.paymentMethod = paymentMethod || tx.paymentMethod;
@@ -256,6 +269,7 @@ async function handleMockWebhookPayload(payload) {
 
   // Cas nominal: paiement réussi.
   tx.status = "SUCCEEDED";
+  tx.succeededAt = new Date();
   tx.paymentMethod = paymentMethod || tx.paymentMethod;
   await tx.save();
 
@@ -332,7 +346,59 @@ async function confirmMockPaymentFromClient(payload) {
   if (process.env.NODE_ENV === "production") {
     throw new HttpError(404, "Indisponible en production.");
   }
-  return handleMockWebhookPayload(payload || {});
+  const body = payload || {};
+  const providerPaymentId = String(body?.providerPaymentId || "").trim();
+  if (providerPaymentId) {
+    const tx = await Transaction.findOne({ providerPaymentId })
+      .select("mockOtpHash mockOtpExpiresAt")
+      .lean();
+    if (tx?.mockOtpHash) {
+      const expAt = tx?.mockOtpExpiresAt ? new Date(tx.mockOtpExpiresAt) : null;
+      if (!expAt || Number.isNaN(expAt.getTime()) || expAt.getTime() < Date.now()) {
+        throw new HttpError(400, "Code OTP expiré. Veuillez relancer la vérification.");
+      }
+      const given = String(body?.otp || "").replace(/[^\d]/g, "");
+      if (given.length !== 6) throw new HttpError(400, "Code OTP invalide (6 chiffres).");
+      const hash = crypto.createHash("sha256").update(given).digest("hex");
+      if (hash !== tx.mockOtpHash) throw new HttpError(400, "Code OTP incorrect.");
+    }
+  }
+  return handleMockWebhookPayload(body);
+}
+
+async function sendMockOtpEmail({ investorId, providerPaymentId }) {
+  if (process.env.NODE_ENV === "production") {
+    throw new HttpError(404, "Indisponible en production.");
+  }
+  const pid = String(providerPaymentId || "").trim();
+  if (!pid) throw new HttpError(400, "providerPaymentId est requis.");
+
+  const tx = await Transaction.findOne({ providerPaymentId: pid });
+  if (!tx) throw new HttpError(404, "Transaction introuvable.");
+
+  const inv = await Investment.findById(tx.investmentId).lean();
+  if (!inv) throw new HttpError(404, "Investissement introuvable.");
+  if (String(inv.investorId) !== String(investorId)) {
+    throw new HttpError(403, "Accès refusé.");
+  }
+
+  const user = await User.findById(investorId).select("email deletedAt").lean();
+  if (!user || user.deletedAt) throw new HttpError(404, "Utilisateur introuvable.");
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const hash = crypto.createHash("sha256").update(code).digest("hex");
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  tx.mockOtpHash = hash;
+  tx.mockOtpExpiresAt = expiresAt;
+  tx.mockOtpSentAt = new Date();
+  await tx.save();
+
+  const subject = "FinCollab — Code de vérification (démo)";
+  const text = `Votre code OTP (démo) est : ${code}\n\nIl expire dans 10 minutes.\n`;
+  const html = `<p>Votre code OTP (démo) est : <strong style="font-size:18px;letter-spacing:2px">${code}</strong></p><p>Il expire dans 10 minutes.</p>`;
+  const out = await sendMailDetailed({ to: user.email, subject, text, html });
+  return { ok: true, sent: Boolean(out?.ok), previewUrl: out?.previewUrl || null };
 }
 
 async function cancelInvestment({ investorId, investmentId }) {
@@ -347,11 +413,13 @@ async function cancelInvestment({ investorId, investmentId }) {
   if (!tx) throw new HttpError(400, "Transaction introuvable pour cet investissement.");
 
   const eligibleInitiated = investment.status === "INITIATED" && tx.status === "PENDING";
+  const confirmedAt = paymentConfirmedAt(tx);
   const eligibleSuccess =
     investment.status === "SUCCESS" &&
     tx.status === "SUCCEEDED" &&
+    confirmedAt &&
     Date.now() <
-      new Date(tx.createdAt).getTime() + investment.cancellationGracePeriodMinutes * 60 * 1000;
+      confirmedAt.getTime() + investment.cancellationGracePeriodMinutes * 60 * 1000;
 
   if (!eligibleInitiated && !eligibleSuccess) {
     throw new HttpError(
@@ -669,5 +737,6 @@ module.exports = {
   cancelInvestment,
   listMyInvestments,
   retryInvestmentPayment,
+  sendMockOtpEmail,
 };
 

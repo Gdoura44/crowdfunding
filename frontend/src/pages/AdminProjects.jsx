@@ -287,6 +287,12 @@ export default function AdminProjects() {
   }
 
   async function reject(p) {
+    if (p?.aiStatus !== "COMPLETED" || !p?.aiAnalysis) {
+      setError(
+        "Rejet impossible pour l’instant : l’analyse IA n’est pas terminée. Attendez la fin de l’analyse (ou relancez en cas d’échec)."
+      );
+      return;
+    }
     setBusyId(p._id);
     setError("");
     setOk("");
@@ -507,7 +513,11 @@ export default function AdminProjects() {
       />
 
       {error && <Alert variant="danger" className="mb-0">{error}</Alert>}
-      {ok && <Alert variant="success" className="mb-0">{ok}</Alert>}
+      {ok && (
+        <Alert variant="success" className="mb-0">
+          {ok}
+        </Alert>
+      )}
 
       <div className="card border-0 fc-surface-card">
         <div className="card-body p-0 p-md-1">
@@ -593,7 +603,7 @@ export default function AdminProjects() {
                                 disabled={busyId === p._id}
                                 onClick={() => approve(p)}
                               >
-                                Approuver
+                                {busyId === p._id ? "..." : "Approuver"}
                               </button>
                               <button
                                 type="button"
@@ -601,7 +611,7 @@ export default function AdminProjects() {
                                 disabled={busyId === p._id}
                                 onClick={() => reject(p)}
                               >
-                                Rejeter
+                                {busyId === p._id ? "..." : "Rejeter"}
                               </button>
                             </div>
                           ) : p.status === "AWAITING_AI" || p.aiStatus === "FAILED" ? (

@@ -1,5 +1,5 @@
 /**
- * Utilitaires carte (démo uniquement — aucune donnée sensible n’est envoyée au serveur).
+ * Utilitaires de formatage / validation côté client (sans transmission des données complètes au serveur).
  */
 
 export function onlyDigits(s) {
@@ -28,7 +28,7 @@ export function isValidExpiry(mmYY) {
   return exp.getTime() >= now.getTime();
 }
 
-/** Détection marque à partir du BIN (patterns usuels, suffisant pour une démo). */
+/** Détection marque à partir du BIN (heuristique usuelle). */
 export function detectCardBrand(digits) {
   const d = onlyDigits(digits);
   if (!d) return "";

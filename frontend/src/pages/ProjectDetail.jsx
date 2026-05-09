@@ -259,7 +259,6 @@ export default function ProjectDetail() {
     !project.isArchived &&
     ["ACTIVE", "CLOSED", "FUNDED"].includes(project.status);
   const showChat = user?.role !== "ADMIN";
-  const showContributionInfo = !isOwner && isPublicActive;
   const canInvest = !isOwner && isPublicActive && isAuthenticated && user?.role !== "ADMIN";
 
   return (
@@ -298,8 +297,7 @@ export default function ProjectDetail() {
               <div className="min-w-0">
                 <strong className="d-block text-dark mb-1">Campagne ouverte au public</strong>
                 <p className="small text-muted mb-0">
-                  Connectez-vous pour soutenir ce projet (simulation de paiement en environnement
-                  de test).
+                  Connectez-vous pour soutenir cette campagne.
                 </p>
               </div>
             </div>
@@ -404,21 +402,6 @@ export default function ProjectDetail() {
             </button>
           )}
         </div>
-      )}
-
-      {showContributionInfo && (
-        <Alert variant="secondary" className="mb-3">
-          <div className="fw-semibold mb-1">
-            <i className="fa-solid fa-circle-info me-2" aria-hidden="true" />
-            Information importante
-          </div>
-          <div className="mb-0">
-            Sur FinCollab, vous <strong>contribuez</strong> à une campagne (don / soutien).{" "}
-            <strong>Ce n’est pas un placement financier</strong> et aucun rendement n’est garanti.
-            En cas d’annulation dans la fenêtre prévue (si applicable), de sur‑financement ou de projet expiré,
-            un remboursement peut être déclenché selon les règles de la plateforme.
-          </div>
-        </Alert>
       )}
 
       {isOwner && (
@@ -848,11 +831,11 @@ export default function ProjectDetail() {
           <div className="card-body p-4">
             <h2 className="h6 mb-2 d-flex align-items-center gap-2 text-dark">
               <i className="fa-solid fa-coins text-primary" aria-hidden="true" />
-              Soutenir ce projet (paiement simulé)
+              Soutenir ce projet
             </h2>
             <p className="small text-muted mb-3">
-              Vous allez ouvrir une page de paiement simulée. Choisissez un montant, puis confirmez :
-              le système enregistre le résultat et met à jour la campagne.
+              Indiquez un montant, puis finalisez le paiement sécurisé : votre soutien est enregistré et la campagne est
+              mise à jour.
             </p>
             <div className="row g-2 align-items-end">
               <div className="col-sm-5">

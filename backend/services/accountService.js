@@ -49,7 +49,7 @@ async function deleteAccount({ userId }) {
   // 2) Bloquer si le créateur a des projets qui ne doivent pas rester sans gestion.
   const blockingCreatorProject = await Project.findOne({
     creatorId: user._id,
-    status: { $in: ["ACTIVE", "APPROVED", "UNDER_REVIEW", "AWAITING_AI", "FUNDED"] },
+    status: { $in: ["ACTIVE", "APPROVED", "UNDER_REVIEW", "AWAITING_AI", "FUNDED", "SUSPENDED"] },
   }).lean();
   if (blockingCreatorProject) {
     throw new HttpError(
@@ -70,18 +70,21 @@ async function deleteAccount({ userId }) {
     );
   }
 
-  // 4) Bloquer si un investissement SUCCESS n’est pas totalement remboursé.
-  const successInvestments = await Investment.find({
-    investorId: user._id,
-    status: "SUCCESS",
-  })
+  // 4) Bloquer si un remboursement est réellement en cours / en échec sur un investissement (cas edge: sur-financement, annulation, etc.).
+  //    Ne pas bloquer les investissements SUCCESS “normaux” (refundStatus = NOT_ATTEMPTED).
+  const successInvestments = await Investment.find({ investorId: user._id, status: "SUCCESS" })
     .select("_id")
     .lean();
   for (const inv of successInvestments) {
-    const tx = await Transaction.findOne({ investmentId: inv._id })
-      .sort({ attemptNumber: -1 })
-      .lean();
-    if (!tx || tx.refundStatus !== "SUCCEEDED") {
+    const tx = await Transaction.findOne({ investmentId: inv._id }).sort({ attemptNumber: -1 }).lean();
+    if (!tx) {
+      throw new HttpError(
+        400,
+        "Suppression impossible : état financier incomplet pour un investissement. Merci de contacter le support."
+      );
+    }
+    const rs = String(tx.refundStatus || "NOT_ATTEMPTED").toUpperCase();
+    if (["PENDING", "FAILED"].includes(rs)) {
       throw new HttpError(
         400,
         "Suppression impossible : un remboursement est encore en cours. Merci d’attendre la fin du remboursement ou de contacter le support."
@@ -89,19 +92,41 @@ async function deleteAccount({ userId }) {
     }
   }
 
-  // 5) Mettre à jour les projets du créateur : conserver creatorId, mais marquer le créateur comme supprimé.
+  // 5) Bloquer si l’utilisateur a des investissements confirmés sur des projets non clôturés.
+  //    Raison: tant que la campagne n’est pas clôturée, les flux financiers (payout/refund) peuvent encore évoluer.
+  const blockingInvestorInvestment = await Investment.findOne({
+    investorId: user._id,
+    status: "SUCCESS",
+  })
+    .select("_id projectId")
+    .populate({ path: "projectId", select: "status isArchived", options: { lean: true } })
+    .lean();
+  const invProject = blockingInvestorInvestment?.projectId || null;
+  const invProjectStatus = invProject?.status ? String(invProject.status) : "";
+  const invProjectArchived = Boolean(invProject?.isArchived);
+  const investorBlocked =
+    Boolean(blockingInvestorInvestment) &&
+    (!invProject || (!invProjectArchived && invProjectStatus && invProjectStatus !== "CLOSED"));
+  if (investorBlocked) {
+    throw new HttpError(
+      400,
+      "Suppression impossible : vous avez des investissements sur des projets non clôturés. Attendez la clôture (et le règlement/refund si applicable) avant de supprimer le compte."
+    );
+  }
+
+  // 6) Mettre à jour les projets du créateur : conserver creatorId, mais marquer le créateur comme supprimé.
   await Project.updateMany(
     { creatorId: user._id },
     { $set: { isCreatorDeleted: true } }
   );
 
-  // 6) Effacer les coordonnées bancaires des payouts non terminés (confidentialité).
+  // 7) Effacer les coordonnées bancaires des payouts non terminés (confidentialité).
   await Payout.updateMany(
     { creatorId: user._id, status: { $in: ["PENDING", "READY", "FAILED"] } },
     { $set: { bankDetails: null } }
   );
 
-  // 7) Anonymiser l’utilisateur et faire une suppression logique (soft delete).
+  // 8) Anonymiser l’utilisateur et faire une suppression logique (soft delete).
   const randomPass = `deleted-${Date.now()}-${Math.random()}`;
   user.email = anonymizedEmailFor(user._id);
   user.passwordHash = await bcrypt.hash(randomPass, BCRYPT_ROUNDS);

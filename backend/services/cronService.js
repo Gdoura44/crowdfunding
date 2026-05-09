@@ -225,7 +225,7 @@ async function closeFundedProjects({ now = new Date(), limit = 50 } = {}) {
     for (const inv of successInvestments) {
       const tx = await Transaction.findOne({ investmentId: inv._id })
         .sort({ attemptNumber: -1 })
-        .select("createdAt refundStatus status")
+        .select("createdAt updatedAt succeededAt refundStatus status")
         .lean();
 
       if (!tx) continue;
@@ -241,7 +241,8 @@ async function closeFundedProjects({ now = new Date(), limit = 50 } = {}) {
       }
 
       const graceMin = Math.max(Number(inv.cancellationGracePeriodMinutes || 0), 1);
-      const graceUntil = new Date(new Date(tx.createdAt).getTime() + graceMin * 60 * 1000);
+      const confirmedAt = tx.succeededAt || tx.updatedAt || tx.createdAt;
+      const graceUntil = new Date(new Date(confirmedAt).getTime() + graceMin * 60 * 1000);
       if (now < graceUntil) {
         canClose = false;
         break;

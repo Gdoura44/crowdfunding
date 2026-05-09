@@ -4,8 +4,6 @@ import { paths } from "./paths";
 export const adminApi = {
   listProjects: (params) => http.get(paths.admin.projects, { params }),
   listUsers: (params) => http.get(paths.admin.users, { params }),
-  listNotifications: (params) => http.get(paths.admin.notifications, { params }),
-  markAdminNotificationRead: (id) => http.put(paths.admin.markAdminNotificationRead(id)),
   listReports: (params) => http.get(paths.admin.reports, { params }),
   resolveReport: (id, body) => http.post(paths.admin.resolveReport(id), body),
   setUserActive: (id, body) => http.patch(paths.admin.setUserActive(id), body),

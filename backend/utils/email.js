@@ -49,4 +49,19 @@ async function sendMail({ to, subject, text, html }) {
   return true;
 }
 
-module.exports = { sendMail };
+async function sendMailDetailed({ to, subject, text, html }) {
+  const from = process.env.MAIL_FROM || "noreply@localhost";
+  const tx = await getTransporter();
+  if (!tx) {
+    console.info("[email] SMTP non configuré; envoi ignoré:", { to, subject });
+    return { ok: false, previewUrl: null, skipped: true };
+  }
+  const info = await tx.sendMail({ from, to, subject, text, html });
+  const previewUrl = nodemailer.getTestMessageUrl(info) || null;
+  if (previewUrl) {
+    console.info("[email] URL de prévisualisation:", previewUrl);
+  }
+  return { ok: true, previewUrl };
+}
+
+module.exports = { sendMail, sendMailDetailed };

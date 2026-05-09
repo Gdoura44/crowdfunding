@@ -6,7 +6,6 @@ const { requireAdmin } = require("../../middleware/requireAdmin");
 const HttpError = require("../../utils/HttpError");
 const adminProjectService = require("../../services/adminProjectService");
 const adminUserService = require("../../services/adminUserService");
-const notificationService = require("../../services/notificationService");
 const reportService = require("../../services/reportService");
 const payoutService = require("../../services/payoutService");
 const adminOpsService = require("../../services/adminOpsService");
@@ -64,39 +63,6 @@ router.post(
       },
       message: "Utilisateur réactivé.",
     });
-  })
-);
-
-router.get(
-  "/notifications",
-  requireAuth,
-  requireAdmin,
-  asyncHandler(async (req, res) => {
-    const notifications = await notificationService.listAllNotificationsForAdmin({
-      limit: req.query.limit,
-      unreadOnly: req.query.unreadOnly,
-    });
-    res.json({ notifications });
-  })
-);
-
-router.put(
-  "/notifications/:id/read",
-  requireAuth,
-  requireAdmin,
-  asyncHandler(async (req, res) => {
-    const notification = await notificationService.markAdminRead(req.params.id);
-    res.json({ notification, message: "Marquée comme lue." });
-  })
-);
-
-router.patch(
-  "/notifications/:id/read",
-  requireAuth,
-  requireAdmin,
-  asyncHandler(async (req, res) => {
-    const notification = await notificationService.markAdminRead(req.params.id);
-    res.json({ notification, message: "Marquée comme lue." });
   })
 );
 

@@ -50,6 +50,21 @@ router.post(
   })
 );
 
+// Aide de développement : simuler l'envoi d'un OTP par e-mail (3DS démo).
+router.post(
+  "/mock/send-otp",
+  requireAuth,
+  requireNotAdmin,
+  asyncHandler(async (req, res) => {
+    const providerPaymentId = req.body?.providerPaymentId;
+    const result = await investmentService.sendMockOtpEmail({
+      investorId: req.user.id,
+      providerPaymentId,
+    });
+    res.json(result);
+  })
+);
+
 router.post(
   "/:id/cancel",
   requireAuth,
