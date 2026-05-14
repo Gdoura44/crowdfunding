@@ -36,7 +36,7 @@ http.interceptors.response.use(
     } catch (e) {
       return Promise.reject(e);
     }
-  }
+  },
 );
 
 export default http;

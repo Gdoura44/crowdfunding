@@ -1,0 +1,228 @@
+================================================================================
+RELATIONS — diagrammes de classes participantes par cas d’utilisation
+================================================================================
+But : tracer chaque lien dans Enterprise Architect **sans ambiguïté** : on sait
+**de quelle classe**, **vers quelle classe**, **quel type de lien**, **quelles
+multiplicités** sur **quel bord**.
+
+--------------------------------------------------------------------------------
+COMMENT LIRE (le plus important)
+--------------------------------------------------------------------------------
+- **Une ligne du tableau = un connecteur à dessiner** entre deux classes
+  (sauf les lignes « polymorphe » détaillées en sous-liste).
+- La colonne **« DE → VERS »** indique **exactement** le sens du lien tel qu’on
+  le lit pour le code / le domaine :
+  - **DE** = classe qui **porte** l’attribut de lien (ou le **composite** pour
+    une composition) — en général tu places ce côté **à gauche** ou côté
+    « source » sur ton schéma.
+  - **VERS** = classe **ciblée** par la référence (ou la **partie** pour une
+    composition).
+- **Composition** : losange **noir plein sur DE** (le tout), trait vers **VERS**
+  (la partie). Navigabilité optionnelle : flèche ouverte **vers VERS**.
+- **Multiplicités** : **Mult. côté DE** = nombre écrit **à l’extrémité** du
+  trait **près de la classe DE**. **Mult. côté VERS** = nombre **près de VERS**.
+  (Cohérent avec le code : `ObjectId` sur la classe DE pointe vers VERS.)
+
+--------------------------------------------------------------------------------
+Convention FSEG — nom d’association (verbe, infinitif) et rôles
+--------------------------------------------------------------------------------
+- **Nom d’association** : verbe à l’infinitif sur le lien (ex. *référencer*,
+  *posséder*, *contenir*…).
+- **Rôle [substantif]** : entre crochets après le verbe ; noms de rôle aux
+  extrémités du diagramme.
+- **(impl. : …)** : nom d’attribut / détail MongoDB — pour la traçabilité, pas
+  comme seul libellé sur le schéma FSEG.
+
+--------------------------------------------------------------------------------
+NOTIFICATION — lien « polymorphe » (à quoi ça correspond concrètement)
+--------------------------------------------------------------------------------
+Dans le code (`Notification.js`), **une** notification a toujours :
+- un **destinataire** obligatoire : `userId` → association **Notification →
+  Utilisateur** (ligne « adresser à » dans chaque UC) ;
+- un **objet métier lié optionnel** : `relatedEntityId` + `relatedEntityType`
+  parmi **PROJECT | INVESTMENT | REPORT | PAYOUT | USER**.
+
+Sur le diagramme, tu as **deux** niveaux :
+1. **Toujours** : **Notification ——→ Utilisateur** (`userId`).
+2. **Optionnel / selon le cas** : **Notification ——→ une** des classes métier
+   ci-dessous (une seule à la fois, selon le type). Pour **ne pas** inventer une
+   classe « Polymorphe », trace **une association par type** que ton UC utilise
+   réellement (voir sous chaque UC la liste **« Objets liés possibles »**), ou
+   une **note** UML récapitulant les 5 types si ton prof accepte la note unique.
+
+================================================================================
+1) UC — Créer et soumettre un projet
+    Fichier : class_uc_create_submit_project_seed_EA15.xmi
+================================================================================
+Classes sur le diagramme : UserProfile, AiAnalysis, Utilisateur, Projet,
+Notification + externe Orchestrateur_Analyse_Risque.
+
+# | DE → VERS (trait à dessiner)                    | Type        | Nom d’assoc. + rôle [substantif]              | Mult. DE | Mult. VERS | impl. code / remarque
+--|-------------------------------------------------|------------|-----------------------------------------------|----------|------------|----------------------
+1 | **Utilisateur** → **UserProfile**             | Composition| posséder [profil]                             | 1        | 1          | `User.profile` ; losange sur Utilisateur
+2 | **Projet** → **AiAnalysis**                     | Composition| contenir [analyse par IA]                     | 1        | 0..1       | `Project.aiAnalysis` ; losange sur Projet
+3 | **Projet** → **Utilisateur** (créateur)         | Association| référencer [créateur]                          | *        | 1          | `creatorId` requis
+4 | **Projet** → **Utilisateur** (rejet admin)      | Association| référencer [auteur du rejet]                   | *        | 0..1       | `rejectedBy` optionnel
+5 | **Notification** → **Utilisateur** (destinataire) | Association | adresser à [destinataire]                   | *        | 1          | `userId` requis
+6 | **Projet** → **Orchestrateur_Analyse_Risque**   | Dépendance | solliciter [analyse de risque]                 | —        | —          | pas de champ `ref` ; service externe
+
+Objets liés possibles (Notification → …, **0..1** côté cible ; * côté notifs) :
+- **Notification** → **Projet** (`relatedEntityType = PROJECT`) — typique pour
+  ce UC (création, soumission, IA…).
+- Autres types (INVESTMENT, PAYOUT, …) : **non requis** sur ce diagramme si tu
+  limites au périmètre « créer / soumettre projet » ; sinon ajoute une **note**
+  listant les 5 valeurs possibles du code.
+
+================================================================================
+2) UC — Valider ou rejeter un projet (admin)
+    Fichier : class_uc_validate_project_admin_seed_EA15.xmi
+================================================================================
+Classes : Utilisateur, UserProfile, AiAnalysis, Projet, Notification.
+
+# | DE → VERS                                       | Type        | Nom d’assoc. + rôle                             | Mult. DE | Mult. VERS | impl. / remarque
+--|-------------------------------------------------|------------|-----------------------------------------------|----------|------------|-------------------
+1 | **Utilisateur** → **UserProfile**             | Composition| posséder [profil]                             | 1        | 1          | losange sur Utilisateur
+2 | **Projet** → **AiAnalysis**                     | Composition| contenir [analyse par IA]                     | 1        | 0..1       | losange sur Projet
+3 | **Projet** → **Utilisateur** (créateur)         | Association| référencer [créateur]                          | *        | 1          | `creatorId`
+4 | **Projet** → **Utilisateur** (rejet)            | Association| référencer [auteur du rejet]                   | *        | 0..1       | `rejectedBy`
+5 | **Notification** → **Utilisateur**            | Association| adresser à [destinataire]                      | *        | 1          | `userId`
+
+Objets liés possibles : surtout **Notification** → **Projet** (approbation /
+rejet / publication). **Notification** → **Utilisateur** si `relatedEntityType =
+USER` dans certains cas — trace seulement si ton scénario l’utilise.
+
+================================================================================
+3) UC — Suspendre ou réactiver un projet (admin)
+    Fichier : class_uc_update_project_state_admin_seed_EA15.xmi
+================================================================================
+Classes : Utilisateur, UserProfile, AiAnalysis, Projet, Payout, Notification +
+Orchestrateur_Analyse_Risque.
+
+# | DE → VERS                                       | Type        | Nom d’assoc. + rôle                             | Mult. DE | Mult. VERS | impl. / remarque
+--|-------------------------------------------------|------------|-----------------------------------------------|----------|------------|-------------------
+1 | **Utilisateur** → **UserProfile**             | Composition| posséder [profil]                             | 1        | 1          |
+2 | **Projet** → **AiAnalysis**                     | Composition| contenir [analyse par IA]                     | 1        | 0..1       |
+3 | **Projet** → **Utilisateur** (créateur)         | Association| référencer [créateur]                          | *        | 1          |
+4 | **Projet** → **Utilisateur** (rejet)            | Association| référencer [auteur du rejet]                   | *        | 0..1       |
+5 | **Payout** → **Projet**                         | Association| référencer [projet financé]                   | 0..1     | 1          | `projectId` + index unique ⇒ **au plus 1** payout / projet
+6 | **Payout** → **Utilisateur** (bénéficiaire)     | Association| référencer [bénéficiaire]                      | *        | 1          | `creatorId` = créateur du projet payé
+7 | **Notification** → **Utilisateur**            | Association| adresser à [destinataire]                      | *        | 1          |
+8 | **Projet** → **Orchestrateur_Analyse_Risque**   | Dépendance | solliciter [analyse de risque]                 | —        | —          | si ton scénario inclut cet acteur
+
+Objets liés possibles : **Notification** → **Projet** (suspension / réactivation) ;
+**Notification** → **Payout** si notifs retrait dans ce flux.
+
+================================================================================
+4) UC — Fournir les coordonnées bancaires
+    Fichier : class_uc_bank_details_seed_EA15.xmi
+================================================================================
+Classes : Utilisateur, UserProfile, AiAnalysis, Projet, Payout, Notification.
+
+# | DE → VERS                                       | Type        | Nom d’assoc. + rôle                             | Mult. DE | Mult. VERS
+--|-------------------------------------------------|------------|-----------------------------------------------|----------|------------
+1 | **Utilisateur** → **UserProfile**             | Composition| posséder [profil]                             | 1        | 1
+2 | **Projet** → **AiAnalysis**                     | Composition| contenir [analyse par IA]                     | 1        | 0..1
+3 | **Projet** → **Utilisateur** (créateur)         | Association| référencer [créateur]                          | *        | 1
+4 | **Projet** → **Utilisateur** (rejet)            | Association| référencer [auteur du rejet]                   | *        | 0..1
+5 | **Payout** → **Projet**                         | Association| référencer [projet financé]                   | 0..1     | 1
+6 | **Payout** → **Utilisateur**                    | Association| référencer [bénéficiaire]                      | *        | 1
+7 | **Notification** → **Utilisateur**            | Association| adresser à [destinataire]                      | *        | 1
+
+Objets liés possibles : **Notification** → **Payout** (demande coordonnées,
+etc.) ; éventuellement **Notification** → **Projet**.
+
+================================================================================
+5) UC — Approuver un retrait (admin)
+    Fichier : class_uc_approve_payout_seed_EA15.xmi
+================================================================================
+Classes : Utilisateur, UserProfile, AiAnalysis, Projet, Payout, Notification +
+Prestataire_Virement_(demo).
+
+# | DE → VERS                                       | Type        | Nom d’assoc. + rôle                             | Mult. DE | Mult. VERS
+--|-------------------------------------------------|------------|-----------------------------------------------|----------|------------
+1 | **Utilisateur** → **UserProfile**             | Composition| posséder [profil]                             | 1        | 1
+2 | **Projet** → **AiAnalysis**                     | Composition| contenir [analyse par IA]                     | 1        | 0..1
+3 | **Projet** → **Utilisateur** (créateur)         | Association| référencer [créateur]                          | *        | 1
+4 | **Projet** → **Utilisateur** (rejet)            | Association| référencer [auteur du rejet]                   | *        | 0..1
+5 | **Payout** → **Projet**                         | Association| référencer [projet financé]                   | 0..1     | 1
+6 | **Payout** → **Utilisateur**                    | Association| référencer [bénéficiaire]                      | *        | 1
+7 | **Notification** → **Utilisateur**            | Association| adresser à [destinataire]                      | *        | 1
+8 | **Payout** → **Prestataire_Virement_(demo)**    | Dépendance | confier [virement au prestataire]              | —        | —
+
+Objets liés possibles : **Notification** → **Payout** ; **Notification** → **Projet**.
+
+================================================================================
+6) UC — Investir (paiement démo / webhook)
+    Fichier : class_uc_invest_webhook_seed_EA15.xmi
+================================================================================
+Classes : Utilisateur, UserProfile, AiAnalysis, Projet, Investissement,
+Transaction, Notification + Passerelle_de_paiement_(demo).
+
+# | DE → VERS                                       | Type        | Nom d’assoc. + rôle                             | Mult. DE | Mult. VERS | impl. / remarque
+--|-------------------------------------------------|------------|-----------------------------------------------|----------|------------|-------------------
+1 | **Utilisateur** → **UserProfile**             | Composition| posséder [profil]                             | 1        | 1          |
+2 | **Projet** → **AiAnalysis**                     | Composition| contenir [analyse par IA]                     | 1        | 0..1       |
+3 | **Projet** → **Utilisateur** (créateur)         | Association| référencer [créateur]                          | *        | 1          |
+4 | **Projet** → **Utilisateur** (rejet)            | Association| référencer [auteur du rejet]                   | *        | 0..1       |
+5 | **Investissement** → **Utilisateur** (investisseur) | Association | référencer [investisseur]                | *        | 1          | `investorId`
+6 | **Investissement** → **Projet**                 | Association| référencer [projet financé]                   | *        | 1          | `projectId` ; **plusieurs** investissements / projet
+7 | **Transaction** → **Investissement**            | Association| lier à [contribution] (ou référencer)         | *        | 1          | `investmentId` ; **plusieurs** transactions / investissement (tentatives)
+8 | **Notification** → **Utilisateur**            | Association| adresser à [destinataire]                      | *        | 1          |
+9 | **Transaction** → **Passerelle_de_paiement_(demo)** | Dépendance | traiter [paiement via passerelle]          | —        | —          |
+
+Objets liés possibles : **Notification** → **Investissement** (paiement, échec…) ;
+**Notification** → **Projet** (sur-financement, etc.).
+
+Option diagramme : **Utilisateur** → **Projet** (créateur crée des projets) avec
+nom d’association **créer** — **en plus** des lignes ci-dessus si tu veux montrer
+le sens inverse ; le code met surtout `creatorId` sur **Projet**.
+
+================================================================================
+7) UC — Annuler une contribution
+    Fichier : class_uc_cancel_contribution_seed_EA15.xmi
+================================================================================
+Classes : Utilisateur, UserProfile, AiAnalysis, Projet, Investissement,
+Transaction, Notification + Passerelle.
+
+# | DE → VERS                                       | Type        | Nom d’assoc. + rôle                             | Mult. DE | Mult. VERS
+--|-------------------------------------------------|------------|-----------------------------------------------|----------|------------
+1 | **Utilisateur** → **UserProfile**             | Composition| posséder [profil]                             | 1        | 1
+2 | **Projet** → **AiAnalysis**                     | Composition| contenir [analyse par IA]                     | 1        | 0..1
+3 | **Projet** → **Utilisateur** (créateur)         | Association| référencer [créateur]                          | *        | 1
+4 | **Projet** → **Utilisateur** (rejet)            | Association| référencer [auteur du rejet]                   | *        | 0..1
+5 | **Investissement** → **Utilisateur**            | Association| référencer [investisseur]                      | *        | 1
+6 | **Investissement** → **Projet**                 | Association| référencer [projet financé]                   | *        | 1
+7 | **Transaction** → **Investissement**            | Association| lier à [contribution]                         | *        | 1
+8 | **Notification** → **Utilisateur**            | Association| adresser à [destinataire]                      | *        | 1
+9 | **Transaction** → **Passerelle_de_paiement_(demo)** | Dépendance | traiter [remboursement via passerelle]     | —        | —
+
+Objets liés possibles : **Notification** → **Investissement** ; **Notification** → **Projet**.
+
+================================================================================
+RÉCAPITULATIF — tous les liens « DE → VERS » (hors UC, vue globale domaine)
+================================================================================
+- **Utilisateur** → **UserProfile** : composition **1 — 1** (`profile`).
+- **Projet** → **AiAnalysis** : composition **1 — 0..1** (`aiAnalysis`).
+- **Projet** → **Utilisateur** : association créateur **\* — 1** ; rejet **\* — 0..1**.
+- **Investissement** → **Utilisateur** : **\* — 1** (`investorId`).
+- **Investissement** → **Projet** : **\* — 1** (`projectId`).
+- **Transaction** → **Investissement** : **\* — 1** (`investmentId`).
+- **Payout** → **Projet** : **0..1 — 1** (unicité `projectId`).
+- **Payout** → **Utilisateur** : **\* — 1** (`creatorId`).
+- **Notification** → **Utilisateur** : **\* — 1** (`userId`).
+- **Notification** → **Projet | Investissement | Payout | Report | Utilisateur**
+  (au plus **une** cible à la fois) : **\* — 0..1** côté paire (`relatedEntity*`).
+- Dépendances : **Projet** → Orchestrateur ; **Payout** → Prestataire ;
+  **Transaction** → Passerelle.
+
+--------------------------------------------------------------------------------
+ALIGNEMENT CODE (Mongoose — `backend/models/`)
+--------------------------------------------------------------------------------
+Les multiplicités ci-dessus correspondent à : `User.js`, `Project.js`,
+`Investment.js`, `Transaction.js`, `Notification.js`, `Payout.js`. Index
+notables : `{ investmentId, attemptNumber }` unique sur `Transaction` ;
+`{ projectId }` unique sur `Payout`.
+
+================================================================================
+FIN DU FICHIER
+================================================================================

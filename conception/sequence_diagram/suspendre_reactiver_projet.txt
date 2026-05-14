@@ -1,0 +1,82 @@
+@startuml UC_Changer_Etat_Projet_Admin
+
+' ============================
+'  Normes FSEG (ECB)
+'  - Acteur : Administrateur
+'  - <<boundary>> : IHM_Administration
+'  - <<control>>  : Controleur_Administration
+'  - <<entity>>   : Projet, Notification, Retrait(Payout)
+'  - <<external>> : Orchestrateur_Analyse_Risque (n8n/BullMQ)
+' ============================
+
+hide footbox
+skinparam shadowing false
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 12
+skinparam sequenceMessageAlign left
+skinparam ParticipantPadding 10
+skinparam BoxPadding 6
+skinparam maxMessageSize 45
+skinparam wrapWidth 150
+skinparam dpi 150
+scale 0.85
+
+title UC Changer l’état d’un projet (Admin) — Actif / non actif (ECB/FSEG)
+
+actor "Administrateur" as A
+boundary "IHM_Administration" as IHM
+control "Controleur_Administration" as CA
+entity "Projet" as P
+entity "Retrait (Payout)" as R
+entity "Notification" as N
+participant "Orchestrateur_Analyse_Risque" as WF <<external>>
+
+== Changer l’état ==
+A -> IHM : changerEtatProjet(projectId, action, motif?)
+IHM -> CA : changerEtatProjet(adminId, projectId, action, motif?)
+
+CA -> P : charger(projectId)
+alt Projet introuvable
+  CA --> IHM : erreur("Projet introuvable")
+  IHM --> A : message d’erreur
+else Projet archivé
+  CA --> IHM : erreur("Projet archivé : action impossible")
+  IHM --> A : message d’erreur
+else Action impossible (investissements en traitement)
+  CA --> IHM : erreur("Action impossible : investissements en traitement")
+  IHM --> A : message d’erreur
+else Continuer
+  alt action = SUSPENDRE (non actif)
+    CA -> P : maj(status=SUSPENDED, raison=motif)
+    CA -> N : creer(type=PROJECT_SUSPENDED, destinataire=créateur)
+    opt Annuler un retrait ouvert (au mieux)
+      CA -> R : annulerPayoutOuvert(projectId)
+    end
+    CA --> IHM : confirmation("Projet suspendu")
+  else action = REACTIVER (actif)
+    CA -> P : verifierPreconditionsReactivation()
+    alt Objectif déjà atteint
+      CA --> IHM : erreur("Réactivation impossible : objectif déjà atteint")
+      IHM --> A : message d’erreur
+    else Remboursements sur-financement en attente
+      CA --> IHM : erreur("Réactivation impossible : remboursements en attente")
+      IHM --> A : message d’erreur
+    else État invalide (SUSPENDED requis)
+      CA --> IHM : erreur("Réactivation impossible : SUSPENDED requis")
+      IHM --> A : message d’erreur
+    else Réactivation autorisée
+      alt Analyse IA récente
+        CA -> P : maj(status=UNDER_REVIEW)
+        CA -> N : creer(type=PROJECT_REACTIVATED, destinataire=créateur)
+        CA --> IHM : confirmation("Projet réactivé")
+      else Analyse IA trop ancienne
+        CA -> P : maj(status=AWAITING_AI, aiStatus=PENDING)
+        CA -> N : creer(type=PROJECT_REACTIVATED, destinataire=créateur)
+        CA -> WF : enqueueRiskAnalysisJob(projectId)
+        CA --> IHM : confirmation("Projet réactivé (analyse en cours)")
+      end
+    end
+  end
+end
+
+@enduml

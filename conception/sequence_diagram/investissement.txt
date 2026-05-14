@@ -1,0 +1,102 @@
+@startuml UC_Investir_Paiement_Demo_Webhook
+
+' ============================
+'  Normes FSEG (ECB)
+'  - Acteur : Utilisateur
+'  - <<boundary>> : IHM_Contribution
+'  - <<control>>  : Controleur_Investissement
+'  - <<entity>>   : Projet, Investissement, Transaction, Notification
+'  - <<external>> : Passerelle_de_paiement_(demo)
+' ============================
+
+hide footbox
+skinparam shadowing false
+' Mise en page A4 (rapport)
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 12
+skinparam sequenceMessageAlign left
+skinparam ParticipantPadding 10
+skinparam BoxPadding 6
+skinparam maxMessageSize 45
+skinparam wrapWidth 170
+skinparam dpi 150
+scale 0.9
+
+title UC Investir — Paiement démo + webhook (ECB/FSEG)
+
+actor "Utilisateur\n(investisseur)" as U
+boundary "IHM_Contribution" as IHM
+control "Controleur_Investissement" as CI
+entity "Projet" as P
+entity "Investissement" as Inv
+entity "Transaction" as Tx
+entity "Notification" as N
+participant "Passerelle_de_paiement_(demo)" as Pay <<external>>
+
+== Démarrage de l’investissement ==
+U -> IHM : investir(montant, idProjet)
+IHM -> CI : creerInvestment(investorId, projectId, amount)
+
+CI -> P : charger(projectId)
+CI -> P : verifierInvestissable(ACTIVE, !archive, dates OK, plafond OK)
+alt Projet non investissable\n(inactif / expiré / plafond atteint)
+  CI --> IHM : erreur("Projet non disponible")
+  IHM --> U : message d’erreur
+else Investisseur = créateur
+  CI --> IHM : erreur("Interdit : auto-investissement")
+  IHM --> U : message d’erreur
+else Montant invalide
+  CI --> IHM : erreur("Montant minimum 100 TND")
+  IHM --> U : message d’erreur
+else Tentative d’investissement valide
+  CI -> Pay : createPaymentLink(amount, referenceId=investmentId)
+  Pay --> CI : paymentUrl, providerPaymentId, provider
+  CI -> Inv : creer(_id, investorId, projectId, amount, status=INITIATED, paymentAttempts=1)
+  CI -> Tx : creer(investmentId, provider, providerPaymentId, amount, status=PENDING, attemptNumber=1)
+  CI --> IHM : retourner(paymentUrl)
+  IHM --> U : redirigerVersPaiement(paymentUrl)
+end
+
+== Webhook (asynchrone) ==
+Pay -> CI : webhook(providerPaymentId, status, paymentMethod)
+CI -> CI : verifierSignatureWebhook(payload)
+CI -> Tx : rechercher(providerPaymentId)
+CI -> Inv : charger(tx.investmentId)
+CI -> P : charger(inv.projectId)
+
+alt Webhook idempotent\n(Tx.status != PENDING)
+  CI --> Pay : 200 OK (idempotent)
+else Traitement du webhook
+  alt status = FAILED
+    CI -> Tx : maj(status=FAILED, paymentMethod)
+    CI -> Inv : maj(status=FAILED)
+    CI -> N : creer(userId=investorId, type=PAYMENT_FAILED, relatedEntity=INVESTMENT)
+    CI --> Pay : 200 OK
+  else status = SUCCEEDED
+    group Détection sur-financement (atomique)
+      CI -> P : incrementer currentFunding si currentFunding+amount <= fundingGoal
+    end
+
+    alt Sur-financement détecté\n(incrément refusé)
+      CI -> Pay : refundPayment(providerPaymentId, amount, reason=OVERFUNDING)
+      Pay --> CI : ok / échec
+      alt refund OK
+        CI -> Tx : maj(status=REFUNDED, refundStatus=SUCCEEDED, refundedAt)
+        CI -> Inv : maj(status=REFUNDED)
+        CI -> N : creer(type=OVERFUND_REFUNDED, relatedEntity=PROJECT)
+      else refund KO
+        CI -> Tx : maj(status=SUCCEEDED, refundStatus=FAILED, succeededAt)
+        CI -> Inv : maj(status=SUCCESS)
+        CI -> N : creer(type=REFUND_FAILED, relatedEntity=PROJECT)
+      end
+      CI --> Pay : 200 OK
+    else Paiement confirmé et montant accepté
+      CI -> Tx : maj(status=SUCCEEDED, succeededAt, paymentMethod)
+      CI -> Inv : maj(status=SUCCESS)
+      CI -> N : creer(type=PAYMENT_SUCCESS, relatedEntity=INVESTMENT)
+      CI --> Pay : 200 OK
+    end
+  end
+end
+
+@enduml

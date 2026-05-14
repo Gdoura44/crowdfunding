@@ -1,0 +1,104 @@
+{
+  "_id": ObjectId,
+  "email": { "type": "string", "unique": true, "index": true, "required": true },
+  "passwordHash": { "type": "string", "required": true },
+  "role": { "type": "string", "enum": ["USER", "ADMIN"], "required": true },
+  "isActive": { "type": "boolean", "default": false },
+  // Vérification email : OTP (prioritaire) + lien (fallback)
+  "verifyCodeHash": { "type": "string", "default": null },
+  "verifyCodeExpiry": { "type": "Date", "default": null },
+  "verifyTokenHash": "string",
+  "verifyTokenExpiry": "Date",
+  "verifyTokenUsedAt": { "type": "Date", "default": null },
+  "verifyTokenUsedBy": { "type": "string", "enum": ["CODE", "LINK"], "default": null },
+  "resetTokenHash": "string",
+  "resetTokenExpiry": "Date",
+  "deletedAt": { "type": "Date", "default": null },
+  "refreshTokens": {
+    "type": "array",
+    "maxItems": 5,
+    "items": {
+      "tokenHash": { "type": "string", "required": true },
+      "expiresAt": { "type": "Date", "required": true },
+      "device": "string",
+      "createdAt": { "type": "Date", "default": "Date.now" }
+    }
+  // Nettoyage : à chaque login/refresh, si la taille dépasse 5, le token le plus ancien
+  // (par expiresAt) est éjecté atomiquement (FIFO). Un cron quotidien purge aussi les
+  // tokens expirés indépendamment du compteur.
+  },
+  "profile": {
+    "firstName": "string",
+    "lastName": "string",
+    "phone": "string",
+    "riskPreference": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+    "preferredCategories": [{ "type": "string" }]
+  },
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "updatedAt": { "type": "Date", "default": "Date.now" }
+}
+
+// Indexes
+db.users.createIndex({ email: 1 }, { unique: true });
+db.users.createIndex({ isActive: 1 });
+db.users.createIndex({ deletedAt: 1 });
+db.users.createIndex({ verifyTokenHash: 1 });
+db.users.createIndex({ verifyCodeHash: 1 });
+
+// ============================================================================
+// SUPPRESSION DE COMPTE — RÈGLES EN CASCADE
+// ============================================================================
+// À la suppression d’un utilisateur (deletedAt renseigné) :
+//
+// 1. **Anonymisation du document User :**
+//    - email → "deleted_<userId>_<timestamp>@anonymized.local"
+//    - passwordHash → vidé (placeholder)
+//    - refreshTokens → []
+//    - profile → vidé / anonymisé
+//    - deletedAt → horodatage courant
+//    - Le document persiste pour la piste d’audit.
+//
+// 2. **Entités liées :**
+//    - **Projects** :
+//        • creatorId conservé (référence le document User anonymisé)
+//        • isCreatorDeleted = true
+//        • Vrai pour TOUS les statuts (DRAFT, AWAITING_AI, UNDER_REVIEW, REJECTED,
+//          APPROVED, ACTIVE, FUNDED, CLOSED, SUSPENDED).
+//
+//    - **Investments** : investorId conservé.
+//        → Les investissements SUCCESS sont remboursés pendant la suppression ;
+//          la suppression est bloquée jusqu’à ce que les refunds aboutissent
+//          (cf. FailedRefundEvent reason="USER_DELETION").
+//
+//    - **Reports** : reporterId conservé (audit).
+//    - **Payouts** : creatorId conservé ; bankDetails vidés si status != COMPLETED.
+//    - **Notifications** : userId conservé (l’utilisateur reste destinataire en base).
+//    - **AuditLog** : actorId conservé (conformité).
+//    - **Transactions** : la chaîne investmentId reste intacte.
+//
+// 3. **Pourquoi traiter les SUCCESS différemment d’une désactivation ?**
+//    - La désactivation (isActive=false) est réversible : l’admin peut réactiver l’utilisateur.
+//      Rembourser les SUCCESS serait disruptif et inutile.
+//    - La suppression est irréversible : toutes les obligations financières doivent être soldées,
+//      donc les SUCCESS sont remboursés.
+//
+// 4. **Restrictions** (appliquées dans accountService) :
+//    L’utilisateur NE PEUT PAS supprimer son compte si :
+//    - Investment status ∈ ["INITIATED", "CANCELLING"]
+//    - Payout status ∈ ["PENDING", "READY"]
+//    - Project (creatorId = user._id) status ∈ ["ACTIVE", "APPROVED", "UNDER_REVIEW", "AWAITING_AI", "FUNDED"]
+//    - Investment SUCCESS dont Transaction.refundStatus != "SUCCEEDED"
+//      (remboursement à terminer avant suppression).
+//    - Les investissements FAILED ne bloquent pas (aucun fonds débité).
+//
+//    **Délai et override admin :**
+//    - Si un refund reste FAILED > 7 jours après la demande de suppression,
+//      un admin peut forcer la suppression via le dashboard dead-letter.
+//    - La FailedRefundEvent est marquée résolue avec une note "Compte supprimé malgré refund failure
+//      – réconciliation manuelle requise". La plateforme reste responsable du remboursement (payout manuel).
+//
+// 5. **Notification :**
+//    - ACCOUNT_DELETED créée avec :
+//        • userId = _id du compte supprimé (auto-référence)
+//        • relatedEntityType = "USER" ; relatedEntityId = userId
+// ============================================================================

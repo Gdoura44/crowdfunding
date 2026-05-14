@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.5"
+         xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
+         xmlns:uml="http://www.omg.org/spec/UML/20131001">
+  <!--
+    Classes participantes — UC_Creer_et_Soumettre_Projet
+    Alignement : modele_domaine_global_FSEG_classes_only_EA15.xmi + conception/sequence_diagram/creer_soumettre_projet.txt (participant externe Orchestrateur_Analyse_Risque).
+    Harmonisation inter-UC : mêmes attributs métier pour Utilisateur, UserProfile, Projet (y compris aiAnalysis), Notification — pas d'attributs techniques (hash, jetons, secrets).
+  -->
+  <uml:Model xmi:id="m_class_uc_create_submit" name="Classes_Participantes_UC_Creer_Soumettre_Projet">
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="ucs_pt_String" name="String"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="ucs_pt_Number" name="Number"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="ucs_pt_Boolean" name="Boolean"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="ucs_pt_Date" name="Date"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="ucs_pt_ObjectId" name="ObjectId"/>
+
+    <packagedElement xmi:type="uml:Package" xmi:id="ucs_pkg_types" name="Types">
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucs_en_RoleUtilisateur" name="RoleUtilisateur">
+        <ownedLiteral xmi:id="ucs_lit_role_user" name="USER"/>
+        <ownedLiteral xmi:id="ucs_lit_role_admin" name="ADMIN"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucs_en_PreferenceRisque" name="PreferenceRisque">
+        <ownedLiteral xmi:id="ucs_lit_pr_low" name="LOW"/>
+        <ownedLiteral xmi:id="ucs_lit_pr_medium" name="MEDIUM"/>
+        <ownedLiteral xmi:id="ucs_lit_pr_high" name="HIGH"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucs_en_StatutProjet" name="StatutProjet">
+        <ownedLiteral xmi:id="ucs_lit_sp_draft" name="DRAFT"/>
+        <ownedLiteral xmi:id="ucs_lit_sp_await_ai" name="AWAITING_AI"/>
+        <ownedLiteral xmi:id="ucs_lit_sp_under_review" name="UNDER_REVIEW"/>
+        <ownedLiteral xmi:id="ucs_lit_sp_approved" name="APPROVED"/>
+        <ownedLiteral xmi:id="ucs_lit_sp_active" name="ACTIVE"/>
+        <ownedLiteral xmi:id="ucs_lit_sp_rejected" name="REJECTED"/>
+        <ownedLiteral xmi:id="ucs_lit_sp_funded" name="FUNDED"/>
+        <ownedLiteral xmi:id="ucs_lit_sp_closed" name="CLOSED"/>
+        <ownedLiteral xmi:id="ucs_lit_sp_suspended" name="SUSPENDED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucs_en_RiskLevel" name="RiskLevel">
+        <ownedLiteral xmi:id="ucs_lit_rl_low" name="LOW"/>
+        <ownedLiteral xmi:id="ucs_lit_rl_medium" name="MEDIUM"/>
+        <ownedLiteral xmi:id="ucs_lit_rl_high" name="HIGH"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucs_en_TypeNotification" name="TypeNotification">
+        <ownedLiteral xmi:id="ucs_lit_nt_project_created" name="PROJECT_CREATED"/>
+        <ownedLiteral xmi:id="ucs_lit_nt_project_updated" name="PROJECT_UPDATED"/>
+        <ownedLiteral xmi:id="ucs_lit_nt_project_submitted" name="PROJECT_SUBMITTED"/>
+        <ownedLiteral xmi:id="ucs_lit_nt_project_ai_report_ready" name="PROJECT_AI_REPORT_READY"/>
+        <ownedLiteral xmi:id="ucs_lit_nt_project_auto_rejected" name="PROJECT_AUTO_REJECTED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucs_en_RelatedEntityType" name="RelatedEntityType">
+        <ownedLiteral xmi:id="ucs_lit_ret_project" name="PROJECT"/>
+        <ownedLiteral xmi:id="ucs_lit_ret_investment" name="INVESTMENT"/>
+        <ownedLiteral xmi:id="ucs_lit_ret_report" name="REPORT"/>
+        <ownedLiteral xmi:id="ucs_lit_ret_payout" name="PAYOUT"/>
+        <ownedLiteral xmi:id="ucs_lit_ret_user" name="USER"/>
+      </packagedElement>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Package" xmi:id="ucs_pkg_domaine" name="Domaine">
+      <packagedElement xmi:type="uml:Class" xmi:id="ucs_cls_UserProfile" name="UserProfile">
+        <ownedAttribute xmi:id="ucs_attr_up_firstName" name="firstName" visibility="private" type="ucs_pt_String"/>
+        <ownedAttribute xmi:id="ucs_attr_up_lastName" name="lastName" visibility="private" type="ucs_pt_String"/>
+        <ownedAttribute xmi:id="ucs_attr_up_phone" name="phone" visibility="private" type="ucs_pt_String"/>
+        <ownedAttribute xmi:id="ucs_attr_up_riskPref" name="riskPreference" visibility="private" type="ucs_en_PreferenceRisque"/>
+        <ownedAttribute xmi:id="ucs_attr_up_prefCats" name="preferredCategories" visibility="private" type="ucs_pt_String" isMultivalued="true"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="ucs_cls_AiAnalysis" name="AiAnalysis">
+        <ownedAttribute xmi:id="ucs_attr_ai_riskScore" name="riskScore" visibility="private" type="ucs_pt_Number"/>
+        <ownedAttribute xmi:id="ucs_attr_ai_riskLevel" name="riskLevel" visibility="private" type="ucs_en_RiskLevel"/>
+        <ownedAttribute xmi:id="ucs_attr_ai_successProbability" name="successProbability" visibility="private" type="ucs_pt_Number"/>
+        <ownedAttribute xmi:id="ucs_attr_ai_analyzedAt" name="analyzedAt" visibility="private" type="ucs_pt_Date"/>
+        <ownedAttribute xmi:id="ucs_attr_ai_reportSummary" name="report.summary" visibility="private" type="ucs_pt_String"/>
+        <ownedAttribute xmi:id="ucs_attr_ai_advantages" name="report.advantages" visibility="private" type="ucs_pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="ucs_attr_ai_disadvantages" name="report.disadvantages" visibility="private" type="ucs_pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="ucs_attr_ai_improvements" name="report.improvements" visibility="private" type="ucs_pt_String" isMultivalued="true"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="ucs_cls_Utilisateur" name="Utilisateur">
+        <ownedAttribute xmi:id="ucs_attr_u_id" name="id" visibility="private" type="ucs_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucs_attr_u_email" name="email" visibility="private" type="ucs_pt_String"/>
+        <ownedAttribute xmi:id="ucs_attr_u_role" name="role" visibility="private" type="ucs_en_RoleUtilisateur"/>
+        <ownedAttribute xmi:id="ucs_attr_u_isActive" name="isActive" visibility="private" type="ucs_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucs_attr_u_deletedAt" name="deletedAt" visibility="private" type="ucs_pt_Date"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="ucs_cls_Projet" name="Projet">
+        <ownedAttribute xmi:id="ucs_attr_p_id" name="id" visibility="private" type="ucs_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucs_attr_p_title" name="title" visibility="private" type="ucs_pt_String"/>
+        <ownedAttribute xmi:id="ucs_attr_p_description" name="description" visibility="private" type="ucs_pt_String"/>
+        <ownedAttribute xmi:id="ucs_attr_p_category" name="category" visibility="private" type="ucs_pt_String"/>
+        <ownedAttribute xmi:id="ucs_attr_p_fundingGoal" name="fundingGoal" visibility="private" type="ucs_pt_Number"/>
+        <ownedAttribute xmi:id="ucs_attr_p_currentFunding" name="currentFunding" visibility="private" type="ucs_pt_Number"/>
+        <ownedAttribute xmi:id="ucs_attr_p_status" name="status" visibility="private" type="ucs_en_StatutProjet"/>
+        <ownedAttribute xmi:id="ucs_attr_p_creatorId" name="creatorId" visibility="private" type="ucs_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucs_attr_p_startAt" name="startAt" visibility="private" type="ucs_pt_Date"/>
+        <ownedAttribute xmi:id="ucs_attr_p_deadline" name="deadline" visibility="private" type="ucs_pt_Date"/>
+        <ownedAttribute xmi:id="ucs_attr_p_rejectionReason" name="rejectionReason" visibility="private" type="ucs_pt_String"/>
+        <ownedAttribute xmi:id="ucs_attr_p_rejectedBy" name="rejectedBy" visibility="private" type="ucs_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucs_attr_p_rejectedAt" name="rejectedAt" visibility="private" type="ucs_pt_Date"/>
+        <ownedAttribute xmi:id="ucs_attr_p_isArchived" name="isArchived" visibility="private" type="ucs_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucs_attr_p_isCreatorDeleted" name="isCreatorDeleted" visibility="private" type="ucs_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucs_attr_p_publishedAt" name="publishedAt" visibility="private" type="ucs_pt_Date"/>
+        <ownedAttribute xmi:id="ucs_attr_p_fundedAt" name="fundedAt" visibility="private" type="ucs_pt_Date"/>
+        <ownedAttribute xmi:id="ucs_attr_p_aiAnalysis" name="aiAnalysis" visibility="private" type="ucs_cls_AiAnalysis"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="ucs_cls_Notification" name="Notification">
+        <ownedAttribute xmi:id="ucs_attr_n_id" name="id" visibility="private" type="ucs_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucs_attr_n_userId" name="userId" visibility="private" type="ucs_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucs_attr_n_type" name="type" visibility="private" type="ucs_en_TypeNotification"/>
+        <ownedAttribute xmi:id="ucs_attr_n_title" name="title" visibility="private" type="ucs_pt_String"/>
+        <ownedAttribute xmi:id="ucs_attr_n_message" name="message" visibility="private" type="ucs_pt_String"/>
+        <ownedAttribute xmi:id="ucs_attr_n_read" name="read" visibility="private" type="ucs_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucs_attr_n_relatedEntityId" name="relatedEntityId" visibility="private" type="ucs_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucs_attr_n_relatedEntityType" name="relatedEntityType" visibility="private" type="ucs_en_RelatedEntityType"/>
+      </packagedElement>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Package" xmi:id="ucs_pkg_externes" name="Externes">
+      <packagedElement xmi:type="uml:Class" xmi:id="ucs_cls_OrchestrateurAnalyseRisque" name="Orchestrateur_Analyse_Risque"/>
+    </packagedElement>
+
+  </uml:Model>
+</xmi:XMI>

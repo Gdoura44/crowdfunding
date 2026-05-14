@@ -1,0 +1,87 @@
+{
+  "_id": ObjectId,
+  "investmentId": { "type": "ObjectId", "ref": "Investment", "required": true },
+  "error": { "type": "string", "required": true },
+  "retryCount": { "type": "number", "default": 0 },
+  "reason": {
+    "type": "string",
+    "required": true,
+    "enum": [
+      "CANCELLATION_FAILED",   // Le provider a rejeté la demande d’annulation
+      "POST_UPDATE_FAILED",    // Le provider accepte mais l’écriture DB a échoué
+      "STUCK_CANCELLING",      // Investment bloqué en CANCELLING > 30 min
+      "PROJECT_DEACTIVATED"    // Échec lors de l’annulation suite à désactivation projet
+    ]
+  },
+  
+  // Ajouté pour la piste d’audit
+  "resolvedBy": { "type": "ObjectId", "ref": "User" },
+  "resolvedAt": { "type": "Date" },
+  
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "resolved": { "type": "boolean", "default": false }
+}
+
+// Indexes
+db.failedCancellationEvents.createIndex({ investmentId: 1 });
+db.failedCancellationEvents.createIndex({ resolved: 1, createdAt: -1 });
+
+// ============================================================================
+// SCÉNARIOS D’ÉCHEC D’ANNULATION
+// ============================================================================
+//
+// **1. CANCELLATION_FAILED :**
+// - L’API provider rejette la demande d’annulation.
+// - Causes : paiement déjà traité, fenêtre d’annulation expirée, erreur provider.
+// - Investment.status reste CANCELLING.
+// - Action admin : vérifier avec le provider, puis :
+//     • Marquer l’investment CANCELLED si le provider confirme, OU
+//     • Marquer SUCCESS si le paiement ne peut pas être inversé.
+//
+// **2. POST_UPDATE_FAILED :**
+// - Provider a confirmé l’annulation mais la transaction DB a échoué.
+// - Investment.status bloqué en CANCELLING.
+// - Transaction.status peut encore être PENDING ou SUCCEEDED.
+// - Action admin : vérifier le statut provider, puis mettre à jour manuellement Investment + Transaction.
+//
+// **3. STUCK_CANCELLING :**
+// - Détecté par le cron (cleanup-stuck-states).
+// - Investment.status = CANCELLING depuis > 30 min.
+// - Causes probables : webhook jamais arrivé, timeout réseau, process tombé.
+// - Requête : { status: "CANCELLING", cancellingStartedAt: { $lt: Date.now() - 30*60*1000 } }
+// - Action :
+//     1. Créer FailedCancellationEvent reason="STUCK_CANCELLING"
+//     2. Repasser Investment.status à "FAILED"
+//     3. Notifier l’admin pour vérification manuelle côté provider.
+// ============================================================================
+
+// ============================================================================
+// MÉCANISME DE RELANCE (UC_RetryCancellation)
+// ============================================================================
+//
+// **Flux de relance (admin) :**
+// 1. L’admin consulte l’événement FailedCancellationEvent
+// 2. Il analyse la raison (ex: dashboard provider si besoin)
+// 3. Il clique « Relancer l’annulation »
+// 4. Backend:
+//    - Vérifie Investment.status (doit être CANCELLING ou FAILED)
+//    - Appelle l’API d’annulation du provider
+//    - En cas de succès:
+//        • Investment.status → CANCELLED
+//        • Transaction.status → CANCELLED
+//        • FailedCancellationEvent.resolved = true
+//        • resolvedBy = admin._id, resolvedAt = now
+//        • L’utilisateur reçoit la notification PAYMENT_CANCELLED
+//    - En cas d’échec:
+//        • retryCount++
+//        • error mis à jour
+//        • Si retryCount > 3: notification d’escalade admin
+//
+// **Résolution manuelle (sans relance) :**
+// - Si le provider confirme que le paiement a réussi (impossible à annuler) :
+//     • L’admin met manuellement Investment.status → SUCCESS
+//     • L’admin marque FailedCancellationEvent.resolved = true
+//     • L’admin documente la résolution dans les notes
+//     • L’utilisateur reçoit PAYMENT_SUCCESS.
+//
+// ============================================================================

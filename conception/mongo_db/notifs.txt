@@ -1,0 +1,122 @@
+{
+  "_id": ObjectId,
+  "userId": { "type": "ObjectId", "ref": "User", "index": true, "required": true },
+  "type": {
+    "type": "string",
+    "required": true,
+    "enum": [
+      "PROJECT_CREATED",
+      "PROJECT_UPDATED",
+      "PROJECT_SUBMITTED",
+      "PROJECT_ARCHIVED",
+      "PROJECT_DELETED",
+      "PROJECT_APPROVED",
+      "PROJECT_REJECTED",
+      "PROJECT_AUTO_REJECTED",
+      "PROJECT_PUBLISHED",
+      "PROJECT_FUNDED",
+      "PROJECT_WARNING",
+      "PROJECT_FUNDING_GOAL_LOST",
+      "NEW_INVESTMENT",
+      "PAYMENT_SUCCESS",
+      "PAYMENT_FAILED",
+      "PAYMENT_CANCELLED",
+      "PAYMENT_REFUNDED",
+      "OVERFUND_REFUNDED",
+      "PROJECT_EXPIRED",
+      "REPORT_RESOLVED",
+      "PAYOUT_COMPLETED",
+      "PAYOUT_BANK_DETAILS_REQUEST",
+      "PAYOUT_READY_FOR_APPROVAL",
+      "PAYOUT_CANCELLED",
+      "PROJECT_REACTIVATED",
+      "PROJECT_SUSPENDED",
+      "CANCELLATION_FAILED",
+      "REFUND_FAILED",
+      "ACCOUNT_DELETED",
+      "NEW_REPORT",
+      "USER_DEACTIVATED",
+      "PAYOUT_FAILED",
+      "USER_REACTIVATED",
+      "PASSWORD_RESET_REQUESTED",
+      "PROJECT_AI_REPORT_READY"
+    ]
+  },
+  "title": { "type": "string", "required": true },
+  "message": { "type": "string", "required": true },
+  "read": { "type": "boolean", "default": false },
+  "adminRead": { "type": "boolean", "default": false },
+
+  "relatedEntityId": { "type": "ObjectId", "required": false, "default": null },
+  // For ACCOUNT_DELETED, relatedEntityType = "USER" and relatedEntityId = userId
+  // (userId retained even after anonymization for audit trail)
+
+  "relatedEntityType": {
+    "type": "string",
+    "required": false,
+    "enum": ["PROJECT", "INVESTMENT", "REPORT", "PAYOUT", "USER"],
+    "default": null
+  },
+
+  "createdAt": { "type": "Date", "default": "Date.now" }
+}
+
+// Indexes
+db.notifications.createIndex({ userId: 1, createdAt: -1 });
+db.notifications.createIndex({ read: 1 });
+db.notifications.createIndex({ adminRead: 1 });
+
+// ============================================================================
+// CORRESPONDANCE ENTITÉ LIÉE PAR TYPE DE NOTIFICATION
+// ============================================================================
+//
+// **Notifications liées à un PROJET :**
+// - PROJECT_APPROVED, PROJECT_REJECTED, PROJECT_AUTO_REJECTED, PROJECT_PUBLISHED,
+//   PROJECT_FUNDED, PROJECT_REACTIVATED, PROJECT_SUSPENDED, PROJECT_EXPIRED,
+//   PROJECT_AI_REPORT_READY, PROJECT_FUNDING_GOAL_LOST, PROJECT_WARNING
+//   → relatedEntityType : "PROJECT"
+//   → relatedEntityId : projectId
+//
+// **Notifications liées à un INVESTISSEMENT :**
+// - NEW_INVESTMENT (créateur) → relatedEntityType : "INVESTMENT", relatedEntityId : investmentId
+//
+// **Notifications de paiement / transaction :**
+// - PAYMENT_SUCCESS, PAYMENT_FAILED, PAYMENT_CANCELLED, PAYMENT_REFUNDED,
+//   OVERFUND_REFUNDED, CANCELLATION_FAILED, REFUND_FAILED
+//   → relatedEntityType : "INVESTMENT" (jamais transactionId, pour cohérence)
+//   → relatedEntityId : investmentId
+//
+// **Notifications liées à un SIGNALEMENT :**
+// - REPORT_RESOLVED, NEW_REPORT
+//   → relatedEntityType : "REPORT"
+//   → relatedEntityId : reportId
+//
+// **Notifications liées à un PAYOUT :**
+// - PAYOUT_COMPLETED, PAYOUT_BANK_DETAILS_REQUEST, PAYOUT_CANCELLED, PAYOUT_FAILED, PAYOUT_READY_FOR_APPROVAL
+//   → relatedEntityType : "PAYOUT"
+//   → relatedEntityId : payoutId
+//
+// **Notifications liées à un UTILISATEUR (cas particuliers) :**
+//
+// 1. **USER_DEACTIVATED / USER_REACTIVATED :**
+//    - Adressées à l’utilisateur concerné.
+//    - relatedEntityType : "USER" ; relatedEntityId : userId (auto-référence).
+//    - Le document User est conservé (anonymisé) pour la traçabilité (audit).
+//
+// 2. **ACCOUNT_DELETED :**
+//    - Adressée à l’utilisateur supprimé (la notification persiste pour audit).
+//    - relatedEntityType : "USER" ; relatedEntityId : userId (référence valide car
+//      le document User est soft-deleted: deletedAt + anonymisation).
+//    - Permet aux admins de tracer : « toutes les notifications liées à ce compte supprimé ».
+//
+// 3. **PASSWORD_RESET_REQUESTED :**
+//    - Notification interne pour déclencher l’e-mail (politique e-mails ON).
+//    - relatedEntityType : "USER" ; relatedEntityId : userId.
+//
+// ============================================================================
+// POLITIQUE E-MAILS (config/emailNotificationPolicy.js)
+// ============================================================================
+// Critiques (ON) : PASSWORD_RESET_REQUESTED, PAYMENT_*, PAYOUT_*,
+//                  PROJECT_APPROVED/REJECTED/AUTO_REJECTED/PUBLISHED,
+//                  PROJECT_AI_REPORT_READY.
+// Bruit (OFF, in-app uniquement) : PROJECT_UPDATED, PROJECT_ARCHIVED, etc.

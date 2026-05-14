@@ -1,0 +1,84 @@
+@startuml UC_Creer_Soumettre_Projet
+
+' ============================
+'  Normes FSEG (ECB)
+'  - Acteur : Utilisateur (créateur)
+'  - <<boundary>> : IHM_Projet
+'  - <<control>>  : Controleur_Projet
+'  - <<entity>>   : Projet, Notification
+'  - <<external>> : Orchestrateur_Analyse_Risque (n8n/BullMQ)
+' ============================
+
+hide footbox
+skinparam shadowing false
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 12
+skinparam sequenceMessageAlign left
+skinparam ParticipantPadding 10
+skinparam BoxPadding 6
+skinparam maxMessageSize 45
+skinparam wrapWidth 150
+skinparam dpi 150
+scale 0.85
+
+title UC Créer et soumettre un projet — Brouillon + analyse IA (ECB/FSEG)
+
+actor "Utilisateur (créateur)" as U
+boundary "IHM_Projet" as IHM
+control "Controleur_Projet" as CP
+entity "Projet" as P
+entity "Notification" as N
+participant "Orchestrateur_Analyse_Risque" as WF <<external>>
+
+== Création d’un brouillon ==
+U -> IHM : creerProjet(donnees)
+IHM -> CP : createDraftProject(creatorId, donnees)
+
+CP -> P : verifierContraintesDates()
+alt Dates invalides
+  CP --> IHM : erreur("Dates invalides")
+  IHM --> U : message d’erreur
+else Brouillon créé
+  CP -> P : creer(status=DRAFT, aiStatus=PENDING)
+  CP -> N : creer(type=PROJECT_CREATED, relatedEntity=PROJECT)
+  CP --> IHM : afficherBrouillon(projectId)
+end
+
+== Modification (optionnelle) ==
+opt Le créateur met à jour le brouillon
+  U -> IHM : modifierProjet(champs)
+  IHM -> CP : updateProject(creatorId, projectId, champs)
+  CP -> P : verifierModifiable()
+  CP -> P : majChamps() + reVerifierContraintesDates()
+  CP -> N : creer(type=PROJECT_UPDATED, relatedEntity=PROJECT)
+  CP --> IHM : afficherProjetMisAJour()
+end
+
+== Soumission pour analyse ==
+U -> IHM : soumettreProjet(projectId)
+IHM -> CP : submitProjectForAi(creatorId, projectId)
+
+CP -> P : verifierEtat(DRAFT) et non archivé
+alt Soumission refusée (état invalide / archivé)
+  CP --> IHM : erreur("Soumission impossible")
+  IHM --> U : message d’erreur
+else Soumission acceptée
+  CP -> P : maj(status=AWAITING_AI, aiStatus=PENDING)
+  CP -> WF : enqueueRiskAnalysisJob(projectId)
+  alt Orchestrateur indisponible
+    CP -> P : marquerAnalyseEchouee(aiStatus=FAILED)
+  end
+  CP -> N : creer(type=PROJECT_SUBMITTED, relatedEntity=PROJECT)
+  CP --> IHM : afficherSoumissionOK()
+end
+
+== Retour du workflow (asynchrone) ==
+WF -> CP : callbackAnalyse(projectId, resultat)
+alt Analyse IA réussie
+  CP -> P : maj(aiAnalysis) + transition(UNDER_REVIEW)
+  CP -> N : creer(type=PROJECT_AI_REPORT_READY, relatedEntity=PROJECT)
+else Analyse IA échouée
+  CP -> P : maj(aiStatus=FAILED)
+end
+
+@enduml

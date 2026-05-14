@@ -1,0 +1,55 @@
+@startuml UC_Fournir_Coordonnees_Bancaires
+
+' ============================
+'  Normes FSEG (ECB)
+'  - Acteur : Utilisateur (créateur)
+'  - <<boundary>> : IHM_Retrait
+'  - <<control>>  : Controleur_Retrait
+'  - <<entity>>   : Retrait (Payout), Notification
+' ============================
+
+hide footbox
+skinparam shadowing false
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 12
+skinparam sequenceMessageAlign left
+skinparam ParticipantPadding 10
+skinparam BoxPadding 6
+skinparam maxMessageSize 45
+skinparam wrapWidth 150
+skinparam dpi 150
+scale 0.85
+
+title UC Fournir les coordonnées bancaires — Préparer le retrait (ECB/FSEG)
+
+actor "Utilisateur (créateur)" as U
+boundary "IHM_Retrait" as IHM
+control "Controleur_Retrait" as CR
+entity "Retrait (Payout)" as R
+entity "Notification" as N
+
+== Saisie des coordonnées ==
+U -> IHM : saisirCoordonneesBancaires(payoutId, coordonnees)
+IHM -> CR : provideBankDetails(creatorId, payoutId, coordonnees)
+
+CR -> R : charger(payoutId, creatorId)
+alt Retrait introuvable
+  CR --> IHM : erreur("Retrait introuvable")
+  IHM --> U : message d’erreur
+else Retrait non modifiable (statut != PENDING)
+  CR --> IHM : erreur("Retrait non modifiable")
+  IHM --> U : message d’erreur
+else Coordonnées invalides
+  CR --> IHM : erreur("Coordonnées bancaires invalides")
+  IHM --> U : message d’erreur
+else Coordonnées acceptées
+  CR -> R : enregistrerCoordonnees() et maj(status=READY)
+
+  CR -> N : creer(type=PAYOUT_BANK_DETAILS_REQUEST, destinataire=créateur)
+  CR -> N : creer(type=PAYOUT_READY_FOR_APPROVAL, destinataire=admins)
+
+  CR --> IHM : afficherConfirmation()
+  IHM --> U : confirmation()
+end
+
+@enduml

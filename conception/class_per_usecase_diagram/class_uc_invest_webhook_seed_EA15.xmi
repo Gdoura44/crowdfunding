@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.5"
+         xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
+         xmlns:uml="http://www.omg.org/spec/UML/20131001">
+  <!--
+    Classes participantes — UC_Investir_(Paiement_Demo_Webhook)
+    Alignement : modele_domaine_global_FSEG_classes_only_EA15.xmi + conception/sequence_diagram/investissement.txt (entités + Passerelle_de_paiement_(demo)).
+    Harmonisation inter-UC : mêmes attributs métier pour Utilisateur, UserProfile, Projet (y compris aiAnalysis), Investissement, Transaction, Notification — pas d'attributs techniques (hash, jetons, secrets).
+  -->
+  <uml:Model xmi:id="m_class_uc_invest" name="Classes_Participantes_UC_Investir_Webhook">
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="uci_pt_String" name="String"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="uci_pt_Number" name="Number"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="uci_pt_Boolean" name="Boolean"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="uci_pt_Date" name="Date"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="uci_pt_ObjectId" name="ObjectId"/>
+
+    <packagedElement xmi:type="uml:Package" xmi:id="uci_pkg_types" name="Types">
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="uci_en_StatutProjet" name="StatutProjet">
+        <ownedLiteral xmi:id="uci_lit_sp_draft" name="DRAFT"/>
+        <ownedLiteral xmi:id="uci_lit_sp_await_ai" name="AWAITING_AI"/>
+        <ownedLiteral xmi:id="uci_lit_sp_under_review" name="UNDER_REVIEW"/>
+        <ownedLiteral xmi:id="uci_lit_sp_approved" name="APPROVED"/>
+        <ownedLiteral xmi:id="uci_lit_sp_active" name="ACTIVE"/>
+        <ownedLiteral xmi:id="uci_lit_sp_rejected" name="REJECTED"/>
+        <ownedLiteral xmi:id="uci_lit_sp_funded" name="FUNDED"/>
+        <ownedLiteral xmi:id="uci_lit_sp_closed" name="CLOSED"/>
+        <ownedLiteral xmi:id="uci_lit_sp_suspended" name="SUSPENDED"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="uci_en_RoleUtilisateur" name="RoleUtilisateur">
+        <ownedLiteral xmi:id="uci_lit_role_user" name="USER"/>
+        <ownedLiteral xmi:id="uci_lit_role_admin" name="ADMIN"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="uci_en_PreferenceRisque" name="PreferenceRisque">
+        <ownedLiteral xmi:id="uci_lit_pr_low" name="LOW"/>
+        <ownedLiteral xmi:id="uci_lit_pr_medium" name="MEDIUM"/>
+        <ownedLiteral xmi:id="uci_lit_pr_high" name="HIGH"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="uci_en_RiskLevel" name="RiskLevel">
+        <ownedLiteral xmi:id="uci_lit_rl_low" name="LOW"/>
+        <ownedLiteral xmi:id="uci_lit_rl_medium" name="MEDIUM"/>
+        <ownedLiteral xmi:id="uci_lit_rl_high" name="HIGH"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="uci_en_CancelReason" name="CancelReason">
+        <ownedLiteral xmi:id="uci_lit_cr_user_requested" name="USER_REQUESTED"/>
+        <ownedLiteral xmi:id="uci_lit_cr_project_deactivated" name="PROJECT_DEACTIVATED"/>
+        <ownedLiteral xmi:id="uci_lit_cr_payment_timeout" name="PAYMENT_TIMEOUT"/>
+        <ownedLiteral xmi:id="uci_lit_cr_fraudulent" name="FRAUDULENT"/>
+        <ownedLiteral xmi:id="uci_lit_cr_user_deactivated" name="USER_DEACTIVATED"/>
+        <ownedLiteral xmi:id="uci_lit_cr_account_deletion" name="ACCOUNT_DELETION"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="uci_en_StatutInvestissement" name="StatutInvestissement">
+        <ownedLiteral xmi:id="uci_lit_si_initiated" name="INITIATED"/>
+        <ownedLiteral xmi:id="uci_lit_si_cancelling" name="CANCELLING"/>
+        <ownedLiteral xmi:id="uci_lit_si_cancelled" name="CANCELLED"/>
+        <ownedLiteral xmi:id="uci_lit_si_success" name="SUCCESS"/>
+        <ownedLiteral xmi:id="uci_lit_si_failed" name="FAILED"/>
+        <ownedLiteral xmi:id="uci_lit_si_refunded" name="REFUNDED"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="uci_en_StatutTransaction" name="StatutTransaction">
+        <ownedLiteral xmi:id="uci_lit_st_pending" name="PENDING"/>
+        <ownedLiteral xmi:id="uci_lit_st_succeeded" name="SUCCEEDED"/>
+        <ownedLiteral xmi:id="uci_lit_st_failed" name="FAILED"/>
+        <ownedLiteral xmi:id="uci_lit_st_refunded" name="REFUNDED"/>
+        <ownedLiteral xmi:id="uci_lit_st_cancelled" name="CANCELLED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="uci_en_Provider" name="Provider">
+        <ownedLiteral xmi:id="uci_lit_prv_flouci" name="FLOUCI"/>
+        <ownedLiteral xmi:id="uci_lit_prv_konnect" name="KONNECT"/>
+        <ownedLiteral xmi:id="uci_lit_prv_d17" name="D17"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="uci_en_RefundStatus" name="RefundStatus">
+        <ownedLiteral xmi:id="uci_lit_rs_not_attempted" name="NOT_ATTEMPTED"/>
+        <ownedLiteral xmi:id="uci_lit_rs_pending" name="PENDING"/>
+        <ownedLiteral xmi:id="uci_lit_rs_succeeded" name="SUCCEEDED"/>
+        <ownedLiteral xmi:id="uci_lit_rs_failed" name="FAILED"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="uci_en_TypeNotification" name="TypeNotification">
+        <ownedLiteral xmi:id="uci_lit_nt_new_investment" name="NEW_INVESTMENT"/>
+        <ownedLiteral xmi:id="uci_lit_nt_payment_success" name="PAYMENT_SUCCESS"/>
+        <ownedLiteral xmi:id="uci_lit_nt_payment_failed" name="PAYMENT_FAILED"/>
+        <ownedLiteral xmi:id="uci_lit_nt_payment_cancelled" name="PAYMENT_CANCELLED"/>
+        <ownedLiteral xmi:id="uci_lit_nt_payment_refunded" name="PAYMENT_REFUNDED"/>
+        <ownedLiteral xmi:id="uci_lit_nt_overfund_refunded" name="OVERFUND_REFUNDED"/>
+        <ownedLiteral xmi:id="uci_lit_nt_refund_failed" name="REFUND_FAILED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="uci_en_RelatedEntityType" name="RelatedEntityType">
+        <ownedLiteral xmi:id="uci_lit_ret_project" name="PROJECT"/>
+        <ownedLiteral xmi:id="uci_lit_ret_investment" name="INVESTMENT"/>
+        <ownedLiteral xmi:id="uci_lit_ret_report" name="REPORT"/>
+        <ownedLiteral xmi:id="uci_lit_ret_payout" name="PAYOUT"/>
+        <ownedLiteral xmi:id="uci_lit_ret_user" name="USER"/>
+      </packagedElement>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Package" xmi:id="uci_pkg_domaine" name="Domaine">
+      <packagedElement xmi:type="uml:Class" xmi:id="uci_cls_Utilisateur" name="Utilisateur">
+        <ownedAttribute xmi:id="uci_attr_u_id" name="id" visibility="private" type="uci_pt_ObjectId"/>
+        <ownedAttribute xmi:id="uci_attr_u_email" name="email" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_u_role" name="role" visibility="private" type="uci_en_RoleUtilisateur"/>
+        <ownedAttribute xmi:id="uci_attr_u_isActive" name="isActive" visibility="private" type="uci_pt_Boolean"/>
+        <ownedAttribute xmi:id="uci_attr_u_deletedAt" name="deletedAt" visibility="private" type="uci_pt_Date"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="uci_cls_UserProfile" name="UserProfile">
+        <ownedAttribute xmi:id="uci_attr_up_firstName" name="firstName" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_up_lastName" name="lastName" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_up_phone" name="phone" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_up_riskPref" name="riskPreference" visibility="private" type="uci_en_PreferenceRisque"/>
+        <ownedAttribute xmi:id="uci_attr_up_prefCats" name="preferredCategories" visibility="private" type="uci_pt_String" isMultivalued="true"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="uci_cls_AiAnalysis" name="AiAnalysis">
+        <ownedAttribute xmi:id="uci_attr_ai_riskScore" name="riskScore" visibility="private" type="uci_pt_Number"/>
+        <ownedAttribute xmi:id="uci_attr_ai_riskLevel" name="riskLevel" visibility="private" type="uci_en_RiskLevel"/>
+        <ownedAttribute xmi:id="uci_attr_ai_successProbability" name="successProbability" visibility="private" type="uci_pt_Number"/>
+        <ownedAttribute xmi:id="uci_attr_ai_analyzedAt" name="analyzedAt" visibility="private" type="uci_pt_Date"/>
+        <ownedAttribute xmi:id="uci_attr_ai_reportSummary" name="report.summary" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_ai_advantages" name="report.advantages" visibility="private" type="uci_pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="uci_attr_ai_disadvantages" name="report.disadvantages" visibility="private" type="uci_pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="uci_attr_ai_improvements" name="report.improvements" visibility="private" type="uci_pt_String" isMultivalued="true"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="uci_cls_Projet" name="Projet">
+        <ownedAttribute xmi:id="uci_attr_p_id" name="id" visibility="private" type="uci_pt_ObjectId"/>
+        <ownedAttribute xmi:id="uci_attr_p_title" name="title" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_p_description" name="description" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_p_category" name="category" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_p_fundingGoal" name="fundingGoal" visibility="private" type="uci_pt_Number"/>
+        <ownedAttribute xmi:id="uci_attr_p_currentFunding" name="currentFunding" visibility="private" type="uci_pt_Number"/>
+        <ownedAttribute xmi:id="uci_attr_p_status" name="status" visibility="private" type="uci_en_StatutProjet"/>
+        <ownedAttribute xmi:id="uci_attr_p_creatorId" name="creatorId" visibility="private" type="uci_pt_ObjectId"/>
+        <ownedAttribute xmi:id="uci_attr_p_startAt" name="startAt" visibility="private" type="uci_pt_Date"/>
+        <ownedAttribute xmi:id="uci_attr_p_deadline" name="deadline" visibility="private" type="uci_pt_Date"/>
+        <ownedAttribute xmi:id="uci_attr_p_rejectionReason" name="rejectionReason" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_p_rejectedBy" name="rejectedBy" visibility="private" type="uci_pt_ObjectId"/>
+        <ownedAttribute xmi:id="uci_attr_p_rejectedAt" name="rejectedAt" visibility="private" type="uci_pt_Date"/>
+        <ownedAttribute xmi:id="uci_attr_p_isArchived" name="isArchived" visibility="private" type="uci_pt_Boolean"/>
+        <ownedAttribute xmi:id="uci_attr_p_isCreatorDeleted" name="isCreatorDeleted" visibility="private" type="uci_pt_Boolean"/>
+        <ownedAttribute xmi:id="uci_attr_p_publishedAt" name="publishedAt" visibility="private" type="uci_pt_Date"/>
+        <ownedAttribute xmi:id="uci_attr_p_fundedAt" name="fundedAt" visibility="private" type="uci_pt_Date"/>
+        <ownedAttribute xmi:id="uci_attr_p_aiAnalysis" name="aiAnalysis" visibility="private" type="uci_cls_AiAnalysis"/>
+        <ownedOperation xmi:id="uci_op_p_incr" name="incrementerMontantCollecte"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="uci_cls_Investissement" name="Investissement">
+        <ownedAttribute xmi:id="uci_attr_i_id" name="id" visibility="private" type="uci_pt_ObjectId"/>
+        <ownedAttribute xmi:id="uci_attr_i_investorId" name="investorId" visibility="private" type="uci_pt_ObjectId"/>
+        <ownedAttribute xmi:id="uci_attr_i_projectId" name="projectId" visibility="private" type="uci_pt_ObjectId"/>
+        <ownedAttribute xmi:id="uci_attr_i_amount" name="amount" visibility="private" type="uci_pt_Number"/>
+        <ownedAttribute xmi:id="uci_attr_i_status" name="status" visibility="private" type="uci_en_StatutInvestissement"/>
+        <ownedAttribute xmi:id="uci_attr_i_paymentAttempts" name="paymentAttempts" visibility="private" type="uci_pt_Number"/>
+        <ownedAttribute xmi:id="uci_attr_i_cancelReason" name="cancelReason" visibility="private" type="uci_en_CancelReason"/>
+        <ownedAttribute xmi:id="uci_attr_i_cancelledAt" name="cancelledAt" visibility="private" type="uci_pt_Date"/>
+        <ownedAttribute xmi:id="uci_attr_i_cancellingStartedAt" name="cancellingStartedAt" visibility="private" type="uci_pt_Date"/>
+        <ownedAttribute xmi:id="uci_attr_i_scheduledForDeactivation" name="scheduledForDeactivation" visibility="private" type="uci_pt_Boolean"/>
+        <ownedAttribute xmi:id="uci_attr_i_graceMinutes" name="cancellationGracePeriodMinutes" visibility="private" type="uci_pt_Number"/>
+        <ownedOperation xmi:id="uci_op_i_init" name="initierPaiement"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="uci_cls_Transaction" name="Transaction">
+        <ownedAttribute xmi:id="uci_attr_t_id" name="id" visibility="private" type="uci_pt_ObjectId"/>
+        <ownedAttribute xmi:id="uci_attr_t_investmentId" name="investmentId" visibility="private" type="uci_pt_ObjectId"/>
+        <ownedAttribute xmi:id="uci_attr_t_provider" name="provider" visibility="private" type="uci_en_Provider"/>
+        <ownedAttribute xmi:id="uci_attr_t_providerPaymentId" name="providerPaymentId" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_t_amount" name="amount" visibility="private" type="uci_pt_Number"/>
+        <ownedAttribute xmi:id="uci_attr_t_status" name="status" visibility="private" type="uci_en_StatutTransaction"/>
+        <ownedAttribute xmi:id="uci_attr_t_cancelledAt" name="cancelledAt" visibility="private" type="uci_pt_Date"/>
+        <ownedAttribute xmi:id="uci_attr_t_paymentMethod" name="paymentMethod" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_t_attemptNumber" name="attemptNumber" visibility="private" type="uci_pt_Number"/>
+        <ownedAttribute xmi:id="uci_attr_t_refundStatus" name="refundStatus" visibility="private" type="uci_en_RefundStatus"/>
+        <ownedAttribute xmi:id="uci_attr_t_refundAttempts" name="refundAttempts" visibility="private" type="uci_pt_Number"/>
+        <ownedAttribute xmi:id="uci_attr_t_lastRefundAttemptAt" name="lastRefundAttemptAt" visibility="private" type="uci_pt_Date"/>
+        <ownedAttribute xmi:id="uci_attr_t_refundedAt" name="refundedAt" visibility="private" type="uci_pt_Date"/>
+        <ownedAttribute xmi:id="uci_attr_t_succeededAt" name="succeededAt" visibility="private" type="uci_pt_Date"/>
+        <ownedOperation xmi:id="uci_op_t_conf" name="confirmer"/>
+        <ownedOperation xmi:id="uci_op_t_fail" name="echouer"/>
+        <ownedOperation xmi:id="uci_op_t_ref" name="rembourser"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="uci_cls_Notification" name="Notification">
+        <ownedAttribute xmi:id="uci_attr_n_id" name="id" visibility="private" type="uci_pt_ObjectId"/>
+        <ownedAttribute xmi:id="uci_attr_n_userId" name="userId" visibility="private" type="uci_pt_ObjectId"/>
+        <ownedAttribute xmi:id="uci_attr_n_type" name="type" visibility="private" type="uci_en_TypeNotification"/>
+        <ownedAttribute xmi:id="uci_attr_n_title" name="title" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_n_message" name="message" visibility="private" type="uci_pt_String"/>
+        <ownedAttribute xmi:id="uci_attr_n_read" name="read" visibility="private" type="uci_pt_Boolean"/>
+        <ownedAttribute xmi:id="uci_attr_n_relatedEntityId" name="relatedEntityId" visibility="private" type="uci_pt_ObjectId"/>
+        <ownedAttribute xmi:id="uci_attr_n_relatedEntityType" name="relatedEntityType" visibility="private" type="uci_en_RelatedEntityType"/>
+        <ownedOperation xmi:id="uci_op_n_lue" name="marquerCommeLue"/>
+      </packagedElement>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Package" xmi:id="uci_pkg_externes" name="Externes">
+      <packagedElement xmi:type="uml:Class" xmi:id="uci_cls_Passerelle" name="Passerelle_de_paiement_(demo)"/>
+    </packagedElement>
+  </uml:Model>
+</xmi:XMI>

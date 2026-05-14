@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.5"
+         xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
+         xmlns:uml="http://www.omg.org/spec/UML/20131001">
+  <!--
+    Modèle du domaine (FSEG) – CLASSES UNIQUEMENT (sans relations).
+    À utiliser si tu veux tracer les associations manuellement dans EA.
+  -->
+  <uml:Model xmi:id="m_modele_domaine_fseg_classes_only" name="Modele_Domaine_FSEG_ClassesOnly">
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="pt_String" name="String"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="pt_Number" name="Number"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="pt_Boolean" name="Boolean"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="pt_Date" name="Date"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="pt_ObjectId" name="ObjectId"/>
+
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_domaine" name="Domaine_Metier">
+      <!-- Enumerations -->
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_RoleUtilisateur" name="RoleUtilisateur">
+        <ownedLiteral xmi:id="lit_role_user" name="USER"/>
+        <ownedLiteral xmi:id="lit_role_admin" name="ADMIN"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_PreferenceRisque" name="PreferenceRisque">
+        <ownedLiteral xmi:id="lit_pr_low" name="LOW"/>
+        <ownedLiteral xmi:id="lit_pr_medium" name="MEDIUM"/>
+        <ownedLiteral xmi:id="lit_pr_high" name="HIGH"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_NiveauRisque" name="NiveauRisque">
+        <ownedLiteral xmi:id="lit_nr_low" name="LOW"/>
+        <ownedLiteral xmi:id="lit_nr_medium" name="MEDIUM"/>
+        <ownedLiteral xmi:id="lit_nr_high" name="HIGH"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_StatutProjet" name="StatutProjet">
+        <ownedLiteral xmi:id="lit_sp_draft" name="DRAFT"/>
+        <ownedLiteral xmi:id="lit_sp_await_ai" name="AWAITING_AI"/>
+        <ownedLiteral xmi:id="lit_sp_under_review" name="UNDER_REVIEW"/>
+        <ownedLiteral xmi:id="lit_sp_approved" name="APPROVED"/>
+        <ownedLiteral xmi:id="lit_sp_active" name="ACTIVE"/>
+        <ownedLiteral xmi:id="lit_sp_rejected" name="REJECTED"/>
+        <ownedLiteral xmi:id="lit_sp_funded" name="FUNDED"/>
+        <ownedLiteral xmi:id="lit_sp_closed" name="CLOSED"/>
+        <ownedLiteral xmi:id="lit_sp_suspended" name="SUSPENDED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_StatutInvestissement" name="StatutInvestissement">
+        <ownedLiteral xmi:id="lit_si_initiated" name="INITIATED"/>
+        <ownedLiteral xmi:id="lit_si_cancelling" name="CANCELLING"/>
+        <ownedLiteral xmi:id="lit_si_cancelled" name="CANCELLED"/>
+        <ownedLiteral xmi:id="lit_si_success" name="SUCCESS"/>
+        <ownedLiteral xmi:id="lit_si_failed" name="FAILED"/>
+        <ownedLiteral xmi:id="lit_si_refunded" name="REFUNDED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_StatutTransaction" name="StatutTransaction">
+        <ownedLiteral xmi:id="lit_st_pending" name="PENDING"/>
+        <ownedLiteral xmi:id="lit_st_succeeded" name="SUCCEEDED"/>
+        <ownedLiteral xmi:id="lit_st_failed" name="FAILED"/>
+        <ownedLiteral xmi:id="lit_st_refunded" name="REFUNDED"/>
+        <ownedLiteral xmi:id="lit_st_cancelled" name="CANCELLED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_StatutRetrait" name="StatutRetrait">
+        <ownedLiteral xmi:id="lit_sr_pending" name="PENDING"/>
+        <ownedLiteral xmi:id="lit_sr_ready" name="READY"/>
+        <ownedLiteral xmi:id="lit_sr_processing" name="PROCESSING"/>
+        <ownedLiteral xmi:id="lit_sr_completed" name="COMPLETED"/>
+        <ownedLiteral xmi:id="lit_sr_cancelled" name="CANCELLED"/>
+        <ownedLiteral xmi:id="lit_sr_failed" name="FAILED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_TypeSignalement" name="TypeSignalement">
+        <ownedLiteral xmi:id="lit_ts_fraud" name="FRAUD"/>
+        <ownedLiteral xmi:id="lit_ts_inapp" name="INAPPROPRIATE_CONTENT"/>
+        <ownedLiteral xmi:id="lit_ts_spam" name="SPAM"/>
+        <ownedLiteral xmi:id="lit_ts_other" name="OTHER"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_StatutSignalement" name="StatutSignalement">
+        <ownedLiteral xmi:id="lit_ss_pending" name="PENDING"/>
+        <ownedLiteral xmi:id="lit_ss_resolved" name="RESOLVED"/>
+        <ownedLiteral xmi:id="lit_ss_dismissed" name="DISMISSED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_TypeNotification" name="TypeNotification">
+        <ownedLiteral xmi:id="lit_nt_project_created" name="PROJECT_CREATED"/>
+        <ownedLiteral xmi:id="lit_nt_project_updated" name="PROJECT_UPDATED"/>
+        <ownedLiteral xmi:id="lit_nt_project_submitted" name="PROJECT_SUBMITTED"/>
+        <ownedLiteral xmi:id="lit_nt_project_archived" name="PROJECT_ARCHIVED"/>
+        <ownedLiteral xmi:id="lit_nt_project_deleted" name="PROJECT_DELETED"/>
+        <ownedLiteral xmi:id="lit_nt_project_approved" name="PROJECT_APPROVED"/>
+        <ownedLiteral xmi:id="lit_nt_project_rejected" name="PROJECT_REJECTED"/>
+        <ownedLiteral xmi:id="lit_nt_project_auto_rejected" name="PROJECT_AUTO_REJECTED"/>
+        <ownedLiteral xmi:id="lit_nt_project_published" name="PROJECT_PUBLISHED"/>
+        <ownedLiteral xmi:id="lit_nt_project_funded" name="PROJECT_FUNDED"/>
+        <ownedLiteral xmi:id="lit_nt_project_warning" name="PROJECT_WARNING"/>
+        <ownedLiteral xmi:id="lit_nt_project_funding_goal_lost" name="PROJECT_FUNDING_GOAL_LOST"/>
+        <ownedLiteral xmi:id="lit_nt_new_investment" name="NEW_INVESTMENT"/>
+        <ownedLiteral xmi:id="lit_nt_payment_success" name="PAYMENT_SUCCESS"/>
+        <ownedLiteral xmi:id="lit_nt_payment_failed" name="PAYMENT_FAILED"/>
+        <ownedLiteral xmi:id="lit_nt_payment_cancelled" name="PAYMENT_CANCELLED"/>
+        <ownedLiteral xmi:id="lit_nt_payment_refunded" name="PAYMENT_REFUNDED"/>
+        <ownedLiteral xmi:id="lit_nt_overfund_refunded" name="OVERFUND_REFUNDED"/>
+        <ownedLiteral xmi:id="lit_nt_project_expired" name="PROJECT_EXPIRED"/>
+        <ownedLiteral xmi:id="lit_nt_report_resolved" name="REPORT_RESOLVED"/>
+        <ownedLiteral xmi:id="lit_nt_payout_completed" name="PAYOUT_COMPLETED"/>
+        <ownedLiteral xmi:id="lit_nt_payout_processing" name="PAYOUT_PROCESSING"/>
+        <ownedLiteral xmi:id="lit_nt_payout_bank_details_request" name="PAYOUT_BANK_DETAILS_REQUEST"/>
+        <ownedLiteral xmi:id="lit_nt_payout_ready_for_approval" name="PAYOUT_READY_FOR_APPROVAL"/>
+        <ownedLiteral xmi:id="lit_nt_payout_cancelled" name="PAYOUT_CANCELLED"/>
+        <ownedLiteral xmi:id="lit_nt_project_reactivated" name="PROJECT_REACTIVATED"/>
+        <ownedLiteral xmi:id="lit_nt_project_suspended" name="PROJECT_SUSPENDED"/>
+        <ownedLiteral xmi:id="lit_nt_cancellation_failed" name="CANCELLATION_FAILED"/>
+        <ownedLiteral xmi:id="lit_nt_refund_failed" name="REFUND_FAILED"/>
+        <ownedLiteral xmi:id="lit_nt_account_deleted" name="ACCOUNT_DELETED"/>
+        <ownedLiteral xmi:id="lit_nt_new_report" name="NEW_REPORT"/>
+        <ownedLiteral xmi:id="lit_nt_user_deactivated" name="USER_DEACTIVATED"/>
+        <ownedLiteral xmi:id="lit_nt_payout_failed" name="PAYOUT_FAILED"/>
+        <ownedLiteral xmi:id="lit_nt_user_reactivated" name="USER_REACTIVATED"/>
+        <ownedLiteral xmi:id="lit_nt_password_reset_requested" name="PASSWORD_RESET_REQUESTED"/>
+        <ownedLiteral xmi:id="lit_nt_project_ai_report_ready" name="PROJECT_AI_REPORT_READY"/>
+      </packagedElement>
+
+      <!-- Value objects -->
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_ProfilUtilisateur" name="ProfilUtilisateur">
+        <ownedAttribute xmi:id="attr_prof_firstName" name="prenom" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_prof_lastName" name="nom" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_prof_phone" name="telephone" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_prof_riskPreference" name="preferenceRisque" visibility="private" type="en_PreferenceRisque"/>
+        <ownedAttribute xmi:id="attr_prof_preferredCategories" name="categoriesPreferees" visibility="private" type="pt_String" isMultivalued="true"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_RapportRisque" name="RapportRisque">
+        <ownedAttribute xmi:id="attr_rr_score" name="scoreRisque" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_rr_niveau" name="niveauRisque" visibility="private" type="en_NiveauRisque"/>
+        <ownedAttribute xmi:id="attr_rr_prob" name="probabiliteSucces" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_rr_date" name="dateAnalyse" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_rr_resume" name="resume" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_rr_avantages" name="avantages" visibility="private" type="pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="attr_rr_inconv" name="inconvenients" visibility="private" type="pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="attr_rr_amel" name="ameliorations" visibility="private" type="pt_String" isMultivalued="true"/>
+      </packagedElement>
+
+      <!-- Domain entities -->
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_Utilisateur" name="Utilisateur">
+        <ownedAttribute xmi:id="attr_u_id" name="id" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_u_email" name="email" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_u_role" name="role" visibility="private" type="en_RoleUtilisateur"/>
+        <ownedAttribute xmi:id="attr_u_actif" name="actif" visibility="private" type="pt_Boolean"/>
+        <ownedAttribute xmi:id="attr_u_dateSupp" name="dateSuppression" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_u_profil" name="profil" visibility="private" type="cls_ProfilUtilisateur"/>
+        <ownedOperation xmi:id="op_u_inscrire" name="inscrire"/>
+        <ownedOperation xmi:id="op_u_auth" name="authentifier"/>
+        <ownedOperation xmi:id="op_u_reset" name="demanderReinitialisationMotDePasse"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_Projet" name="Projet">
+        <ownedAttribute xmi:id="attr_p_id" name="id" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_p_titre" name="titre" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_p_desc" name="description" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_p_cat" name="categorie" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_p_obj" name="objectifFinancement" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_p_collecte" name="montantCollecte" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_p_statut" name="statut" visibility="private" type="en_StatutProjet"/>
+        <ownedAttribute xmi:id="attr_p_debut" name="dateDebut" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_p_limite" name="dateLimite" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_p_motif" name="motifRejet" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_p_archive" name="archive" visibility="private" type="pt_Boolean"/>
+        <ownedAttribute xmi:id="attr_p_pub" name="datePublication" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_p_funded" name="dateFinancement" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_p_risque" name="rapportRisque" visibility="private" type="cls_RapportRisque"/>
+        <ownedOperation xmi:id="op_p_creer" name="creer"/>
+        <ownedOperation xmi:id="op_p_modifier" name="modifier"/>
+        <ownedOperation xmi:id="op_p_soumettre" name="soumettrePourAnalyse"/>
+        <ownedOperation xmi:id="op_p_publier" name="publier"/>
+        <ownedOperation xmi:id="op_p_suspendre" name="suspendre"/>
+        <ownedOperation xmi:id="op_p_reactiver" name="reactiver"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_Investissement" name="Investissement">
+        <ownedAttribute xmi:id="attr_i_id" name="id" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_i_montant" name="montant" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_i_statut" name="statut" visibility="private" type="en_StatutInvestissement"/>
+        <ownedAttribute xmi:id="attr_i_motif" name="motifAnnulation" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_i_dateAnn" name="dateAnnulation" visibility="private" type="pt_Date"/>
+        <ownedOperation xmi:id="op_i_init" name="initierPaiement"/>
+        <ownedOperation xmi:id="op_i_annuler" name="annuler"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_Transaction" name="Transaction">
+        <ownedAttribute xmi:id="attr_t_id" name="id" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_t_prest" name="prestatairePaiement" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_t_idp" name="idPaiementPrestataire" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_t_montant" name="montant" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_t_statut" name="statut" visibility="private" type="en_StatutTransaction"/>
+        <ownedAttribute xmi:id="attr_t_tent" name="numeroTentative" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_t_ref" name="statutRemboursement" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_t_dateR" name="dateRemboursement" visibility="private" type="pt_Date"/>
+        <ownedOperation xmi:id="op_t_conf" name="confirmer"/>
+        <ownedOperation xmi:id="op_t_fail" name="echouer"/>
+        <ownedOperation xmi:id="op_t_ref" name="rembourser"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_Retrait" name="Retrait">
+        <ownedAttribute xmi:id="attr_r_id" name="id" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_r_montant" name="montant" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_r_statut" name="statut" visibility="private" type="en_StatutRetrait"/>
+        <ownedAttribute xmi:id="attr_r_rib" name="coordonneesBancaires" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_r_idv" name="idVirement" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_r_dateC" name="dateCompletion" visibility="private" type="pt_Date"/>
+        <ownedOperation xmi:id="op_r_rib" name="fournirCoordonneesBancaires"/>
+        <ownedOperation xmi:id="op_r_app" name="approuver"/>
+        <ownedOperation xmi:id="op_r_trait" name="traiterVirement"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_Notification" name="Notification">
+        <ownedAttribute xmi:id="attr_n_id" name="id" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_n_type" name="type" visibility="private" type="en_TypeNotification"/>
+        <ownedAttribute xmi:id="attr_n_titre" name="titre" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_n_msg" name="message" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_n_lu" name="lu" visibility="private" type="pt_Boolean"/>
+        <ownedAttribute xmi:id="attr_n_date" name="dateCreation" visibility="private" type="pt_Date"/>
+        <ownedOperation xmi:id="op_n_lue" name="marquerCommeLue"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_Commentaire" name="Commentaire">
+        <ownedAttribute xmi:id="attr_c_id" name="id" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_c_lab" name="libelleAuteur" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_c_contenu" name="contenu" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_c_mask" name="masque" visibility="private" type="pt_Boolean"/>
+        <ownedAttribute xmi:id="attr_c_motif" name="motifMasquage" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_c_supp" name="dateSuppression" visibility="private" type="pt_Date"/>
+        <ownedOperation xmi:id="op_c_pub" name="publier"/>
+        <ownedOperation xmi:id="op_c_sup" name="supprimer"/>
+        <ownedOperation xmi:id="op_c_mod" name="moderationMasquer"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_Signalement" name="Signalement">
+        <ownedAttribute xmi:id="attr_s_id" name="id" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_s_type" name="type" visibility="private" type="en_TypeSignalement"/>
+        <ownedAttribute xmi:id="attr_s_desc" name="description" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_s_statut" name="statut" visibility="private" type="en_StatutSignalement"/>
+        <ownedAttribute xmi:id="attr_s_res" name="resolution" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_s_dateR" name="dateResolution" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_s_dateC" name="dateCreation" visibility="private" type="pt_Date"/>
+        <ownedOperation xmi:id="op_s_resoudre" name="resoudre"/>
+        <ownedOperation xmi:id="op_s_rejeter" name="rejeter"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_JournalAudit" name="JournalAudit">
+        <ownedAttribute xmi:id="attr_j_id" name="id" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_j_action" name="action" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_j_typeC" name="typeCible" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_j_idC" name="idCible" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_j_date" name="dateAction" visibility="private" type="pt_Date"/>
+      </packagedElement>
+
+      <!-- Constraints -->
+      <packagedElement xmi:type="uml:Constraint" xmi:id="cst_email_unique" name="EmailUnique">
+        <specification xmi:type="uml:OpaqueExpression" xmi:id="cst_email_unique_spec">
+          <language>OCL</language>
+          <body>Utilisateur.allInstances()-&gt;isUnique(u | u.email)</body>
+        </specification>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Constraint" xmi:id="cst_funding_not_over" name="CollecteNeDepassePasObjectif">
+        <specification xmi:type="uml:OpaqueExpression" xmi:id="cst_funding_not_over_spec">
+          <language>OCL</language>
+          <body>Projet.montantCollecte &lt;= Projet.objectifFinancement</body>
+        </specification>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Constraint" xmi:id="cst_single_payout" name="UnRetraitParProjet">
+        <specification xmi:type="uml:OpaqueExpression" xmi:id="cst_single_payout_spec">
+          <language>OCL</language>
+          <body>Projet.retrait-&gt;size() &lt;= 1</body>
+        </specification>
+      </packagedElement>
+    </packagedElement>
+  </uml:Model>
+</xmi:XMI>

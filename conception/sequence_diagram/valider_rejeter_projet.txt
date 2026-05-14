@@ -1,0 +1,69 @@
+@startuml UC_Valider_Rejeter_Projet_Admin
+
+' ============================
+'  Normes FSEG (ECB)
+'  - Acteur : Administrateur
+'  - <<boundary>> : IHM_Administration
+'  - <<control>>  : Controleur_Administration
+'  - <<entity>>   : Projet, Notification
+' ============================
+
+hide footbox
+skinparam shadowing false
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 12
+skinparam sequenceMessageAlign left
+skinparam ParticipantPadding 10
+skinparam BoxPadding 6
+skinparam maxMessageSize 45
+skinparam wrapWidth 150
+skinparam dpi 150
+scale 0.85
+
+title UC Valider ou rejeter un projet (Admin) — Décision de revue (ECB/FSEG)
+
+actor "Administrateur" as A
+boundary "IHM_Administration" as IHM
+control "Controleur_Administration" as CA
+entity "Projet" as P
+entity "Notification" as N
+
+== Consultation des projets en revue ==
+A -> IHM : consulterProjetsEnAttente()
+IHM -> CA : listerProjets(status=UNDER_REVIEW)
+CA -> P : rechercher(status=UNDER_REVIEW)
+CA --> IHM : afficherListe(projets)
+
+== Décision admin ==
+A -> IHM : validerOuRejeter(projectId, decision, feedback)
+IHM -> CA : validateProject(adminId, projectId, decision, feedback)
+
+CA -> P : charger(projectId)
+alt Projet introuvable
+  CA --> IHM : erreur("Projet introuvable")
+  IHM --> A : message d’erreur
+else État invalide (status != UNDER_REVIEW)
+  CA --> IHM : erreur("État invalide : UNDER_REVIEW requis")
+  IHM --> A : message d’erreur
+else Analyse IA manquante / non terminée
+  CA --> IHM : erreur("Analyse IA non terminée")
+  IHM --> A : message d’erreur
+else Analyse IA trop ancienne
+  CA --> IHM : erreur("Analyse IA trop ancienne")
+  IHM --> A : message d’erreur
+else Date limite dépassée
+  CA --> IHM : erreur("Date limite dépassée")
+  IHM --> A : message d’erreur
+else Décision autorisée
+  alt decision = APPROVED
+    CA -> P : maj(status=APPROVED)
+    CA -> N : creer(type=PROJECT_APPROVED, destinataire=créateur)
+    CA --> IHM : afficherConfirmation("Projet approuvé")
+  else decision = REJECTED
+    CA -> P : maj(status=REJECTED, rejectionReason=feedback)
+    CA -> N : creer(type=PROJECT_REJECTED, destinataire=créateur)
+    CA --> IHM : afficherConfirmation("Projet rejeté")
+  end
+end
+
+@enduml

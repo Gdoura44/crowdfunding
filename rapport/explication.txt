@@ -1,0 +1,153 @@
+================================================================================
+FICHIER D'EXPLICATION — SOUTENANCE PFE (FSEG Sfax, Informatique de gestion)
+Plateforme de financement collaboratif
+================================================================================
+Objectif : vous aider à répondre au jury et à expliquer les parties « techniques »
+du code en les reliant au métier (gestion, financement, risque, conformité).
+
+================================================================================
+1. POSITIONNEMENT « INFORMATIQUE DE GESTION »
+================================================================================
+Vous ne présentez pas seulement du code : vous présentez un SI qui supporte
+des processus métier (soumission de projet, validation, investissement, retrait,
+modération). Le jury FSEG attend souvent :
+  • la chaîne de valeur (acteurs, règles, documents / états) ;
+  • la traçabilité et la sécurité des données sensibles ;
+  • le choix d’architecture raisonnable (pas « la mode » sans justification).
+
+Phrase type d’introduction :
+« L’application automatise le cycle de vie d’un projet de financement participatif,
+avec contrôle administratif, analyse de risque et flux financiers démo sécurisés. »
+
+================================================================================
+2. QUESTIONS FRÉQUENTES DU JURY — AVEC RÉPONSES COURTES
+================================================================================
+
+Q1. Pourquoi MongoDB et pas une base relationnelle ?
+R. Le modèle « document » convient bien à un projet dont les champs évoluent
+    (ex. sous-document aiAnalysis sur Project). Les références ObjectId remplacent
+    les clés étrangères logiques. En contrepartie, on encadre les opérations sensibles
+    (ex. plafond de financement) par des mises à jour conditionnelles ou des transactions
+    lorsque le replica set le permet.
+
+Q2. Comment évitez-vous le sur-financement si deux investisseurs paient en même temps ?
+R. Côté serveur, on n’augmente currentFunding que si la contrainte métier est respectée
+    (ex. update atomique : currentFunding + montant ≤ objectif). C’est une règle de
+    gestion appliquée au niveau persistance, pas seulement dans l’interface.
+
+Q3. Qu’est-ce qu’un webhook et pourquoi pour le paiement ?
+R. Le paiement est souvent confirmé de façon asynchrone par le prestataire. Le webhook
+    est l’URL que le serveur du paiement rappelle pour dire « payé » ou « échoué ».
+    Le traitement doit être idempotent : le même événement peut arriver plusieurs fois ;
+    on ne crédite qu’une fois grâce à des identifiants uniques côté transaction.
+
+Q4. Pourquoi JWT dans des cookies HttpOnly ?
+R. Réduire le vol de jeton par JavaScript (XSS) et structurer l’auth côté navigateur.
+    C’est un compromis classique pour une SPA : le front ne manipule pas le secret.
+
+Q5. À quoi sert BullMQ / Redis ?
+R. Découpler les actions lentes ou fragiles (envoi d’e-mails, retries) du thread HTTP
+    de l’API. En gestion : on ne bloque pas l’utilisateur sur l’envoi SMTP ; on enfile
+    un job avec politique de nouvelle tentative.
+
+Q6. Pourquoi n8n ?
+R. Orchestrer des workflows (appel LLM, retries, branchements) sans alourdir le cœur
+    Express. Le backend expose des routes /internal sécurisées ; n8n rappelle ces
+    routes quand l’analyse est terminée.
+
+Q7. Différence entre /api et /internal ?
+R. /api : utilisateurs authentifiés (cookies, rate limit global).
+    /internal : automates (n8n, cron) avec un secret Bearer — surface réduite et
+    non soumise au même rate limit public.
+
+Q8. Le paiement est-il réel ?
+R. Version démo : passerelle simulée + webhook signé pour reproduire le flux réel
+    (création de lien, confirmation asynchrone). En production on brancherait un PSP
+    réel en conservant la même logique métier côté services.
+
+Q9. Comment protégez-vous les coordonnées bancaires ?
+R. Chiffrement applicatif (ex. AES-GCM) avec clé hors code ; stockage du texte chiffré
+    en base. C’est une exigence de confidentialité alignée RGPD / bonnes pratiques.
+
+Q10. Que fait l’analyse de risque IA ?
+R. À la soumission, le projet passe en attente d’analyse ; un workflow enrichit le
+     document projet (champs de synthèse / score). L’admin s’appuie sur ce résultat
+     pour valider ou rejeter, avec des règles (ex. cohérence, seuils) décrites dans le rapport.
+
+Q11. Limites du travail ?
+R. Paiement démo, pas d’intégration bancaire réelle ; charge et scalabilité non mesurées
+    en production ; certaines politiques (OTP démo) sont pédagogiques.
+
+Q12. Qu’apporteriez-vous en V2 ?
+R. PSP réel, KYC léger, tableau de bord reporting avancé, tests de charge, i18n,
+    renforcement monitoring (logs structurés, traçabilité métier).
+
+================================================================================
+3. PARTIES DU CODE « COMPLIQUÉES » — EXPLICATION SIMPLE
+================================================================================
+
+3.1 Idempotence et webhook (investmentService, webhookRoutes)
+    Problème : le prestataire peut renvoyer plusieurs fois le même événement.
+    Idée : associer paiement ↔ transaction avec des identifiants stables (provider,
+    providerPaymentId). Si le webhook revient, on met à jour ou on sort sans dupliquer
+    l’investissement réussi.
+    Métier : un investisseur ne doit pas être débité « deux fois » pour un seul acte.
+
+3.2 withOptionalTransaction (utils/withOptionalTransaction.js)
+    Problème : MongoDB n’active les transactions multi-documents que sur un replica set.
+    Idée : la fonction exécute le même bloc soit dans une session transactionnelle,
+    soit sans session si l’environnement est mono-serveur / sans replica set.
+    Métier : garder des écritures cohérentes (investissement + transaction) quand c’est
+    possible, sans casser le poste de développement.
+
+3.3 Chaîne analyse de risque (projectService + riskAnalysisQueue + workflowRoutes)
+    Enchaînement typique :
+      soumission → statut AWAITING_AI → enqueue job BullMQ « risk-analysis »
+      → n8n consomme le job → appels externes (LLM) → callback HTTP POST /internal/...
+      → mise à jour du projet + notifications.
+    Métier : séparer « dépôt de dossier » et « décision automatisée / assistée ».
+
+3.4 projectLifecycle.js (états et transitions)
+    C’est le « workflow documentaire » du projet sous forme de machine à états :
+    DRAFT → AWAITING_AI → UNDER_REVIEW → APPROVED → ACTIVE → FUNDED / CLOSED / SUSPENDED.
+    transitionProjectStatus vérifie qu’on ne « saute » pas une étape interdite.
+    Métier : même idée qu’un circuit de validation dans un ERP (statuts autorisés).
+
+3.5 Anti auto-investissement et fenêtre d’annulation (investmentService)
+    Règles métier codées : le créateur ne finance pas son propre projet ; annulation
+    possible seulement dans des cas définis (ex. paiement initié vs confirmé + délai).
+    À expliquer comme « contrôle interne » / conformité au rôle porteur vs investisseur.
+
+3.6 Retraits (payoutService) — états READY / PROCESSING / COMPLETED
+    Modèle de gestion : demande → vérifications → prêt → validation admin → virement
+    (démo) → clôture. Les échecs alimentent des files / événements pour reprise.
+
+3.7 Rate limiting (app.js sur /api)
+    Protège l’API contre abus et bursts (auth, commentaires, etc.). /internal est exclu
+    pour ne pas bloquer les automates ; la sécurité repose alors sur le Bearer secret.
+
+3.8 Recommandations (recommendationService)
+    Souvent demandé : « est-ce de l’IA ? »
+    Réponse honnête : dans la version livrée, le score est déterministe (profil,
+    risque issu de l’analyse déjà stockée, progression, récence). Pas d’appel LLM dans
+    ce service : on réutilise le résultat de l’analyse amont.
+
+================================================================================
+4. VOCABULAIRE UTILE EN SALLE (FR / SI)
+================================================================================
+• Acteur / rôle : porteur, investisseur, administrateur, système externe (PSP, n8n).
+• Couche présentation : SPA React (IHM).
+• Couche applicative : API REST + règles métier (services).
+• Couche données : collections MongoDB (documents).
+• Traçabilité : notifications, journaux d’audit (si présents dans votre version).
+• Idempotence : « rejouer sans effet de bord dupliqué ».
+
+================================================================================
+5. CONSEILS PRATIQUES LE JOUR J
+================================================================================
+• Répondez en 30–60 secondes : conclusion d’abord, détail ensuite si on vous le demande.
+• Si une question dépasse le code : « Dans notre périmètre PFE, nous avons choisi X
+  pour Y ; en entreprise on ajouterait Z (contrat, conformité, monitoring). »
+• Montrez le fichier + la fonction (1 écran) plutôt que de paraphraser 10 minutes.
+
+Fin du fichier — à adapter avec vos captures / numéros de pages du rapport si besoin.

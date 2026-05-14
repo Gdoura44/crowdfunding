@@ -1,0 +1,82 @@
+@startuml UC_Approuver_Retrait_Admin
+
+' ============================
+'  Normes FSEG (ECB)
+'  - Acteur : Administrateur
+'  - <<boundary>> : IHM_Administration
+'  - <<control>>  : Controleur_Administration
+'  - <<entity>>   : Retrait(Payout), Projet, Notification
+'  - <<external>> : Prestataire_Virement_(demo)
+' ============================
+
+hide footbox
+skinparam shadowing false
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 12
+skinparam sequenceMessageAlign left
+skinparam ParticipantPadding 10
+skinparam BoxPadding 6
+skinparam maxMessageSize 45
+skinparam wrapWidth 150
+skinparam dpi 150
+scale 0.85
+
+title UC Approuver un retrait (Admin) — Initiation et confirmation (ECB/FSEG)
+
+actor "Administrateur" as A
+boundary "IHM_Administration" as IHM
+control "Controleur_Administration" as CA
+entity "Retrait (Payout)" as R
+entity "Projet" as P
+entity "Notification" as N
+participant "Prestataire_Virement_(demo)" as Bank <<external>>
+
+== Consultation des retraits ==
+A -> IHM : consulterRetraitsEnAttente()
+IHM -> CA : listerRetraits(status=READY)
+CA -> R : rechercher(status=READY)
+CA --> IHM : afficherListe(retraits)
+
+== Approbation du retrait ==
+A -> IHM : approuverRetrait(payoutId, notes)
+IHM -> CA : approvePayout(adminId, payoutId, notes)
+
+CA -> R : charger(payoutId)
+alt Retrait introuvable
+  CA --> IHM : erreur("Retrait introuvable")
+  IHM --> A : message d’erreur
+else Retrait non prêt / coordonnées manquantes
+  CA --> IHM : erreur("Retrait non prêt ou coordonnées manquantes")
+  IHM --> A : message d’erreur
+else Remboursements sur-financement en attente
+  CA --> IHM : erreur("Remboursements en attente : approbation impossible")
+  IHM --> A : message d’erreur
+else Approbation autorisée
+  CA -> R : maj(status=PROCESSING, transferInitiatedAt, provider, providerTransferId, notes)
+  CA -> Bank : initierVirement(amount, referenceId=payoutId)
+  Bank --> CA : transferUrl, providerTransferId
+  CA -> N : creer(type=PAYOUT_PROCESSING, destinataire=créateur)
+  CA --> IHM : afficherConfirmation(transferUrl)
+end
+
+== Confirmation du prestataire (simulation) ==
+note over A,IHM
+Dans la version démo, l’administrateur ouvre la page\n
+du prestataire simulé et confirme le statut du virement.
+end note
+
+A -> IHM : confirmerVirement(payoutId, providerTransferId, status)
+IHM -> CA : confirmMockPayoutTransfer(adminId, payoutId, providerTransferId, status)
+CA -> R : verifierEtat(status=PROCESSING) et identifiant transfert
+
+alt status = COMPLETED
+  CA -> R : maj(status=COMPLETED, completedAt)
+  CA -> N : creer(type=PAYOUT_COMPLETED, destinataire=créateur)
+  CA --> IHM : afficherSucces()
+else status = FAILED
+  CA -> R : maj(status=FAILED, failedAt, failureReason)
+  CA -> N : creer(type=PAYOUT_FAILED, destinataire=créateur)
+  CA --> IHM : afficherEchec()
+end
+
+@enduml

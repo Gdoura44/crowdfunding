@@ -67,7 +67,7 @@ async function createInvestment({ investorId, projectId, amount }) {
     throw new HttpError(400, "Vous ne pouvez pas investir dans votre propre projet.");
   }
 
-  // Conception: générer la clé d’idempotence AVANT tout appel au provider.
+  // générer la clé d’idempotence AVANT tout appel au provider.
   const investmentId = new mongoose.Types.ObjectId();
 
   const providerResp = mockProvider.createPaymentLink({

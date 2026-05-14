@@ -1,0 +1,85 @@
+@startuml diagramme_paquetages_pfe
+' =============================================================================
+' Diagramme de paquetages — vue logique (rapport PFE)
+' - Lecture « FSEG » : découpage en couches (présentation, applicatif, externes)
+'   et paquetages métier cohérents avec le chapitre besoins / conception.
+' - Alignement code : backend/routes/api/index.js, routes/internal/*, app.js
+' - Rendu fiable : direction verticale (top → bottom), pas de colonne droite
+'   (Graphviz/PlantUML y place souvent les nœuds sous le serveur).
+' Export : plantuml -tpng diagramme_paqueage.txt
+' =============================================================================
+
+top to bottom direction
+skinparam dpi 150
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 11
+skinparam monochrome true
+skinparam shadowing false
+skinparam handwritten false
+
+skinparam packageStyle rectangle
+skinparam packageFontStyle bold
+skinparam packageFontSize 12
+skinparam PackagePadding 10
+skinparam Padding 4
+
+skinparam ArrowColor black
+skinparam packageBorderColor black
+skinparam packageBackgroundColor white
+skinparam linetype ortho
+skinparam ranksep 28
+skinparam nodesep 18
+
+title Diagramme de paquetages — vue logique\n(plateforme de financement collaboratif)
+
+' --- Couche présentation (IHM / boundary) ---
+package "Couche présentation" as COUCH_PRES {
+  rectangle "Interface utilisateur\n• React (SPA, Vite)\n• Appels REST /api/*\n• Authentification : cookies HttpOnly" as UI
+}
+
+' --- Couche applicative (logique métier + exposition API) ---
+package "Couche applicative — serveur Node.js / Express" as COUCH_APP {
+
+  rectangle "Paquetage Comptes\n----\nREST : /api/auth · /api/users\nServices : authService, accountService" as PKG_COMPTES
+
+  rectangle "Paquetage Projets\n----\nREST : /api/projects · /api/recommendations\nPOST /api/projects/:id/chat · …/comments\nServices : projectService, recommendationService,\ngeminiChatService" as PKG_PROJ
+
+  rectangle "Paquetage Contributions & finance\n----\nREST : /api/investments · /api/payouts\nPOST /api/webhooks/mock-payments\nServices : investmentService, payoutService" as PKG_FIN
+
+  rectangle "Paquetage Échanges & modération\n----\nREST : /api/notifications · /api/reports\nServices : notificationService, reportService" as PKG_ECH
+
+  rectangle "Paquetage Administration\n----\nREST : /api/admin/*\nServices : adminProjectService, adminUserService,\nadminOpsService" as PKG_ADM
+
+  rectangle "Paquetage API interne\n----\nREST : /internal/* (Bearer token)\nworkflowRoutes · cronRoutes\nServices : workflowInternalService,\ncronService, investmentCronService,\nsessionCronService, geminiRiskService,\nriskHeuristicService" as PKG_INT
+
+  PKG_COMPTES -[hidden]right- PKG_PROJ
+  PKG_PROJ -[hidden]right- PKG_FIN
+  PKG_ECH -[hidden]right- PKG_ADM
+  PKG_ADM -[hidden]right- PKG_INT
+  PKG_COMPTES -[hidden]down- PKG_ECH
+  PKG_PROJ -[hidden]down- PKG_ADM
+  PKG_FIN -[hidden]down- PKG_INT
+}
+
+' --- Systèmes externes & persistance (une rangée sous le serveur) ---
+together {
+  database "MongoDB\n(persistance document)" as EXT_DB
+  queue "BullMQ / Redis\n(files asynchrones)" as EXT_Q
+  cloud "n8n\n(orchestration des workflows)" as EXT_N8N
+}
+
+EXT_DB -[hidden]right- EXT_Q
+EXT_Q -[hidden]right- EXT_N8N
+
+COUCH_APP -[hidden]down- EXT_Q
+
+' --- Dépendances (entre frontières de paquetages / systèmes externes) ---
+COUCH_PRES -down-> COUCH_APP : HTTPS (JSON)
+
+COUCH_APP -down-> EXT_DB : persistance (Mongoose)
+
+COUCH_APP -down-> EXT_Q : files asynchrones (BullMQ)
+
+EXT_N8N -up-> COUCH_APP : callbacks HTTP\nPOST /internal/*
+
+@enduml

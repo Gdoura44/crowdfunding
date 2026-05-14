@@ -2,7 +2,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { investmentsApi } from "../../api/investments";
 import { extractApiError } from "../../utils/apiError";
-import Guidance from "../../components/ui/Guidance.jsx";
 import Alert from "../../components/ui/Alert.jsx";
 import { onlyDigits, isValidExpiry } from "./cardUtils.js";
 import { useMockPaymentQuery } from "./useMockPaymentQuery.js";
@@ -140,10 +139,6 @@ export default function MockPaymentProviderPage() {
           </div>
 
           <hr className="my-3" />
-          <Guidance title="Avant de continuer" variant="info">
-            Renseignez les champs requis, puis choisissez <strong>Poursuivre — succès</strong> ou{" "}
-            <strong>Poursuivre — échec</strong> pour lancer la vérification et finaliser l’opération.
-          </Guidance>
 
           <div className="row g-3 small">
             <div className="col-12 col-sm-6">

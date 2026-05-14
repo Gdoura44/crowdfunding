@@ -1,0 +1,129 @@
+================================================================================
+EXPLICATION DES CLASSES DU DOMAINE (diagrammes de classes / rapport PFE)
+================================================================================
+Ce texte complète les diagrammes « classes participantes » : il explique **pourquoi**
+certaines classes existent dans le modèle, surtout lorsqu’elles ne sont pas
+évidentes au premier regard (Transaction, UserProfile, AiAnalysis,
+Orchestrateur_Analyse_Risque, etc.).
+
+--------------------------------------------------------------------------------
+1. Transaction — pourquoi une classe en plus de Investissement ?
+--------------------------------------------------------------------------------
+**Investissement** représente l’**intention métier** : un utilisateur veut
+contribuer un montant donné à un projet (lien investisseur–projet, statut global
+de la contribution : initié, succès, échec, annulé, remboursé, etc.).
+
+**Transaction** représente **un passage technique de paiement** lié à cette
+intention : appel à la passerelle (démo), identifiant côté prestataire
+(`providerPaymentId`), montant, statut du paiement (`PENDING`, `SUCCEEDED`,
+`FAILED`, …), tentatives de remboursement, dates, champs liés au flux OTP mock,
+etc.
+
+**Pourquoi plusieurs transactions pour un même investissement ?**
+- À la création de l’investissement, le système crée une première transaction
+  (tentative n° 1).
+- En cas d’**échec**, l’utilisateur peut **relancer** le paiement : une **nouvelle**
+  transaction est créée pour le **même** investissement, avec un numéro de
+  tentative supérieur (`attemptNumber`). Chaque essai garde son propre historique
+  et son propre identifiant prestataire.
+- L’index unique composé `(investmentId, attemptNumber)` garantit qu’on ne
+  duplique pas une même tentative, tout en autorisant plusieurs lignes pour un
+  même investissement.
+
+En résumé : **Investissement = « quoi » on finance** ; **Transaction = « comment »
+on paie (et combien de fois on a essayé)**. Séparer les deux clarifie le
+diagramme de cas comme « investir » ou « annuler une contribution » et reste
+aligné sur la persistance MongoDB (`Investment` vs `Transaction`).
+
+--------------------------------------------------------------------------------
+2. UserProfile — pourquoi une classe séparée d’Utilisateur ?
+--------------------------------------------------------------------------------
+Dans l’**implémentation** (Mongoose), le profil n’est **pas** une collection à
+part : c’est un **sous-document** `profile` embarqué dans le document `User`
+(champs prénom, nom, téléphone, préférence de risque, catégories préférées, etc.).
+
+Dans le **modèle de classes du domaine** (vue FSEG / UML), on représente souvent
+**UserProfile** (ou équivalent) comme **classe distincte** reliée à **Utilisateur**
+par une **composition** :
+- cela **met en valeur** les données de profil comme un **regroupement métier**
+  lisible sur le diagramme ;
+- cela permet de parler des **attributs de profil** sans alourdir la classe
+  **Utilisateur** (email, rôle, compte actif, etc.) sur le même compartiment ;
+- la composition traduit le cycle de vie : le profil « appartient » à
+  l’utilisateur ; il n’existe pas comme entité indépendante hors utilisateur.
+
+**Multiplicité** : avec `default: () => ({})` dans le schéma, chaque utilisateur
+a toujours un bloc profil (éventuellement vide) → **1 — 1** entre Utilisateur et
+UserProfile sur le schéma aligné code.
+
+--------------------------------------------------------------------------------
+3. AiAnalysis — pourquoi une classe séparée de Projet ?
+--------------------------------------------------------------------------------
+**AiAnalysis** regroupe le **résultat de l’analyse de risque / IA** associée à
+un projet : score, niveau de risque, probabilité de succès, date d’analyse,
+extrait du rapport (avantages, inconvénients, pistes d’amélioration, etc.).
+
+Dans le code, c’est encore un **sous-document** (`aiAnalysis`) **embarqué** dans
+`Project`, pas une collection séparée.
+
+Sur le diagramme de domaine, une classe **AiAnalysis** séparée reliée à **Projet**
+par **composition** permet de :
+- isoler visuellement tout ce qui concerne l’**évaluation automatique** du projet ;
+- montrer que cette analyse est **optionnelle** ou **absente** tant que le projet
+  n’a pas été analysé (`default: undefined` côté schéma) → multiplicité typique
+  **1 — 0..1** (un projet, au plus une analyse embarquée à un instant donné) ;
+- préparer la lecture des **cas d’utilisation** « soumettre pour analyse »,
+« valider / rejeter », etc., où l’état du projet dépend du retour d’analyse.
+
+--------------------------------------------------------------------------------
+4. Autres classes souvent questionnées (rappel court)
+--------------------------------------------------------------------------------
+**Notification**
+- Toujours liée à un **destinataire** (`userId` → **Utilisateur**).
+- Peut référencer **optionnellement** une entité métier via `relatedEntityId` +
+  `relatedEntityType` (projet, investissement, payout, signalement, utilisateur).
+  Ce n’est pas une « classe polymorphe » en base : c’est un **motif de conception**
+  (plusieurs associations possibles sur le diagramme ou une note UML).
+
+**Payout** (retrait)
+- Représente le **versement au créateur** après financement ; lié à un **projet**
+  et au **bénéficiaire** (créateur). En base, **au plus un** payout par projet
+  (index unique sur `projectId`).
+
+**Investissement vs Transaction**
+- **Investissement** : engagement de financement.
+- **Transaction** : exécution / tentative d’exécution du paiement lié à cet
+  engagement.
+
+--------------------------------------------------------------------------------
+5. Orchestrateur_Analyse_Risque — qu’est-ce que c’est sur le diagramme ?
+--------------------------------------------------------------------------------
+**Orchestrateur_Analyse_Risque** n’est **pas** une entité métier stockée en base
+(aucune collection « orchestrateur »). C’est un **système externe** au domaine
+classique Projet / Utilisateur : il représente le **traitement asynchrone** de
+l’analyse de risque (file de jobs **BullMQ**, enchaînements type **n8n**, appels
+LLM / heuristiques, etc., selon ton architecture documentée dans les séquences).
+
+**Rôle fonctionnel**
+- Lors de la **soumission** d’un projet (ou d’un rappel d’analyse), la plateforme
+  **demande** à cet orchestrateur d’exécuter le travail long (scraping, modèle,
+  agrégation du rapport).
+- Quand le traitement se termine, un **callback** (route interne / webhook)
+  permet au serveur applicatif de **mettre à jour** le projet (champ embarqué
+  `aiAnalysis`, changement de statut, notifications, etc.).
+
+**Pourquoi une « classe » sur le diagramme de classes participantes**
+- En **FSEG / ECB**, on matérialise les **acteurs ou systèmes externes** pour
+  montrer que le cas d’utilisation **dépend** d’un composant hors du paquetage
+  « entités » pur.
+- Le lien vers **Projet** est en général une **dépendance** (ou un message depuis
+  le contrôleur vers l’externe dans la séquence) : *solliciter l’analyse de
+  risque* — sans attribut `ObjectId` vers une table « Orchestrateur ».
+
+En bref : **Orchestrateur_Analyse_Risque = vue UML du moteur d’analyse asynchrone**,
+pas une table MongoDB ; il explique **qui** produit le résultat stocké ensuite
+dans **AiAnalysis** (sous-document du **Projet**).
+
+--------------------------------------------------------------------------------
+FIN
+================================================================================

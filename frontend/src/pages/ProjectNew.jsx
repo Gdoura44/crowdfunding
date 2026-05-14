@@ -196,19 +196,12 @@ export default function ProjectNew() {
           <Stepper steps={["Infos", "Calendrier", "Revue"]} current={step} />
         </div>
         <Guidance title="Rédaction & budget" variant="info">
-          L’analyse IA se base surtout sur votre <strong>description</strong>. Une description claire et
-          structurée (quelques chiffres, un mini-plan, budget) aide à mieux évaluer le projet et rassure les
-          contributeurs. Si votre <strong>objectif</strong> dépasse votre budget estimé, expliquez brièvement à quoi
-          servira la marge (ex. plan B) ou comment elle sera utilisée.
-          <div className="mt-2">
-            <strong>Budget :</strong> l’estimation des dépenses est déduite de votre description. Si l’écart entre
-            l’objectif et les besoins dépasse <strong>30%</strong>, le projet est <strong>rejeté automatiquement</strong>.
-          </div>
+          L’analyse IA lit surtout votre <strong>description</strong> : restez concret, avec{" "}
+          <strong>quelques chiffres</strong> pour le budget et les besoins. Pour la structure complète (sections,
+          jalons, risques, etc.), utilisez <strong>Insérer un modèle</strong>. Si l’écart entre l’objectif et le budget
+          décrit dans le texte dépasse <strong>30&nbsp;%</strong>, le projet sera {" "}
+          <strong>rejeté automatiquement</strong>.
         </Guidance>
-        <Alert variant="secondary">
-          <strong>Important :</strong> FinCollab est une plateforme de <strong>soutien</strong> (don / contribution).
-          Ce n’est <strong>pas</strong> un produit financier : aucun rendement n’est garanti.
-        </Alert>
 
         <div className="row g-4 align-items-start">
           <div className="col-12 col-lg-7">

@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.5"
+         xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
+         xmlns:uml="http://www.omg.org/spec/UML/20131001">
+  <!--
+    Classes participantes — UC_Approuver_Retrait_(Admin)
+    Alignement code-first : backend/models/Payout.js + Notification.js + Project.js + User.js ; séquence de référence : conception/sequence_diagram/approuver_retrait.txt
+    Convention FSEG/EA : diagramme de classes participantes = entités du domaine (+ externes éventuels), sans IHM/contrôleurs.
+    Harmonisation inter-UC : mêmes attributs métier pour Utilisateur, UserProfile, Projet (y compris aiAnalysis), Payout, Notification — pas d'attributs techniques (hash, jetons, secrets).
+  -->
+  <uml:Model xmi:id="m_class_uc_approve_payout" name="Classes_Participantes_UC_Approuver_Retrait">
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="ucap_pt_String" name="String"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="ucap_pt_Number" name="Number"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="ucap_pt_Boolean" name="Boolean"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="ucap_pt_Date" name="Date"/>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="ucap_pt_ObjectId" name="ObjectId"/>
+
+    <packagedElement xmi:type="uml:Package" xmi:id="ucap_pkg_types" name="Types">
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucap_en_RoleUtilisateur" name="RoleUtilisateur">
+        <ownedLiteral xmi:id="ucap_lit_role_user" name="USER"/>
+        <ownedLiteral xmi:id="ucap_lit_role_admin" name="ADMIN"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucap_en_PreferenceRisque" name="PreferenceRisque">
+        <ownedLiteral xmi:id="ucap_lit_pr_low" name="LOW"/>
+        <ownedLiteral xmi:id="ucap_lit_pr_medium" name="MEDIUM"/>
+        <ownedLiteral xmi:id="ucap_lit_pr_high" name="HIGH"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucap_en_StatutProjet" name="StatutProjet">
+        <ownedLiteral xmi:id="ucap_lit_sp_draft" name="DRAFT"/>
+        <ownedLiteral xmi:id="ucap_lit_sp_await_ai" name="AWAITING_AI"/>
+        <ownedLiteral xmi:id="ucap_lit_sp_under_review" name="UNDER_REVIEW"/>
+        <ownedLiteral xmi:id="ucap_lit_sp_approved" name="APPROVED"/>
+        <ownedLiteral xmi:id="ucap_lit_sp_active" name="ACTIVE"/>
+        <ownedLiteral xmi:id="ucap_lit_sp_rejected" name="REJECTED"/>
+        <ownedLiteral xmi:id="ucap_lit_sp_funded" name="FUNDED"/>
+        <ownedLiteral xmi:id="ucap_lit_sp_closed" name="CLOSED"/>
+        <ownedLiteral xmi:id="ucap_lit_sp_suspended" name="SUSPENDED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucap_en_RiskLevel" name="RiskLevel">
+        <ownedLiteral xmi:id="ucap_lit_rl_low" name="LOW"/>
+        <ownedLiteral xmi:id="ucap_lit_rl_medium" name="MEDIUM"/>
+        <ownedLiteral xmi:id="ucap_lit_rl_high" name="HIGH"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucap_en_StatutPayout" name="StatutPayout">
+        <ownedLiteral xmi:id="ucap_lit_ps_pending" name="PENDING"/>
+        <ownedLiteral xmi:id="ucap_lit_ps_ready" name="READY"/>
+        <ownedLiteral xmi:id="ucap_lit_ps_processing" name="PROCESSING"/>
+        <ownedLiteral xmi:id="ucap_lit_ps_completed" name="COMPLETED"/>
+        <ownedLiteral xmi:id="ucap_lit_ps_cancelled" name="CANCELLED"/>
+        <ownedLiteral xmi:id="ucap_lit_ps_failed" name="FAILED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucap_en_TypeNotification" name="TypeNotification">
+        <ownedLiteral xmi:id="ucap_lit_nt_payout_processing" name="PAYOUT_PROCESSING"/>
+        <ownedLiteral xmi:id="ucap_lit_nt_payout_completed" name="PAYOUT_COMPLETED"/>
+        <ownedLiteral xmi:id="ucap_lit_nt_payout_failed" name="PAYOUT_FAILED"/>
+        <ownedLiteral xmi:id="ucap_lit_nt_payout_cancelled" name="PAYOUT_CANCELLED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="ucap_en_RelatedEntityType" name="RelatedEntityType">
+        <ownedLiteral xmi:id="ucap_lit_ret_project" name="PROJECT"/>
+        <ownedLiteral xmi:id="ucap_lit_ret_investment" name="INVESTMENT"/>
+        <ownedLiteral xmi:id="ucap_lit_ret_report" name="REPORT"/>
+        <ownedLiteral xmi:id="ucap_lit_ret_payout" name="PAYOUT"/>
+        <ownedLiteral xmi:id="ucap_lit_ret_user" name="USER"/>
+      </packagedElement>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Package" xmi:id="ucap_pkg_domaine" name="Domaine">
+      <packagedElement xmi:type="uml:Class" xmi:id="ucap_cls_Utilisateur" name="Utilisateur">
+        <ownedAttribute xmi:id="ucap_attr_u_id" name="id" visibility="private" type="ucap_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucap_attr_u_email" name="email" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_u_role" name="role" visibility="private" type="ucap_en_RoleUtilisateur"/>
+        <ownedAttribute xmi:id="ucap_attr_u_isActive" name="isActive" visibility="private" type="ucap_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucap_attr_u_deletedAt" name="deletedAt" visibility="private" type="ucap_pt_Date"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="ucap_cls_UserProfile" name="UserProfile">
+        <ownedAttribute xmi:id="ucap_attr_up_firstName" name="firstName" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_up_lastName" name="lastName" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_up_phone" name="phone" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_up_riskPref" name="riskPreference" visibility="private" type="ucap_en_PreferenceRisque"/>
+        <ownedAttribute xmi:id="ucap_attr_up_prefCats" name="preferredCategories" visibility="private" type="ucap_pt_String" isMultivalued="true"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="ucap_cls_AiAnalysis" name="AiAnalysis">
+        <ownedAttribute xmi:id="ucap_attr_ai_riskScore" name="riskScore" visibility="private" type="ucap_pt_Number"/>
+        <ownedAttribute xmi:id="ucap_attr_ai_riskLevel" name="riskLevel" visibility="private" type="ucap_en_RiskLevel"/>
+        <ownedAttribute xmi:id="ucap_attr_ai_successProbability" name="successProbability" visibility="private" type="ucap_pt_Number"/>
+        <ownedAttribute xmi:id="ucap_attr_ai_analyzedAt" name="analyzedAt" visibility="private" type="ucap_pt_Date"/>
+        <ownedAttribute xmi:id="ucap_attr_ai_reportSummary" name="report.summary" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_ai_advantages" name="report.advantages" visibility="private" type="ucap_pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="ucap_attr_ai_disadvantages" name="report.disadvantages" visibility="private" type="ucap_pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="ucap_attr_ai_improvements" name="report.improvements" visibility="private" type="ucap_pt_String" isMultivalued="true"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="ucap_cls_Projet" name="Projet">
+        <ownedAttribute xmi:id="ucap_attr_p_id" name="id" visibility="private" type="ucap_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucap_attr_p_title" name="title" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_p_description" name="description" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_p_category" name="category" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_p_fundingGoal" name="fundingGoal" visibility="private" type="ucap_pt_Number"/>
+        <ownedAttribute xmi:id="ucap_attr_p_currentFunding" name="currentFunding" visibility="private" type="ucap_pt_Number"/>
+        <ownedAttribute xmi:id="ucap_attr_p_status" name="status" visibility="private" type="ucap_en_StatutProjet"/>
+        <ownedAttribute xmi:id="ucap_attr_p_creatorId" name="creatorId" visibility="private" type="ucap_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucap_attr_p_startAt" name="startAt" visibility="private" type="ucap_pt_Date"/>
+        <ownedAttribute xmi:id="ucap_attr_p_deadline" name="deadline" visibility="private" type="ucap_pt_Date"/>
+        <ownedAttribute xmi:id="ucap_attr_p_rejectionReason" name="rejectionReason" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_p_rejectedBy" name="rejectedBy" visibility="private" type="ucap_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucap_attr_p_rejectedAt" name="rejectedAt" visibility="private" type="ucap_pt_Date"/>
+        <ownedAttribute xmi:id="ucap_attr_p_isArchived" name="isArchived" visibility="private" type="ucap_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucap_attr_p_isCreatorDeleted" name="isCreatorDeleted" visibility="private" type="ucap_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucap_attr_p_publishedAt" name="publishedAt" visibility="private" type="ucap_pt_Date"/>
+        <ownedAttribute xmi:id="ucap_attr_p_fundedAt" name="fundedAt" visibility="private" type="ucap_pt_Date"/>
+        <ownedAttribute xmi:id="ucap_attr_p_aiAnalysis" name="aiAnalysis" visibility="private" type="ucap_cls_AiAnalysis"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="ucap_cls_Payout" name="Payout">
+        <ownedAttribute xmi:id="ucap_attr_po_id" name="id" visibility="private" type="ucap_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucap_attr_po_projectId" name="projectId" visibility="private" type="ucap_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucap_attr_po_creatorId" name="creatorId" visibility="private" type="ucap_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucap_attr_po_amount" name="amount" visibility="private" type="ucap_pt_Number"/>
+        <ownedAttribute xmi:id="ucap_attr_po_status" name="status" visibility="private" type="ucap_en_StatutPayout"/>
+        <ownedAttribute xmi:id="ucap_attr_po_provider" name="provider" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_po_providerTransferId" name="providerTransferId" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_po_bankDetails" name="bankDetails" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_po_failureReason" name="failureReason" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_po_transferInitiatedAt" name="transferInitiatedAt" visibility="private" type="ucap_pt_Date"/>
+        <ownedAttribute xmi:id="ucap_attr_po_completedAt" name="completedAt" visibility="private" type="ucap_pt_Date"/>
+        <ownedAttribute xmi:id="ucap_attr_po_failedAt" name="failedAt" visibility="private" type="ucap_pt_Date"/>
+        <ownedAttribute xmi:id="ucap_attr_po_cancelledAt" name="cancelledAt" visibility="private" type="ucap_pt_Date"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="ucap_cls_Notification" name="Notification">
+        <ownedAttribute xmi:id="ucap_attr_n_id" name="id" visibility="private" type="ucap_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucap_attr_n_userId" name="userId" visibility="private" type="ucap_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucap_attr_n_type" name="type" visibility="private" type="ucap_en_TypeNotification"/>
+        <ownedAttribute xmi:id="ucap_attr_n_title" name="title" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_n_message" name="message" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_n_read" name="read" visibility="private" type="ucap_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucap_attr_n_relatedEntityId" name="relatedEntityId" visibility="private" type="ucap_pt_ObjectId"/>
+        <ownedAttribute xmi:id="ucap_attr_n_relatedEntityType" name="relatedEntityType" visibility="private" type="ucap_en_RelatedEntityType"/>
+      </packagedElement>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Package" xmi:id="ucap_pkg_externes" name="Externes">
+      <packagedElement xmi:type="uml:Class" xmi:id="ucap_cls_Prestataire" name="Prestataire_Virement_(demo)"/>
+    </packagedElement>
+  </uml:Model>
+</xmi:XMI>
