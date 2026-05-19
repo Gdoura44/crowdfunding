@@ -12,6 +12,9 @@ const mockProvider = require("../integrations/mockPaymentProvider");
 const payoutService = require("./payoutService");
 const { ProjectStatus, AIStatus, transitionProjectStatus } = require("../config/projectLifecycle");
 const { enqueueRiskAnalysisJob } = require("../integrations/riskAnalysisQueue");
+const { computeSuccessHeuristic } = require("./riskHeuristicService");
+const { analyzeProjectRisk } = require("./geminiRiskService");
+const workflowInternalService = require("./workflowInternalService");
 
 // Pourquoi: des services “cron-like” rendent les règles de cycle de vie fiables même si n8n est temporairement indisponible.
 // n8n peut appeler ces endpoints plus tard via `/internal/*`, mais la logique vit ici (testable, réutilisable).
@@ -437,14 +440,25 @@ async function retryStuckAiAnalyses({
 
   const stuck = await Project.find({
     status: ProjectStatus.AWAITING_AI,
-    aiStatus: { $in: [AIStatus.PENDING, AIStatus.FAILED] },
-    aiQueuedAt: { $lte: cutoff },
-    $or: [{ aiNextRetryAt: null }, { aiNextRetryAt: { $lte: now } }],
+    $or: [
+      { aiStatus: { $in: [AIStatus.PENDING, AIStatus.FAILED, null, undefined] } },
+      { aiStatus: { $exists: false } }
+    ],
+    $or: [
+      { aiQueuedAt: null },
+      { aiQueuedAt: { $exists: false } },
+      { aiQueuedAt: { $lte: cutoff } }
+    ],
+    $or: [
+      { aiNextRetryAt: null },
+      { aiNextRetryAt: { $exists: false } },
+      { aiNextRetryAt: { $lte: now } }
+    ],
   })
     .sort({ aiQueuedAt: 1 })
     .limit(safeLimit);
 
-  const summary = { scanned: stuck.length, requeued: 0, movedToPending: 0, skipped: 0 };
+  const summary = { scanned: stuck.length, requeued: 0, movedToPending: 0, directHealed: 0, skipped: 0 };
 
   for (const project of stuck) {
     try {
@@ -459,12 +473,104 @@ async function retryStuckAiAnalyses({
       await project.save();
 
       const enq = await enqueueRiskAnalysisJob(project);
-      if (enq && enq.queued && enq.jobId) {
-        project.aiJobId = String(enq.jobId);
-        await project.save();
+
+      // Self-healing Fallback: if queue is stubbed (offline), or if it has been stuck multiple times,
+      // or if it has been in the queue for more than 2 minutes (meaning n8n isn't consuming it)
+      const queuedMinutes = project.aiQueuedAt ? Math.max(0, Math.floor((Date.now() - new Date(project.aiQueuedAt).getTime()) / 60000)) : 0;
+      const shouldDirectHeal = !enq || !enq.queued || Number(project.aiAutoRetryCount || 0) >= 1 || queuedMinutes >= 2;
+      
+      if (shouldDirectHeal) {
+        console.info(`[self-healing-cron] Bypassing stuck/offline queue. Directly auditing project: "${project.title}"`);
+        const heuristic = computeSuccessHeuristic({
+          startAt: project.startAt || new Date(),
+          deadline: project.deadline,
+          fundingGoal: project.fundingGoal,
+          realBudget: project.realBudget || project.fundingGoal,
+          description: project.description,
+        });
+
+        const gapAssessment = heuristic?.breakdown?.gapAssessment || null;
+        const shouldAutoReject = gapAssessment?.severity === "BLOCK";
+
+        if (shouldAutoReject) {
+          const gapPct = Number(heuristic?.breakdown?.goalGap?.gapPct || 0);
+          const estimateTnd = Number(heuristic?.breakdown?.goalGap?.estimateTnd || 0);
+          const fundingGoal = Number(project.fundingGoal || 0);
+          const gapTnd = Math.round(Math.abs(fundingGoal - estimateTnd));
+
+          const reason =
+            `Décision automatique : rejet pour incohérence budgétaire (écart ≥ 30%). ` +
+            `Objectif annoncé : ${fundingGoal} TND. Besoin estimé (à partir de la description) : ${estimateTnd} TND. ` +
+            `Écart estimé : ${gapTnd} TND (${Math.round(Math.abs(gapPct))}%). ` +
+            `Pour rassurer les contributeurs, merci de (1) détailler le budget avec des postes chiffrés (3–6 lignes), ` +
+            `(2) expliquer l’écart et l’usage de la marge (imprévus/réserve/plan B), puis (3) renvoyer le projet.`;
+
+          project.aiAnalysis = {
+            riskScore: 100,
+            riskLevel: "HIGH",
+            successProbability: 0,
+            analyzedAt: new Date(),
+            report: {
+              summary: String(gapAssessment?.label || "").trim() || "Incohérence budgétaire bloquante.",
+              advantages: [],
+              disadvantages: [
+                "Écart important entre l’objectif de financement et l’estimation des besoins issue de la description.",
+                "Absence de justification de la marge budgétaire.",
+              ],
+              improvements: [
+                "Ajouter une section Budget avec 3–6 postes chiffrés.",
+                "Expliquer explicitement la marge.",
+              ],
+              removals: [],
+              questionsToClarify: [
+                "Quels postes expliquent l’écart ?",
+              ],
+            },
+            sourcesUsed: [],
+            meta: { method: "heuristic-only:auto-reject-healed", model: "N/A" },
+          };
+          project.aiStatus = AIStatus.COMPLETED;
+          project.aiLastError = "";
+          transitionProjectStatus(project, ProjectStatus.REJECTED, { action: "AI_AUTO_REJECT_GOAL_GAP" });
+          project.rejectionReason = reason;
+          project.rejectedAt = new Date();
+          await project.save();
+        } else {
+          const result = await analyzeProjectRisk({
+            projectId: String(project._id),
+            title: project.title,
+            description: project.description,
+            category: project.category,
+            fundingGoal: project.fundingGoal,
+            realBudget: project.realBudget || project.fundingGoal,
+            deadline: project.deadline,
+            heuristic,
+          }, { sources: [] });
+
+          await workflowInternalService.updateAiAnalysisFromWorkflow({
+            projectId: String(project._id),
+            riskScore: result.riskScore,
+            riskLevel: result.riskLevel,
+            successProbability: result.successProbability,
+            analyzedAt: result.analyzedAt,
+            report: result.report,
+            sourcesUsed: [],
+            meta: {
+              method: "heuristic+llm-healed",
+              model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+            },
+          });
+        }
+        summary.directHealed += 1;
+      } else {
+        if (enq && enq.queued && enq.jobId) {
+          project.aiJobId = String(enq.jobId);
+          await project.save();
+        }
+        summary.requeued += 1;
       }
-      summary.requeued += 1;
-    } catch {
+    } catch (err) {
+      console.error(`[self-healing-cron] Error during direct healing of stuck project:`, err.message || err);
       summary.skipped += 1;
     }
   }

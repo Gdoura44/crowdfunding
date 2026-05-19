@@ -4,6 +4,7 @@ import { projectsApi } from "../api/projects";
 import { canCreatorDeleteProject } from "../utils/projectRules.js";
 import { extractApiError } from "../utils/apiError";
 import { PROJECT_CATEGORIES } from "../config/categories.js";
+import { FUNDING_GOAL_MAX, PLATFORM_FEE_RATE } from "../config/businessRules.js";
 import { 
   Lightbulb, Loader2, AlertTriangle, ChartPie, FileText, 
   Building2, Calendar, DollarSign, Wand2, Trash2, ArrowLeft 
@@ -23,6 +24,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+function addDays(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
 
 function toDateInput(value) {
   if (!value) return "";
@@ -50,8 +57,8 @@ export default function ProjectEdit() {
     title: "",
     description: "",
     category: "",
-    realBudget: 950,
-    fundingGoal: 1000,
+    realBudget: 20000,
+    fundingGoal: 21053,
     startAt: "",
     deadline: "",
     isCompany: false,
@@ -100,14 +107,18 @@ export default function ProjectEdit() {
         if (!cancelled) {
           setStatus(p.status || "");
           setCurrentFunding(Number(p.currentFunding || 0));
+          
+          const defaultStart = addDays(7);
+          const minDurationDays = 31;
+
           setForm({
             title: p.title || "",
             description: p.description || "",
             category: p.category || "",
-            realBudget: p.realBudget || Math.round((p.fundingGoal || 1000) * 0.95),
+            realBudget: p.realBudget || Math.round((p.fundingGoal || 1000) * (1 - PLATFORM_FEE_RATE)),
             fundingGoal: p.fundingGoal || 1000,
-            startAt: toDateInput(p.startAt),
-            deadline: toDateInput(p.deadline),
+            startAt: defaultStart,
+            deadline: addDaysToDateInput(defaultStart, minDurationDays),
             isCompany: p.isCompany || false,
             companyName: p.companyName || "",
             companyMatricule: p.companyMatricule || "",
@@ -154,7 +165,7 @@ export default function ProjectEdit() {
         title: form.title,
         description: form.description,
         category: form.category,
-        realBudget: Number(form.realBudget || Math.round(form.fundingGoal * 0.95)),
+        realBudget: Number(form.realBudget || Math.round(form.fundingGoal * (1 - PLATFORM_FEE_RATE))),
         fundingGoal: Number(form.fundingGoal),
         startAt: new Date(form.startAt).toISOString(),
         deadline: new Date(form.deadline).toISOString(),
@@ -368,21 +379,21 @@ export default function ProjectEdit() {
                     variant="outline"
                     className="rounded-r-none px-3"
                     onClick={() => {
-                      const newReal = Math.max(950, Number(form.realBudget || 0) - 1000);
-                      setForm((f) => ({ ...f, realBudget: newReal, fundingGoal: Math.ceil(newReal / 0.95) }));
+                      const newReal = Math.max(1000, Number(form.realBudget || 0) - 1000);
+                      setForm((f) => ({ ...f, realBudget: newReal, fundingGoal: Math.ceil(newReal / (1 - PLATFORM_FEE_RATE)) }));
                     }}
                   >−1000</Button>
                   <Input
                     type="number"
-                    min={950}
-                    max={950000}
+                    min={1000}
+                    max={FUNDING_GOAL_MAX}
                     step={1000}
                     required
                     className="rounded-none font-medium text-center focus-visible:z-10"
                     value={form.realBudget || ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      setForm({ ...form, realBudget: val, fundingGoal: Math.ceil(val / 0.95) });
+                      setForm({ ...form, realBudget: val, fundingGoal: Math.ceil(val / (1 - PLATFORM_FEE_RATE)) });
                     }}
                   />
                   <Button
@@ -390,8 +401,8 @@ export default function ProjectEdit() {
                     variant="outline"
                     className="rounded-l-none px-3"
                     onClick={() => {
-                      const newReal = Math.min(950000, Number(form.realBudget || 0) + 1000);
-                      setForm((f) => ({ ...f, realBudget: newReal, fundingGoal: Math.ceil(newReal / 0.95) }));
+                      const newReal = Math.min(FUNDING_GOAL_MAX, Number(form.realBudget || 0) + 1000);
+                      setForm((f) => ({ ...f, realBudget: newReal, fundingGoal: Math.ceil(newReal / (1 - PLATFORM_FEE_RATE)) }));
                     }}
                   >+1000</Button>
                 </div>
@@ -399,13 +410,13 @@ export default function ProjectEdit() {
                 <input
                   type="range"
                   className="w-full accent-primary h-2 bg-muted rounded-lg appearance-none cursor-pointer"
-                  min={950}
-                  max={950000}
+                  min={1000}
+                  max={FUNDING_GOAL_MAX}
                   step={1000}
                   value={Number(form.realBudget || 0)}
                   onChange={(e) => {
                     const val = Number(e.target.value);
-                    setForm({ ...form, realBudget: val, fundingGoal: Math.ceil(val / 0.95) });
+                    setForm({ ...form, realBudget: val, fundingGoal: Math.ceil(val / (1 - PLATFORM_FEE_RATE)) });
                   }}
                 />
 
@@ -464,7 +475,7 @@ export default function ProjectEdit() {
                   value={form.deadline}
                   onChange={(e) => setForm({ ...form, deadline: e.target.value })}
                 />
-                <p className="text-[11px] text-muted-foreground">Durée minimale : 30 jours après démarrage.</p>
+                <p className="text-[11px] text-muted-foreground">Durée minimale : 31 jours après démarrage.</p>
               </div>
             </div>
           </div>

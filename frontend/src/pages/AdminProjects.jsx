@@ -108,6 +108,20 @@ export default function AdminProjects() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, canAccess]);
 
+  useEffect(() => {
+    if (ok) {
+      const t = setTimeout(() => setOk(""), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [ok]);
+
+  useEffect(() => {
+    if (error) {
+      const t = setTimeout(() => setError(""), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [error]);
+
   async function doApprove(p, publishAfter = false) {
     setBusyId(p._id);
     setError("");

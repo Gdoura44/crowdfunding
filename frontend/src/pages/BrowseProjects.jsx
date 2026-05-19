@@ -4,8 +4,9 @@ import { projectsApi } from "../api/projects";
 import ProjectCard from "../components/project/ProjectCard.jsx";
 import { extractApiError } from "../utils/apiError";
 import { PROJECT_CATEGORIES } from "../config/categories.js";
+import { useAuth } from "../hooks/useAuth";
 import {
-  PenTool, Search, Filter, Info, ChevronLeft, ChevronRight, Loader2, AlertCircle
+  PenTool, Search, Filter, Info, ChevronLeft, ChevronRight, Loader2, AlertCircle, Shield, CheckSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 const RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"];
 
 export default function BrowseProjects() {
+  const { user } = useAuth();
   const [qDraft, setQDraft] = useState("");
   const [categoryDraft, setCategoryDraft] = useState("");
   const [q, setQ] = useState("");
@@ -94,10 +96,22 @@ export default function BrowseProjects() {
           </p>
         </div>
         <Button asChild>
-          <Link to="/register">
-            <PenTool className="mr-2 h-4 w-4" />
-            Lancer un projet
-          </Link>
+          {user?.role === "ADMIN" ? (
+            <Link to="/admin/projects">
+              <Shield className="mr-2 h-4 w-4" />
+              Gérer les projets
+            </Link>
+          ) : user?.role === "EXPERT" ? (
+            <Link to="/expert/projects">
+              <CheckSquare className="mr-2 h-4 w-4" />
+              Projets à valider
+            </Link>
+          ) : (
+            <Link to={user ? "/projects/new" : "/register"}>
+              <PenTool className="mr-2 h-4 w-4" />
+              Lancer un projet
+            </Link>
+          )}
         </Button>
       </div>
 

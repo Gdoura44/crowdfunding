@@ -17,6 +17,23 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const COUNTRIES = [
+  { iso2: "TN", name: "Tunisie", calling: "+216" },
+  { iso2: "FR", name: "France", calling: "+33" },
+  { iso2: "DZ", name: "Algérie", calling: "+213" },
+  { iso2: "MA", name: "Maroc", calling: "+212" },
+  { iso2: "LY", name: "Libye", calling: "+218" },
+  { iso2: "DE", name: "Allemagne", calling: "+49" },
+  { iso2: "IT", name: "Italie", calling: "+39" },
+  { iso2: "ES", name: "Espagne", calling: "+34" },
+  { iso2: "GB", name: "Royaume-Uni", calling: "+44" },
+  { iso2: "US", name: "États-Unis", calling: "+1" },
+];
+
+function normalizeDigits(s) {
+  return String(s || "").replace(/[^\d]/g, "");
+}
+
 export default function AdminExperts() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
@@ -32,7 +49,8 @@ export default function AdminExperts() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [cabinetName, setCabinetName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState("TN");
+  const [phoneNational, setPhoneNational] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formErr, setFormErr] = useState("");
   
@@ -85,13 +103,19 @@ export default function AdminExperts() {
     setOk("");
     setError("");
     try {
+      const calling = COUNTRIES.find((c) => c.iso2 === phoneCountry)?.calling || "+";
+      const fullPhone =
+        phoneNational && normalizeDigits(phoneNational)
+          ? `${calling}${normalizeDigits(phoneNational)}`
+          : "";
+
       const { data } = await adminApi.createExpert({
         email,
         password,
         firstName,
         lastName,
         cabinetName,
-        phone,
+        phone: fullPhone,
       });
       setOk(data.message || "Compte expert créé avec succès.");
       setShowDrawer(false);
@@ -101,7 +125,8 @@ export default function AdminExperts() {
       setFirstName("");
       setLastName("");
       setCabinetName("");
-      setPhone("");
+      setPhoneCountry("TN");
+      setPhoneNational("");
       await reload();
     } catch (err) {
       const out = extractApiError(err, "Impossible de créer le compte expert.");
@@ -180,7 +205,8 @@ export default function AdminExperts() {
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/50 text-muted-foreground border-b border-border text-xs uppercase tracking-wider font-semibold">
                 <tr>
-                  <th className="px-6 py-4">Expert / Cabinet</th>
+                  <th className="px-6 py-4">Cabinet</th>
+                  <th className="px-6 py-4">Contact</th>
                   <th className="px-6 py-4">E-mail</th>
                   <th className="px-6 py-4">Téléphone</th>
                   <th className="px-6 py-4">Statut</th>
@@ -191,13 +217,13 @@ export default function AdminExperts() {
               <tbody className="divide-y divide-border bg-card">
                 {items.map((u) => {
                   const contactName = [u.profile?.firstName, u.profile?.lastName].filter(Boolean).join(" ");
-                  const displayName = u.profile?.cabinetName
-                    ? `${u.profile.cabinetName} (${contactName})`
-                    : (contactName || "Cabinet Expert");
                   return (
                     <tr key={u._id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-6 py-4 font-semibold text-foreground">
-                        {displayName}
+                        {u.profile?.cabinetName || "—"}
+                      </td>
+                      <td className="px-6 py-4 font-medium text-muted-foreground">
+                        <span className="capitalize">{contactName || "—"}</span>
                       </td>
                       <td className="px-6 py-4 text-muted-foreground">
                         {u.email}
@@ -360,18 +386,36 @@ export default function AdminExperts() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-semibold text-foreground mb-1.5 block" htmlFor="expert-phone">
+                  <label className="text-sm font-semibold text-foreground mb-1.5 block">
                     Téléphone
                   </label>
-                  <input
-                    type="tel"
-                    id="expert-phone"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    placeholder="Ex: +216 71 000 000"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    disabled={submitting}
-                  />
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <select
+                      className="flex h-10 w-full sm:w-1/3 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
+                      value={phoneCountry}
+                      onChange={(e) => setPhoneCountry(e.target.value)}
+                      disabled={submitting}
+                    >
+                      {COUNTRIES.map((c) => (
+                        <option key={c.iso2} value={c.iso2}>
+                          {c.name} ({c.calling})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex h-10 w-full sm:w-2/3 rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 overflow-hidden transition-colors">
+                      <span className="flex items-center px-3 bg-muted border-r border-input text-muted-foreground text-sm shrink-0">
+                        {COUNTRIES.find((c) => c.iso2 === phoneCountry)?.calling || "+"}
+                      </span>
+                      <input
+                        type="tel"
+                        className="w-full bg-transparent px-3 py-2 text-sm focus:outline-none"
+                        value={phoneNational}
+                        onChange={(e) => setPhoneNational(e.target.value)}
+                        placeholder="Numéro"
+                        disabled={submitting}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 

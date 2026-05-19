@@ -2,7 +2,7 @@
 const MIN_PROJECT_START_DELAY_DAYS = 7;
 
 /** Durée minimale de campagne entre startAt et deadline (règle métier). */
-const MIN_PROJECT_DURATION_DAYS = 30;
+const MIN_PROJECT_DURATION_DAYS = 31;
 
 /** Nombre max de refresh tokens par utilisateur (conception/mongo db/user.txt). */
 const MAX_REFRESH_TOKENS = 5;

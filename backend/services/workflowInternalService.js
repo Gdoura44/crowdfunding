@@ -15,6 +15,7 @@ function buildRiskPayload(project) {
     description: project.description,
     category: project.category,
     fundingGoal: project.fundingGoal,
+    realBudget: project.realBudget,
     deadline: project.deadline,
   };
 }

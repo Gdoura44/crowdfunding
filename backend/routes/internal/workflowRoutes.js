@@ -70,23 +70,26 @@ router.post(
   asyncHandler(async (req, res) => {
     const data = parseBody(runRiskAnalysisSchema, req.body);
     try {
+      const project = await Project.findById(data.projectId);
+      if (!project) throw new HttpError(404, "Projet introuvable.");
+
       // Web research disabled: better UX + fewer tokens/quota.
       const sources = [];
 
+      const realBudgetVal = project.realBudget || data.realBudget || data.fundingGoal || project.fundingGoal;
+
       // Heuristic estimate (deterministic, explainable)
       const heuristic = computeSuccessHeuristic({
-        startAt: new Date(),
-        deadline: data.deadline,
-        fundingGoal: data.fundingGoal,
-        realBudget: data.realBudget,
-        description: data.description,
+        startAt: data.startAt || project.startAt || new Date(),
+        deadline: data.deadline || project.deadline,
+        fundingGoal: data.fundingGoal || project.fundingGoal,
+        realBudget: realBudgetVal,
+        description: data.description || project.description,
       });
 
       const gapAssessment = heuristic?.breakdown?.gapAssessment || null;
       const shouldAutoReject = gapAssessment?.severity === "BLOCK";
       if (shouldAutoReject) {
-        const project = await Project.findById(data.projectId);
-        if (!project) throw new HttpError(404, "Projet introuvable.");
 
         // Idempotent: si déjà rejeté automatiquement, répondre OK sans refaire le traitement.
         if (project.status === ProjectStatus.REJECTED && project.aiStatus === AIStatus.COMPLETED) {
@@ -182,8 +185,8 @@ router.post(
         });
       }
 
-      const result = await analyzeProjectRisk({ ...data, heuristic }, { sources });
-      const { project, idempotent } =
+      const result = await analyzeProjectRisk({ ...data, realBudget: realBudgetVal, heuristic }, { sources });
+      const { project: updatedProject, idempotent } =
         await workflowInternalService.updateAiAnalysisFromWorkflow({
           projectId: data.projectId,
           riskScore: result.riskScore,
@@ -201,10 +204,10 @@ router.post(
         ok: true,
         idempotent: Boolean(idempotent),
         project: {
-          _id: project._id,
-          status: project.status,
-          aiStatus: project.aiStatus,
-          aiAnalysis: project.aiAnalysis,
+          _id: updatedProject._id,
+          status: updatedProject.status,
+          aiStatus: updatedProject.aiStatus,
+          aiAnalysis: updatedProject.aiAnalysis,
         },
         sourcesCount: 0,
       });

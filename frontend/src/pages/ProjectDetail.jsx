@@ -103,6 +103,43 @@ export default function ProjectDetail() {
   }, [load, location?.state?.flash, location.pathname, navigate]);
 
   useEffect(() => {
+    if (flash) {
+      const timer = setTimeout(() => {
+        setFlash(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [flash]);
+
+  useEffect(() => {
+    if (submitMsg) {
+      const t = setTimeout(() => setSubmitMsg(""), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [submitMsg]);
+
+  useEffect(() => {
+    if (submitErr) {
+      const t = setTimeout(() => setSubmitErr(""), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [submitErr]);
+
+  useEffect(() => {
+    if (commentOk) {
+      const t = setTimeout(() => setCommentOk(""), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [commentOk]);
+
+  useEffect(() => {
+    if (commentErr) {
+      const t = setTimeout(() => setCommentErr(""), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [commentErr]);
+
+  useEffect(() => {
     if (!project) return;
     const goal = Number(project.fundingGoal || 0);
     const current = Number(project.currentFunding || 0);
@@ -764,8 +801,8 @@ export default function ProjectDetail() {
         </div>
 
         {/* Right column (Investment & Stats) */}
-        <div className="space-y-6">
-          <Card className="border-border/50 shadow-md sticky top-6">
+        <div className="space-y-6 lg:sticky lg:top-6 h-fit">
+          <Card className="border-border/50 shadow-md">
             <CardHeader className="bg-primary/5 border-b border-border/50 pb-6">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-semibold text-muted-foreground">Objectif</span>
@@ -897,15 +934,33 @@ export default function ProjectDetail() {
                           </button>
                         </div>
                         {tipAmount === "custom" && (
-                          <div className="flex items-center mt-2 w-32">
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <Button 
+                              type="button"
+                              variant="outline" 
+                              size="sm" 
+                              className="h-8 w-8 p-0 flex-shrink-0 font-bold"
+                              onClick={() => setCustomTip((v) => String(Math.max(0, (Number(v) || 0) - 1)))}
+                            >
+                              -
+                            </Button>
                             <input
                               type="number"
                               min="0"
-                              className="flex h-8 w-full rounded-l-md border border-r-0 border-input bg-background px-3 py-1 text-sm focus-visible:outline-none"
+                              className="no-spin flex h-8 w-16 text-center rounded-md border border-input bg-background px-2 py-1 text-sm font-semibold focus-visible:outline-none"
                               value={customTip}
                               onChange={(e) => setCustomTip(e.target.value)}
                             />
-                            <span className="h-8 px-3 flex items-center bg-muted border border-l-0 border-input rounded-r-md text-xs text-muted-foreground">TND</span>
+                            <Button 
+                              type="button"
+                              variant="outline" 
+                              size="sm" 
+                              className="h-8 w-8 p-0 flex-shrink-0 font-bold"
+                              onClick={() => setCustomTip((v) => String((Number(v) || 0) + 1))}
+                            >
+                              +
+                            </Button>
+                            <span className="h-8 px-2.5 flex items-center bg-muted border border-input rounded-md text-xs font-semibold text-muted-foreground">TND</span>
                           </div>
                         )}
                       </div>

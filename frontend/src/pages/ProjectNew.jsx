@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { projectsApi } from "../api/projects";
 import { useAuth } from "../hooks/useAuth.js";
 import ProjectPreviewCard from "../components/project/ProjectPreviewCard.jsx";
-import { FUNDING_GOAL_MAX, FUNDING_GOAL_MIN } from "../config/businessRules.js";
+import { FUNDING_GOAL_MAX, FUNDING_GOAL_MIN, PLATFORM_FEE_RATE } from "../config/businessRules.js";
 import { extractApiError } from "../utils/apiError.js";
 import { PROJECT_CATEGORIES } from "../config/categories.js";
 import { 
@@ -34,14 +34,14 @@ export default function ProjectNew() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const defaultStart = addDays(7);
-  const minDurationDays = 30;
+  const minDurationDays = 31;
   
   const defaultForm = useMemo(() => ({
     title: "",
     description: "",
     category: "",
-    realBudget: 9500,
-    fundingGoal: 10000,
+    realBudget: 20000,
+    fundingGoal: 21053,
     startAt: defaultStart,
     deadline: addDaysToDateInput(defaultStart, minDurationDays),
     isCompany: false,
@@ -94,15 +94,15 @@ export default function ProjectNew() {
     const e = {};
     const title = String(form.title || "").trim();
     const category = String(form.category || "").trim();
-    const goal = Number(form.fundingGoal || 0);
+    const realBudgetVal = Number(form.realBudget || 0);
     const startAt = form.startAt ? new Date(form.startAt) : null;
     const deadline = form.deadline ? new Date(form.deadline) : null;
 
     if (title.length < 3) e.title = "Le titre doit contenir au moins 3 caractères.";
     if (!category) e.category = "Indiquez une catégorie.";
-    if (!Number.isFinite(goal)) e.fundingGoal = "Montant invalide.";
-    else if (goal < FUNDING_GOAL_MIN) e.fundingGoal = `Minimum ${FUNDING_GOAL_MIN.toLocaleString("fr-FR")} TND.`;
-    else if (goal > FUNDING_GOAL_MAX) e.fundingGoal = `Maximum ${FUNDING_GOAL_MAX.toLocaleString("fr-FR")} TND.`;
+    if (!Number.isFinite(realBudgetVal)) e.fundingGoal = "Montant invalide.";
+    else if (realBudgetVal < 1000) e.fundingGoal = "Minimum 1 000 TND.";
+    else if (realBudgetVal > FUNDING_GOAL_MAX) e.fundingGoal = `Maximum ${FUNDING_GOAL_MAX.toLocaleString("fr-FR")} TND.`;
     if (String(form.description || "").length > descMax) e.description = `Max ${descMax} caractères.`;
     
     const minStart = new Date(addDays(7));
@@ -114,7 +114,7 @@ export default function ProjectNew() {
     else if (startAt) {
       const min = new Date(startAt);
       min.setDate(min.getDate() + minDurationDays);
-      if (deadline < min) e.deadline = "Durée minimale: 30 jours.";
+      if (deadline < min) e.deadline = "Durée minimale: 31 jours.";
     }
     
     if (form.isCompany) {
@@ -367,14 +367,14 @@ export default function ProjectNew() {
                         variant="outline"
                         className="rounded-r-none px-3"
                         onClick={() => {
-                          const newReal = Math.max(950, Number(form.realBudget || 0) - 1000);
-                          setForm((f) => ({ ...f, realBudget: newReal, fundingGoal: Math.ceil(newReal / 0.95) }));
+                          const newReal = Math.max(1000, Number(form.realBudget || 0) - 1000);
+                          setForm((f) => ({ ...f, realBudget: newReal, fundingGoal: Math.ceil(newReal / (1 - PLATFORM_FEE_RATE)) }));
                         }}
                       >−1000</Button>
                       <Input
                         type="number"
-                        min={950}
-                        max={950000}
+                        min={1000}
+                        max={FUNDING_GOAL_MAX}
                         step={1000}
                         required
                         className={`rounded-none font-medium text-center focus-visible:z-10 ${touched.realBudget && errors.fundingGoal ? "border-destructive" : ""}`}
@@ -382,7 +382,7 @@ export default function ProjectNew() {
                         onBlur={() => setTouched((t) => ({ ...t, realBudget: true, fundingGoal: true }))}
                         onChange={(e) => {
                           const val = Number(e.target.value);
-                          setForm({ ...form, realBudget: val, fundingGoal: Math.ceil(val / 0.95) });
+                          setForm({ ...form, realBudget: val, fundingGoal: Math.ceil(val / (1 - PLATFORM_FEE_RATE)) });
                         }}
                       />
                       <Button
@@ -390,8 +390,8 @@ export default function ProjectNew() {
                         variant="outline"
                         className="rounded-l-none px-3"
                         onClick={() => {
-                          const newReal = Math.min(950000, Number(form.realBudget || 0) + 1000);
-                          setForm((f) => ({ ...f, realBudget: newReal, fundingGoal: Math.ceil(newReal / 0.95) }));
+                          const newReal = Math.min(FUNDING_GOAL_MAX, Number(form.realBudget || 0) + 1000);
+                          setForm((f) => ({ ...f, realBudget: newReal, fundingGoal: Math.ceil(newReal / (1 - PLATFORM_FEE_RATE)) }));
                         }}
                       >+1000</Button>
                     </div>
@@ -400,13 +400,13 @@ export default function ProjectNew() {
                     <input
                       type="range"
                       className="w-full accent-primary h-2 bg-muted rounded-lg appearance-none cursor-pointer"
-                      min={950}
-                      max={950000}
+                      min={1000}
+                      max={FUNDING_GOAL_MAX}
                       step={1000}
                       value={Number(form.realBudget || 0)}
                       onChange={(e) => {
                         const val = Number(e.target.value);
-                        setForm({ ...form, realBudget: val, fundingGoal: Math.ceil(val / 0.95) });
+                        setForm({ ...form, realBudget: val, fundingGoal: Math.ceil(val / (1 - PLATFORM_FEE_RATE)) });
                       }}
                       onMouseUp={() => setTouched((t) => ({ ...t, realBudget: true, fundingGoal: true }))}
                       onTouchEnd={() => setTouched((t) => ({ ...t, realBudget: true, fundingGoal: true }))}
@@ -474,7 +474,7 @@ export default function ProjectNew() {
                       onChange={(e) => setForm({ ...form, deadline: e.target.value })}
                       className={touched.deadline && errors.deadline ? "border-destructive" : ""}
                     />
-                    <p className="text-[11px] text-muted-foreground">Durée minimale : 30 jours après démarrage.</p>
+                     <p className="text-[11px] text-muted-foreground">Durée minimale : 31 jours après démarrage.</p>
                     {touched.deadline && errors.deadline && <p className="text-xs text-destructive font-medium">{errors.deadline}</p>}
                   </div>
                 </div>

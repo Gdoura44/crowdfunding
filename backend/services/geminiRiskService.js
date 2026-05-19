@@ -1,5 +1,6 @@
 const axios = require("axios");
 const HttpError = require("../utils/HttpError");
+const { PLATFORM_FEE_RATE } = require("../config/businessRules");
 
 function extractJsonObject(text) {
   const raw = String(text || "");
@@ -114,6 +115,10 @@ function requireArrayOfStrings(v, { max = 10 } = {}) {
 
 async function analyzeProjectRisk(payload, { sources: _sources = [] } = {}) {
   const heuristic = payload?.heuristic || null;
+  const netGapTnd = Number(heuristic?.breakdown?.goalGap?.gapTnd ?? 0) || 0;
+  const netGapPct = Number(heuristic?.breakdown?.goalGap?.gapPct ?? 0) || 0;
+  const estimateTnd = Number(heuristic?.breakdown?.goalGap?.estimateTnd ?? 0) || 0;
+
   const heuristicText = heuristic
     ? [
         "Estimation heuristique (monde réel) calculée par la plateforme:",
@@ -121,17 +126,22 @@ async function analyzeProjectRisk(payload, { sources: _sources = [] } = {}) {
         `- durationDays: ${Number(heuristic?.breakdown?.durationDays ?? 0)}`,
         `- durationLabel: ${String(heuristic?.breakdown?.duration?.label || "")}`,
         `- goalJustification: ${String(heuristic?.breakdown?.goal?.label || "")}`,
-        `- budgetEstimateTnd: ${Number(heuristic?.breakdown?.goalGap?.estimateTnd ?? 0) || 0}`,
-        `- budgetGapTnd: ${Number(heuristic?.breakdown?.goalGap?.gapTnd ?? 0) || 0}`,
-        `- budgetGapPct: ${Number(heuristic?.breakdown?.goalGap?.gapPct ?? 0) || 0}`,
+        `- budgetEstimateTnd: ${estimateTnd} TND`,
+        `- budgetGapTnd: ${netGapTnd} TND`,
+        `- budgetGapPct: ${netGapPct}%`,
         `- budgetGapRule: ${String(heuristic?.breakdown?.gapAssessment?.label || "")}`,
         `- descLen: ${Number(heuristic?.breakdown?.description?.signals?.len ?? 0)}`,
         "",
-        "Règle: aligne successProbability sur l'heuristique (±10 pts) sauf justification claire dans summary.",
-        "Transparence: si Objectif ≠ estimation budget, l'écart DOIT être expliqué clairement (budget détaillé + usage).",
-        "Si l'objectif est plus élevé: préciser à quoi sert la marge; si l'objectif est plus bas: signaler manque/risque.",
-        "Règle blocante: si budgetGapRule indique un écart ≥ 30% (incohérence bloquante), alors:",
-        "- successProbability DOIT être 0 et le summary DOIT indiquer que le projet est rejeté automatiquement tant que ce point n’est pas corrigé.",
+        "Règles d'évaluation et de Transparence :",
+        "1. Alignement : Aligne successProbability sur l'heuristique (±10 pts) sauf justification claire dans summary.",
+        "2. Transparence de l'écart : Si le Besoin Réel net du Projet (realBudget) diffère de la somme détaillée dans la description (budgetEstimateTnd) :",
+        `   - L'écart net réel non-expliqué est EXACTEMENT de ${netGapTnd} TND (soit ${netGapPct}%). Tu DOIS impérativement utiliser EXACTEMENT ce montant de ${netGapTnd} TND dans ton rapport.`,
+        "   - Tu ne dois JAMAIS y ajouter ou mélanger les frais de plateforme. Les frais de plateforme sont automatiques (5%) et n'ont pas à être justifiés par le créateur.",
+        `   - Avertissement obligatoire : Rappelle CLAIREMENT au créateur dans ton résumé ('summary') qu'il y a un écart net de EXACTEMENT ${netGapTnd} TND non-expliqué. Dis-lui explicitement que cet écart DOIT être formellement justifié dans la description (ex: logistique, plan B, imprévus) sous peine de rejet automatique du projet.`,
+        "   - Si l'objectif net est plus bas : signale le manque de budget et le risque important de sous-financement.",
+        "3. Règle bloquante (écart ≥ 25%) : Si 'budgetGapRule' indique un écart ≥ 25% (rejet automatique), alors :",
+        "   - La probabilité de succès (successProbability) DOIT être forcée à 0.",
+        "   - Le résumé ('summary') DOIT indiquer clairement que le projet est rejeté automatiquement pour incohérence budgétaire tant que ce point n'est pas corrigé.",
         "",
       ].join("\n")
     : "";
@@ -148,15 +158,15 @@ async function analyzeProjectRisk(payload, { sources: _sources = [] } = {}) {
     "JSON attendu (clés obligatoires):",
     'riskScore (0..100), riskLevel ("LOW"|"MEDIUM"|"HIGH"), successProbability (0..100),',
     "summary (max 350 chars),",
-    "advantages (max 6 items), disadvantages (max 6 items),",
-    "improvements (max 6 items), removals (max 6 items), questionsToClarify (max 6 items),",
+    "advantages (max 4 items), disadvantages (max 4 items),",
+    "improvements (max 4 items), removals (max 4 items), questionsToClarify (max 4 items),",
     "",
     "Projet:",
     `Titre: ${payload.title || ""}`,
     `Description: ${payload.description || ""}`,
     `Catégorie: ${payload.category || ""}`,
     `Objectif Public de la Campagne (frais inclus): ${payload.fundingGoal ?? ""} TND`,
-    `Besoin Réel net du Projet (reçu par le créateur): ${payload.realBudget ?? (payload.fundingGoal ? Math.round(payload.fundingGoal * 0.95) : "")} TND`,
+    `Besoin Réel net du Projet (reçu par le créateur): ${payload.realBudget ?? (payload.fundingGoal ? Math.round(payload.fundingGoal * (1 - PLATFORM_FEE_RATE)) : "")} TND`,
     `Deadline: ${payload.deadline ? new Date(payload.deadline).toISOString() : ""}`,
   ].join("\n");
 

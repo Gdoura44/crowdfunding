@@ -78,32 +78,18 @@ function estimateBudgetFromDescription(description) {
   let sum = 0;
   let count = 0;
   for (const l of budgetish) {
-    const line = String(l || "");
+    const line = String(l || "").trim();
     // Ne jamais compter les lignes de total (sinon on double-compte).
-    // Ex: "Total : 13 250 TND" ou "Total > 10 000 TND"
     if (/\btotal\b/i.test(line)) continue;
     const hasCurrency = /(tnd|\bdt\b|dinars?)/i.test(line);
+    if (!hasCurrency) continue;
 
-    // Règle 1 (préférée): si la ligne contient "=", on prend le montant APRÈS "="
-    // car c'est généralement le total du poste (évite de compter quantité et prix unitaire).
-    // Exemple: "3 × 350 = 1 050 TND" => 1050
-    if (hasCurrency && /=/.test(line)) {
-      const rhs = line.split("=").slice(1).join("=").trim();
-      const mEq = rhs.match(/(\d[\d\s]{1,})\s*(tnd|\bdt\b|dinars?)?/i);
-      if (mEq && mEq[1]) {
-        const n = normalizeTndNumber(mEq[1]);
-        if (n != null) {
-          sum += n;
-          count += 1;
-          continue;
-        }
-      }
-    }
-
-    // Règle 2: montant explicite suivi d'une devise.
-    // Exemples: "7 800 TND", "7800TND", "7800 DT"
-    if (hasCurrency) {
-      const m = line.match(/(\d[\d\s]{1,})\s*(tnd|\bdt\b|dinars?)/i);
+    // Règle 1: Si la ligne contient ":" ou "=", on prend la partie droite du dernier ":" ou "="
+    // car c'est généralement le total du poste (ex. "Tablettes (30 x 300 TND) : 9 000 TND" => "9 000 TND")
+    if (/[:=]/.test(line)) {
+      const parts = line.split(/[:=]/);
+      const rhs = parts[parts.length - 1].trim();
+      const m = rhs.match(/(\d[\d\s]{1,})\s*(tnd|\bdt\b|dinars?)/i);
       if (m && m[1]) {
         const n = normalizeTndNumber(m[1]);
         if (n != null) {
@@ -114,8 +100,21 @@ function estimateBudgetFromDescription(description) {
       }
     }
 
-    // Important: ne pas “deviner” sur les lignes à puces sans devise.
-    // Sinon on additionne des nombres non-budgétaires (ex: "2000L", "Semaine 6", "450 élèves", etc.)
+    // Règle 2: Si pas de ":" ou "=", on cherche la DERNIÈRE occurrence d'un montant suivi d'une devise
+    // (pour éviter de lire les multiplicateurs ou prix unitaires au début de la ligne)
+    const regex = /(\d[\d\s]{1,})\s*(tnd|\bdt\b|dinars?)/gi;
+    let match;
+    let lastMatch = null;
+    while ((match = regex.exec(line)) !== null) {
+      lastMatch = match;
+    }
+    if (lastMatch && lastMatch[1]) {
+      const n = normalizeTndNumber(lastMatch[1]);
+      if (n != null) {
+        sum += n;
+        count += 1;
+      }
+    }
   }
 
   if (count < 2) return { estimateTnd: null, lineItemsDetected: count };

@@ -4,6 +4,7 @@ const Investment = require("../models/Investment");
 const Payout = require("../models/Payout");
 const Project = require("../models/Project");
 const HttpError = require("../utils/HttpError");
+const { PLATFORM_FEE_RATE } = require("../config/businessRules");
 
 /**
  * Service to manage professional invoices (factures)
@@ -67,7 +68,7 @@ async function createInvoiceForPayout(payout, { session } = {}) {
   // payout.amount is the total public funded amount (TTC, e.g. Goal / project.currentFunding)
   // project.realBudget is the net amount required by the creator (e.g. RealBudget)
   const raised = Number(payout.amount);
-  const realBudget = project.realBudget ? Number(project.realBudget) : Math.round(raised * 0.95);
+  const realBudget = project.realBudget ? Number(project.realBudget) : Math.round(raised * (1 - PLATFORM_FEE_RATE));
   
   // Platform fee is the difference (TTC)
   const totalTtcFee = Math.max(raised - realBudget, 0);

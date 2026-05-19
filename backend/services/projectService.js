@@ -224,6 +224,13 @@ async function getProjectById(projectId, userOrId) {
   if (!project) {
     throw new HttpError(404, "Projet introuvable.");
   }
+
+  // Rétablir automatiquement en DRAFT si le projet est bloqué en AWAITING_AI sans job ou en échec (ex. Docker hors-ligne)
+  if (project.status === "AWAITING_AI" && (!project.aiJobId || project.aiStatus === "FAILED")) {
+    await Project.updateOne({ _id: project._id }, { status: "DRAFT", aiStatus: "FAILED" });
+    project.status = "DRAFT";
+    project.aiStatus = "FAILED";
+  }
   
   const userId = typeof userOrId === "object" && userOrId ? (userOrId.id || userOrId._id) : userOrId;
   const userRole = typeof userOrId === "object" && userOrId ? userOrId.role : "USER";
@@ -363,37 +370,33 @@ async function submitProjectForAi(creatorId, projectId) {
     throw new HttpError(400, "La date limite doit être dans le futur.");
   }
 
-  transitionProjectStatus(project, ProjectStatus.AWAITING_AI, { action: "SUBMIT_FOR_AI" });
-  project.aiStatus = AIStatus.PENDING;
-  project.aiJobId = "";
-  project.aiQueuedAt = new Date();
-  project.aiLastError = "";
-  await project.save();
-
   try {
+    // Tenter d'enfiler le travail d'analyse d'abord (sans modifier le statut DRAFT en BD)
     const enq = await enqueueRiskAnalysisJob(project);
+    
+    // Si l'enfilement réussit, on met à jour le statut en AWAITING_AI
+    transitionProjectStatus(project, ProjectStatus.AWAITING_AI, { action: "SUBMIT_FOR_AI" });
+    project.aiStatus = AIStatus.PENDING;
+    project.aiQueuedAt = new Date();
+    project.aiLastError = "";
     if (enq && enq.queued && enq.jobId) {
       project.aiJobId = String(enq.jobId);
-      await project.save();
+    } else {
+      project.aiJobId = "";
     }
+    await project.save();
   } catch (err) {
-    // Si Redis/BullMQ est indisponible, ne pas casser le parcours utilisateur.
-    // On marque l’étape IA en échec et on enregistre un FailedWorkflowEvent pour relance admin.
+    // Si échec (ex. Docker hors-ligne après 1 min), le statut reste DRAFT en base de données.
+    // On met juste à jour aiStatus/aiLastError à des fins de diagnostic sans changer le statut principal.
     project.aiStatus = AIStatus.FAILED;
     project.aiLastError = String(err?.message || err);
     await project.save();
-    try {
-      await FailedWorkflowEvent.create({
-        projectId: project._id,
-        workflowType: "risk-analysis",
-        payload: { projectId: String(project._id) },
-        error: String(err?.message || err),
-        retryCount: 0,
-        resolved: false,
-      });
-    } catch {
-      // ignorer
-    }
+    throw new HttpError(
+      503,
+      "Le service d'analyse IA est temporairement indisponible. Veuillez réessayer la soumission plus tard.",
+      null,
+      "SERVICE_UNAVAILABLE"
+    );
   }
 
   try {

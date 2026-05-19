@@ -10,7 +10,12 @@ function getQueue() {
   if (!redisUrl) return null;
 
   // Connexion “producer” : échec rapide si Redis est down (les workers doivent utiliser maxRetriesPerRequest: null).
-  const connection = new IORedis(redisUrl, { maxRetriesPerRequest: 1 });
+  const connection = new IORedis(redisUrl, {
+    maxRetriesPerRequest: 1,
+    enableOfflineQueue: false,
+    connectTimeout: 30000, // 30 seconds timeout to try connecting
+    retryStrategy: () => null, // Completely disable reconnect attempts so it fails fast after 30 sec
+  });
   queueInstance = new Queue("risk-analysis", { connection });
   return queueInstance;
 }
