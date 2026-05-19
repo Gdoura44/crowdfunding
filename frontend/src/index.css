@@ -1,12 +1,23 @@
-/* App-wide tokens & resets (Bootstrap handles most components) */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ═══════════════════════════════════════════════════
+   FinCollab Design System — Brand Color Tokens
+   Primary: Deep Teal  #0f4c5c
+   Accent:  Cyan       #1a8a9e
+   ═══════════════════════════════════════════════════ */
 :root {
-  --text: #475569;
-  --text-h: #0f172a;
-  --bg: #f6f8fa;
-  --border: #e2e8f0;
-  --sans: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --heading: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  /* ── Legacy compat vars ── */
+  --text:    #475569;
+  --text-h:  #0f172a;
+  --bg:      #f4f8fb;
+  --sans:    'Geist Variable', system-ui, "Segoe UI", sans-serif;
+  --heading: 'Geist Variable', system-ui, "Segoe UI", sans-serif;
+  --mono:    ui-monospace, "Cascadia Code", Consolas, monospace;
 
   font-family: var(--sans);
   font-size: 16px;
@@ -18,13 +29,164 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* ── Shadcn/ui semantic tokens — Light Mode ── */
+  /* Background & surfaces */
+  --background:            oklch(0.975 0.006 200);   /* very light teal tint */
+  --foreground:            oklch(0.16 0.025 210);    /* deep slate */
+
+  /* Cards */
+  --card:                  oklch(1 0 0);
+  --card-foreground:       oklch(0.16 0.025 210);
+
+  /* Popovers */
+  --popover:               oklch(1 0 0);
+  --popover-foreground:    oklch(0.16 0.025 210);
+
+  /* PRIMARY — FinCollab teal #0f4c5c → oklch(0.40 0.085 210) */
+  --primary:               oklch(0.38 0.088 210);
+  --primary-foreground:    oklch(0.98 0.005 200);
+
+  /* SECONDARY — soft teal tint */
+  --secondary:             oklch(0.93 0.022 200);
+  --secondary-foreground:  oklch(0.30 0.06 210);
+
+  /* MUTED */
+  --muted:                 oklch(0.95 0.010 200);
+  --muted-foreground:      oklch(0.52 0.030 210);
+
+  /* ACCENT — vibrant cyan #1a8a9e → oklch(0.60 0.11 210) */
+  --accent:                oklch(0.60 0.11 210);
+  --accent-foreground:     oklch(0.98 0.005 200);
+
+  /* DESTRUCTIVE */
+  --destructive:           oklch(0.577 0.245 27.325);
+
+  /* Border / input / ring */
+  --border:                oklch(0.88 0.018 200);
+  --input:                 oklch(0.91 0.014 200);
+  --ring:                  oklch(0.50 0.10 210);
+
+  /* Charts — brand-aligned color ramp */
+  --chart-1:               oklch(0.38 0.088 210);   /* primary teal */
+  --chart-2:               oklch(0.60 0.11  210);   /* accent cyan */
+  --chart-3:               oklch(0.72 0.13  160);   /* emerald */
+  --chart-4:               oklch(0.76 0.15  80);    /* amber */
+  --chart-5:               oklch(0.65 0.20  300);   /* violet */
+
+  /* Radius */
+  --radius: 0.625rem;
+
+  /* Sidebar */
+  --sidebar:                        oklch(0.20 0.055 215);
+  --sidebar-foreground:             oklch(0.92 0.014 200);
+  --sidebar-primary:                oklch(0.60 0.11  210);
+  --sidebar-primary-foreground:     oklch(0.98 0.005 200);
+  --sidebar-accent:                 oklch(0.28 0.06  215);
+  --sidebar-accent-foreground:      oklch(0.92 0.014 200);
+  --sidebar-border:                 oklch(1 0 0 / 12%);
+  --sidebar-ring:                   oklch(0.60 0.11  210);
 }
 
+/* ── Dark Mode ── */
+.dark {
+  --background:            oklch(0.12 0.025 215);
+  --foreground:            oklch(0.94 0.010 200);
+
+  --card:                  oklch(0.17 0.030 215);
+  --card-foreground:       oklch(0.94 0.010 200);
+
+  --popover:               oklch(0.17 0.030 215);
+  --popover-foreground:    oklch(0.94 0.010 200);
+
+  --primary:               oklch(0.62 0.12  210);   /* lighter teal for dark bg */
+  --primary-foreground:    oklch(0.10 0.020 215);
+
+  --secondary:             oklch(0.25 0.040 215);
+  --secondary-foreground:  oklch(0.90 0.010 200);
+
+  --muted:                 oklch(0.22 0.035 215);
+  --muted-foreground:      oklch(0.62 0.040 200);
+
+  --accent:                oklch(0.58 0.14  205);
+  --accent-foreground:     oklch(0.98 0.005 200);
+
+  --destructive:           oklch(0.704 0.191 22.216);
+
+  --border:                oklch(1 0 0 / 12%);
+  --input:                 oklch(1 0 0 / 16%);
+  --ring:                  oklch(0.58 0.12  210);
+
+  --chart-1:               oklch(0.62 0.12  210);
+  --chart-2:               oklch(0.72 0.14  160);
+  --chart-3:               oklch(0.78 0.16  80);
+  --chart-4:               oklch(0.68 0.20  300);
+  --chart-5:               oklch(0.76 0.18  30);
+
+  --sidebar:               oklch(0.14 0.030 215);
+  --sidebar-foreground:    oklch(0.90 0.010 200);
+  --sidebar-primary:       oklch(0.62 0.12  210);
+  --sidebar-primary-foreground: oklch(0.10 0.020 215);
+  --sidebar-accent:        oklch(0.20 0.040 215);
+  --sidebar-accent-foreground: oklch(0.90 0.010 200);
+  --sidebar-border:        oklch(1 0 0 / 10%);
+  --sidebar-ring:          oklch(0.62 0.12  210);
+}
+
+/* ─────────────────────────────────────────────── */
+/*  Tailwind @theme mapping                         */
+/* ─────────────────────────────────────────────── */
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans:    'Geist Variable', sans-serif;
+
+  --color-background:              var(--background);
+  --color-foreground:              var(--foreground);
+  --color-card:                    var(--card);
+  --color-card-foreground:         var(--card-foreground);
+  --color-popover:                 var(--popover);
+  --color-popover-foreground:      var(--popover-foreground);
+  --color-primary:                 var(--primary);
+  --color-primary-foreground:      var(--primary-foreground);
+  --color-secondary:               var(--secondary);
+  --color-secondary-foreground:    var(--secondary-foreground);
+  --color-muted:                   var(--muted);
+  --color-muted-foreground:        var(--muted-foreground);
+  --color-accent:                  var(--accent);
+  --color-accent-foreground:       var(--accent-foreground);
+  --color-destructive:             var(--destructive);
+  --color-border:                  var(--border);
+  --color-input:                   var(--input);
+  --color-ring:                    var(--ring);
+  --color-chart-1:                 var(--chart-1);
+  --color-chart-2:                 var(--chart-2);
+  --color-chart-3:                 var(--chart-3);
+  --color-chart-4:                 var(--chart-4);
+  --color-chart-5:                 var(--chart-5);
+  --color-sidebar:                 var(--sidebar);
+  --color-sidebar-foreground:      var(--sidebar-foreground);
+  --color-sidebar-primary:         var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent:          var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border:          var(--sidebar-border);
+  --color-sidebar-ring:            var(--sidebar-ring);
+
+  --radius-sm:  calc(var(--radius) * 0.6);
+  --radius-md:  calc(var(--radius) * 0.8);
+  --radius-lg:  var(--radius);
+  --radius-xl:  calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ─────────────────────────────────────────────── */
+/*  Global resets & base                           */
+/* ─────────────────────────────────────────────── */
 *,
 *::before,
-*::after {
-  box-sizing: border-box;
-}
+*::after { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -41,33 +203,103 @@ body {
   flex-direction: column;
 }
 
-/* Default headings: Bootstrap utility classes override on pages */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+h1, h2, h3, h4, h5, h6 {
   font-family: var(--heading);
   color: var(--text-h);
 }
 
-p {
-  margin: 0;
-}
+p { margin: 0; }
+code { font-family: var(--mono); font-size: 0.9em; }
 
-code {
-  font-family: var(--mono);
-  font-size: 0.9em;
-}
-
-/* Masquer les flèches natives des champs numériques (meilleure UX pour les steppers). */
+/* No-spin number inputs */
 input.no-spin::-webkit-outer-spin-button,
-input.no-spin::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+input.no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input.no-spin[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
+/* ─────────────────────────────────────────────── */
+/*  Shadcn base layer                              */
+/* ─────────────────────────────────────────────── */
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground; }
+  html { @apply font-sans; }
 }
-input.no-spin[type="number"] {
-  -moz-appearance: textfield;
-  appearance: textfield;
+
+/* ─────────────────────────────────────────────── */
+/*  FinCollab brand gradient utility               */
+/* ─────────────────────────────────────────────── */
+.fc-gradient {
+  background: linear-gradient(135deg, oklch(0.38 0.088 210) 0%, oklch(0.60 0.11 210) 100%);
+}
+.fc-gradient-text {
+  background: linear-gradient(135deg, oklch(0.38 0.088 210) 0%, oklch(0.60 0.11 210) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Micro-animations & interactive polish ─── */
+
+/* Card hover lift */
+[data-slot="card"] {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+[data-slot="card"]:hover {
+  box-shadow: 0 4px 24px oklch(0.38 0.088 210 / 0.08), 0 1px 4px oklch(0 0 0 / 0.06);
+}
+
+/* Input focus glow */
+[data-slot="input"]:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  box-shadow: 0 0 0 3px oklch(0.38 0.088 210 / 0.18);
+}
+
+/* Button press feedback */
+[data-slot="button"]:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/* Smooth page transitions */
+main {
+  animation: fadeUp 0.35s ease both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Brand selection color */
+::selection {
+  background: oklch(0.60 0.11 210 / 0.25);
+  color: oklch(0.16 0.025 210);
+}
+
+/* Scrollbar — subtle brand tint */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: oklch(0.38 0.088 210 / 0.25);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.38 0.088 210 / 0.45);
+}
+
+/* Page background radial glow */
+body {
+  background-image: radial-gradient(
+    ellipse 80% 50% at 50% -20%,
+    oklch(0.80 0.06 210 / 0.35),
+    transparent
+  );
+}
+
+/* Smooth link transitions */
+a { transition: color 0.15s ease, opacity 0.15s ease; }
+
+/* Badge pulse animation for unread counts */
+@keyframes pulse-brand {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.38 0.088 210 / 0.4); }
+  50%       { box-shadow: 0 0 0 4px oklch(0.38 0.088 210 / 0); }
 }

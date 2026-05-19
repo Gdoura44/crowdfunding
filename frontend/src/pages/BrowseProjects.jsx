@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { projectsApi } from "../api/projects";
 import ProjectCard from "../components/project/ProjectCard.jsx";
-import PageHeader from "../components/ui/PageHeader.jsx";
-import PageLoader from "../components/ui/PageLoader.jsx";
-import EmptyState from "../components/ui/EmptyState.jsx";
 import { extractApiError } from "../utils/apiError";
 import { PROJECT_CATEGORIES } from "../config/categories.js";
-import Alert from "../components/ui/Alert.jsx";
+import {
+  PenTool, Search, Filter, Info, ChevronLeft, ChevronRight, Loader2, AlertCircle
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 const RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"];
 
@@ -51,7 +52,6 @@ export default function BrowseProjects() {
   }, [q, category, riskLevel, status, includeUpcoming, page]);
 
   async function load() {
-    // Navigation publique (liste / recherche). Les champs texte sont debounce pour une UX plus fluide.
     const { data } =
       params.q || params.category || params.riskLevel || params.status
         ? await projectsApi.search(params)
@@ -84,34 +84,43 @@ export default function BrowseProjects() {
   }, [params]);
 
   return (
-    <div>
-      <PageHeader
-        title="Découvrir des projets"
-        subtitle="Recherchez par mots-clés, filtrez par catégorie ou par niveau de risque indiqué sur la fiche."
-        actions={
-          <Link to="/register" className="btn btn-fc-primary text-white">
-            <i className="fa-solid fa-pen-ruler me-2" aria-hidden="true" />
+    <div className="space-y-6">
+      {/* HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Découvrir des projets</h1>
+          <p className="text-muted-foreground mt-1">
+            Recherchez par mots-clés, filtrez par catégorie ou par niveau de risque.
+          </p>
+        </div>
+        <Button asChild>
+          <Link to="/register">
+            <PenTool className="mr-2 h-4 w-4" />
             Lancer un projet
           </Link>
-        }
-      />
+        </Button>
+      </div>
 
-      <div className="card border-0 fc-surface-card mb-4">
-        <div className="card-body p-4">
-          <div className="row g-3 align-items-end">
-            <div className="col-md-5">
-              <label className="form-label small text-muted mb-1">Recherche</label>
-              <input
-                className="form-control"
-                placeholder="Titre, description…"
-                value={qDraft}
-                onChange={(e) => setQDraft(e.target.value)}
-              />
+      {/* FILTERS */}
+      <Card className="shadow-sm border-border/50">
+        <CardContent className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+            <div className="md:col-span-5 space-y-2">
+              <label className="text-sm font-medium leading-none">Recherche</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <input
+                  className="flex h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
+                  placeholder="Titre, description…"
+                  value={qDraft}
+                  onChange={(e) => setQDraft(e.target.value)}
+                />
+              </div>
             </div>
-            <div className="col-md-3">
-              <label className="form-label small text-muted mb-1">Catégorie</label>
+            <div className="md:col-span-3 space-y-2">
+              <label className="text-sm font-medium leading-none">Catégorie</label>
               <select
-                className="form-select"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
                 value={categoryDraft}
                 onChange={(e) => setCategoryDraft(e.target.value)}
               >
@@ -123,10 +132,10 @@ export default function BrowseProjects() {
                 ))}
               </select>
             </div>
-            <div className="col-md-2">
-              <label className="form-label small text-muted mb-1">Risque</label>
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-sm font-medium leading-none">Risque</label>
               <select
-                className="form-select"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
                 value={riskLevel}
                 onChange={(e) => setRiskLevel(e.target.value)}
               >
@@ -138,10 +147,10 @@ export default function BrowseProjects() {
                 ))}
               </select>
             </div>
-            <div className="col-md-2">
-              <label className="form-label small text-muted mb-1">Statut</label>
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-sm font-medium leading-none">Statut</label>
               <select
-                className="form-select"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
               >
@@ -150,83 +159,99 @@ export default function BrowseProjects() {
               </select>
             </div>
           </div>
+
           {status === "ACTIVE" && (
-            <div className="form-check form-switch mt-3">
+            <div className="flex items-center space-x-2 mt-4">
               <input
-                className="form-check-input"
                 type="checkbox"
-                role="switch"
                 id="includeUpcoming"
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                 checked={includeUpcoming}
                 onChange={(e) => setIncludeUpcoming(e.target.checked)}
               />
-              <label className="form-check-label small text-muted" htmlFor="includeUpcoming">
+              <label htmlFor="includeUpcoming" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                 Inclure les campagnes à venir (date de démarrage future)
               </label>
             </div>
           )}
-          <div className="small text-muted mt-3 d-flex align-items-start gap-2">
-            <i className="fa-solid fa-circle-info mt-1" aria-hidden="true" />
-            <span>
-              Campagnes <strong>publiques</strong> et non archivées.
-            </span>
+
+          <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-border">
+            <div className="flex items-start gap-2 text-xs text-muted-foreground">
+              <Info className="h-4 w-4 shrink-0" />
+              <span>Campagnes <strong>publiques</strong> et non archivées.</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs text-muted-foreground">
+              <Filter className="h-4 w-4 shrink-0" />
+              <span>Filtre <strong>Statut</strong> : "Actifs" (campagnes en cours) ou "Clôturés" (terminées).</span>
+            </div>
           </div>
-          <div className="small text-muted mt-2 d-flex align-items-start gap-2">
-            <i className="fa-solid fa-filter mt-1" aria-hidden="true" />
-            <span>
-              Filtre <strong>Statut</strong> : “Actifs” (campagnes en cours) ou “Clôturés” (terminées).
-            </span>
-          </div>
+        </CardContent>
+      </Card>
+
+      {/* STATES & LIST */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
+          <p>Chargement des campagnes…</p>
         </div>
-      </div>
+      )}
 
-      {loading && <PageLoader label="Chargement des campagnes…" />}
-
-      {error && <Alert variant="warning">{error}</Alert>}
+      {error && (
+        <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive flex items-center gap-2">
+          <AlertCircle className="h-5 w-5" />
+          <p>{error}</p>
+        </div>
+      )}
 
       {!loading && !error && projects.length === 0 && (
-        <EmptyState
-          icon="fa-solid fa-magnifying-glass"
-          title="Aucun résultat"
-          description="Essayez d’élargir la recherche, de retirer un filtre ou de vérifier l’orthographe."
-        />
+        <Card className="border-dashed shadow-none">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="rounded-full bg-muted p-4 mb-4">
+              <Search className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">Aucun résultat</h3>
+            <p className="text-muted-foreground max-w-sm">
+              Essayez d’élargir la recherche, de retirer un filtre ou de vérifier l’orthographe.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {!loading && !error && projects.length > 0 && (
-        <>
-          <div className="d-flex justify-content-between align-items-center mb-2 small text-muted">
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
             <div>
-              Page <strong>{page}</strong> / <strong>{totalPages}</strong>
-              {Number.isFinite(total) && total > 0 ? <> · {total} résultats</> : null}
+              Page <strong className="text-foreground">{page}</strong> / <strong className="text-foreground">{totalPages}</strong>
+              {Number.isFinite(total) && total > 0 ? <span> · {total} résultats</span> : null}
             </div>
-            <div className="btn-group" role="group" aria-label="Pagination">
-              <button
-                type="button"
-                className="btn btn-outline-secondary btn-sm"
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setPage((p) => Math.max(1, Number(p || 1) - 1))}
                 disabled={loading || page <= 1}
               >
+                <ChevronLeft className="h-4 w-4 mr-1" />
                 Précédent
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline-secondary btn-sm"
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setPage((p) => Math.min(totalPages, Number(p || 1) + 1))}
                 disabled={loading || page >= totalPages}
               >
                 Suivant
-              </button>
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
             </div>
           </div>
 
-          <div className="row g-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map((p) => (
-              <div key={p._id} className="col-12 col-md-6 col-lg-4">
-                <ProjectCard project={p} />
-              </div>
+              <ProjectCard key={p._id} project={p} />
             ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

@@ -107,7 +107,27 @@ async function updateAiAnalysisFromWorkflow(input) {
     );
   }
 
-  await enqueueEmailForNotifications([creatorNotif, ...adminNotifs]);
+  // Notifier tous les experts que l'analyse IA est terminée et que le projet est UNDER_REVIEW
+  let expertNotifs = [];
+  try {
+    const experts = await User.find({ role: "EXPERT", deletedAt: null }).select("_id").lean();
+    if (experts.length) {
+      expertNotifs = await Notification.insertMany(
+        experts.map((e) => ({
+          userId: e._id,
+          type: "PROJECT_AI_REPORT_READY",
+          title: `Analyse IA terminée — À valider : ${project.title}`,
+          message: `Le projet "${project.title}" a terminé son analyse IA (Risque : ${riskLabel}). Vous pouvez maintenant l'examiner et valider ou rejeter la soumission.`,
+          relatedEntityId: project._id,
+          relatedEntityType: "PROJECT",
+        }))
+      );
+    }
+  } catch (err) {
+    console.error("[workflow-internal-service] Erreur notification experts:", err);
+  }
+
+  await enqueueEmailForNotifications([creatorNotif, ...adminNotifs, ...expertNotifs]);
 
   return { project, idempotent: false };
 }

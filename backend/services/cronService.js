@@ -103,8 +103,8 @@ async function expireProjects({ now = new Date(), limit = 50 } = {}) {
       });
     }
 
-    // Rembourser les investissements SUCCESS (au mieux, créer FailedRefundEvent en cas d’échec).
-    const successes = await Investment.find({ projectId: p._id, status: "SUCCESS" }).lean();
+    // Rembourser les investissements SUCCESS et PENDING_CONSULTATION (au mieux, créer FailedRefundEvent en cas d’échec).
+    const successes = await Investment.find({ projectId: p._id, status: { $in: ["SUCCESS", "PENDING_CONSULTATION"] } }).lean();
     for (const inv of successes) {
       const tx = await Transaction.findOne({ investmentId: inv._id }).sort({ attemptNumber: -1 }).lean();
       if (!tx || tx.status !== "SUCCEEDED") continue;

@@ -50,15 +50,18 @@ export function AuthProvider({ children }) {
     navigate("/", { replace: true });
   }, [navigate]);
 
+  const isExpert = user?.role === "EXPERT" || user?.role === "ADMIN";
+
   const value = useMemo(
     () => ({
       user,
       loading,
       isAuthenticated: Boolean(user),
+      isExpert,
       refreshUser,
       logout,
     }),
-    [user, loading, refreshUser, logout]
+    [user, loading, isExpert, refreshUser, logout]
   );
 
   return (

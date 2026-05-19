@@ -13,6 +13,7 @@ const userProfileSchema = new mongoose.Schema(
   {
     firstName: { type: String, default: "" },
     lastName: { type: String, default: "" },
+    cabinetName: { type: String, default: "" },
     // Téléphone : stocké au format E.164 quand possible (ex. "+21612345678")
     phone: { type: String, default: "" },
     // Remarque : le pays n’est pas persisté ; l’UI stocke le E.164 complet dans `phone`.
@@ -37,7 +38,7 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     role: {
       type: String,
-      enum: ["USER", "ADMIN"],
+      enum: ["USER", "ADMIN", "EXPERT"],
       required: true,
       default: "USER",
     },

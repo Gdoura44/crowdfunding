@@ -10,6 +10,8 @@ const reportRoutes = require("./reportRoutes");
 const payoutRoutes = require("./payoutRoutes");
 const recommendationRoutes = require("./recommendationRoutes");
 const chatbotRoutes = require("./chatbotRoutes");
+const expertRoutes = require("./expertRoutes");
+const invoiceRoutes = require("./invoiceRoutes");
 
 const router = express.Router();
 
@@ -23,6 +25,9 @@ router.use("/webhooks", webhookRoutes);
 router.use("/reports", reportRoutes);
 router.use("/payouts", payoutRoutes);
 router.use("/recommendations", recommendationRoutes);
+router.use("/expert", expertRoutes);
+router.use("/invoices", invoiceRoutes);
 router.use(chatbotRoutes);
 
 module.exports = router;
+

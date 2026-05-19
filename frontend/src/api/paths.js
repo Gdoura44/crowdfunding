@@ -64,6 +64,8 @@ export const paths = {
     opsFailedPayouts: "/api/admin/ops/failed-payouts",
     opsRetryRefunds: "/api/admin/ops/retry-refunds",
     opsRetryPayouts: "/api/admin/ops/retry-payouts",
+    experts: "/api/admin/experts",
+    deleteExpert: (id) => `/api/admin/experts/${id}`,
   },
   investments: {
     create: "/api/investments",
@@ -72,7 +74,9 @@ export const paths = {
     retry: (id) => `/api/investments/${id}/retry`,
     mockConfirm: "/api/investments/mock/confirm",
     mockSendOtp: "/api/investments/mock/send-otp",
+    finalizeConsultation: (id) => `/api/investments/${id}/finalize-consultation`,
   },
+
   reports: {
     create: "/api/reports",
     createComment: "/api/reports/comments",

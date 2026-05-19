@@ -155,7 +155,8 @@ async function analyzeProjectRisk(payload, { sources: _sources = [] } = {}) {
     `Titre: ${payload.title || ""}`,
     `Description: ${payload.description || ""}`,
     `Catégorie: ${payload.category || ""}`,
-    `Objectif: ${payload.fundingGoal ?? ""} TND`,
+    `Objectif Public de la Campagne (frais inclus): ${payload.fundingGoal ?? ""} TND`,
+    `Besoin Réel net du Projet (reçu par le créateur): ${payload.realBudget ?? (payload.fundingGoal ? Math.round(payload.fundingGoal * 0.95) : "")} TND`,
     `Deadline: ${payload.deadline ? new Date(payload.deadline).toISOString() : ""}`,
   ].join("\n");
 

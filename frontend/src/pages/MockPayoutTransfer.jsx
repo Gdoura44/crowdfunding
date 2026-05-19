@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
-import PageHeader from "../components/ui/PageHeader.jsx";
 import { extractApiError } from "../utils/apiError";
 import { adminApi } from "../api/admin";
-import Alert from "../components/ui/Alert.jsx";
+import {
+  Building2, CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowLeft
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 function useQuery() {
   const { search } = useLocation();
@@ -16,71 +20,33 @@ function maskOperationRef(transferId) {
   return raw.slice(-6).toUpperCase();
 }
 
-function statusPresentation(code) {
-  const c = String(code || "").toUpperCase();
-  if (c === "PENDING") {
-    return {
-      label: "Action requise",
-      badgeClass: "bg-warning text-dark",
-      description:
-        "Un virement a été initié vers le compte indiqué par le bénéficiaire. Merci de confirmer le résultat côté banque.",
-    };
-  }
-  if (c === "TRAITEMENT") {
-    return {
-      label: "Traitement…",
-      badgeClass: "bg-info text-dark",
-      description: "Enregistrement de votre réponse.",
-    };
-  }
-  if (c === "COMPLETED") {
-    return {
-      label: "Virement effectué",
-      badgeClass: "bg-success",
-      description: "Le statut du transfert a été mis à jour. Le créateur sera notifié.",
-    };
-  }
-  if (c === "FAILED") {
-    return {
-      label: "Non abouti",
-      badgeClass: "bg-danger",
-      description: "Le refus a été enregistré. Un administrateur pourra relancer si nécessaire.",
-    };
-  }
-  return { label: c, badgeClass: "bg-light text-dark border", description: "" };
-}
+const STATUS_CONFIG = {
+  PENDING: { label: "Action requise", cls: "bg-amber-100 text-amber-800 border-amber-200", desc: "Un virement a été initié vers le compte indiqué par le bénéficiaire. Merci de confirmer le résultat côté banque." },
+  TRAITEMENT: { label: "Traitement…", cls: "bg-blue-100 text-blue-800 border-blue-200", desc: "Enregistrement de votre réponse." },
+  COMPLETED: { label: "Virement effectué", cls: "bg-green-100 text-green-800 border-green-200", desc: "Le statut du transfert a été mis à jour. Le créateur sera notifié." },
+  FAILED: { label: "Non abouti", cls: "bg-red-100 text-red-800 border-red-200", desc: "Le refus a été enregistré. Un administrateur pourra relancer si nécessaire." },
+};
 
 export default function MockPayoutTransfer() {
   const nav = useNavigate();
   const q = useQuery();
   const payoutIdRaw = q.get("payoutId") || "";
   const ref = q.get("ref") || "";
-  const payoutId =
-    payoutIdRaw ||
-    (/^[a-f\d]{24}$/i.test(String(ref).trim()) ? String(ref).trim() : "");
+  const payoutId = payoutIdRaw || (/^[a-f\d]{24}$/i.test(String(ref).trim()) ? String(ref).trim() : "");
   const transferId = q.get("transferId") || "";
   const amount = q.get("amount") || "";
   const currency = (q.get("currency") || "TND").toUpperCase();
 
   const [status, setStatus] = useState("PENDING");
   const [error, setError] = useState("");
-  const [outcomeBannerHidden, setOutcomeBannerHidden] = useState(false);
+  const [showOutcome, setShowOutcome] = useState(false);
 
-  const handleOutcomeDismiss = useCallback(() => {
-    setOutcomeBannerHidden(true);
-  }, []);
-
-  const handleErrorDismiss = useCallback(() => {
-    setError("");
-  }, []);
-
-  useEffect(() => {
-    if (status === "COMPLETED" || status === "FAILED") setOutcomeBannerHidden(false);
-  }, [status]);
+  const handleErrorDismiss = useCallback(() => { setError(""); }, []);
+  useEffect(() => { if (status === "COMPLETED" || status === "FAILED") setShowOutcome(true); }, [status]);
 
   const disabled = !payoutId || !transferId || status === "TRAITEMENT";
   const terminal = status === "COMPLETED" || status === "FAILED";
-  const pres = statusPresentation(status);
+  const pres = STATUS_CONFIG[status] || STATUS_CONFIG.PENDING;
   const opRef = maskOperationRef(transferId);
   const amountLabel = useMemo(() => {
     const n = Number(amount);
@@ -92,156 +58,134 @@ export default function MockPayoutTransfer() {
     setError("");
     setStatus("TRAITEMENT");
     try {
-      await adminApi.mockConfirmPayout(payoutId, {
-        providerTransferId: transferId,
-        status: next,
-      });
+      await adminApi.mockConfirmPayout(payoutId, { providerTransferId: transferId, status: next });
       setStatus(next);
     } catch (e) {
-      const out = extractApiError(e, "Impossible d’enregistrer la réponse.");
-      setError(out.message);
+      setError(extractApiError(e, "Impossible d'enregistrer la réponse.").message);
       setStatus("PENDING");
     }
   }
 
   return (
-    <div>
-      <PageHeader
-        title="Confirmation de virement"
-        subtitle="Espace sécurisé prestataire : indiquez si le virement a bien été réalisé par votre établissement."
-        actions={
-          <div className="d-flex gap-2">
-            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => nav(-1)}>
-              Retour
-            </button>
-            <Link to="/admin/payouts" className="btn btn-outline-secondary btn-sm">
-              Retraits admin
-            </Link>
-          </div>
-        }
-      />
-
-      {error ? (
-        <div className="mb-3" style={{ maxWidth: "min(36rem, 100%)" }}>
-          <Alert
-            variant="danger"
-            dismissAfterMs={5000}
-            onDismiss={handleErrorDismiss}
-            className="mb-0 py-2 px-3"
-          >
-            {error}
-          </Alert>
+    <div className="max-w-2xl mx-auto space-y-6 pb-12">
+      {/* Header */}
+      <div className="border-b border-border/40 pb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2 flex items-center gap-3">
+            <Building2 className="w-8 h-8 text-primary" />
+            Confirmation de virement
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Espace sécurisé prestataire — indiquez si le virement a bien été réalisé par votre établissement.
+          </p>
         </div>
-      ) : null}
+        <div className="flex gap-2 shrink-0">
+          <Button variant="ghost" size="sm" onClick={() => nav(-1)}>
+            <ArrowLeft className="w-4 h-4 mr-1" /> Retour
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/admin/payouts">Retraits admin</Link>
+          </Button>
+        </div>
+      </div>
 
-      <div className="card border-0 shadow-sm overflow-hidden fc-surface-card">
-        <div
-          className="px-4 py-3 text-white d-flex align-items-center gap-3"
-          style={{
-            background: "linear-gradient(135deg, #0f4c5c 0%, #1a8a9e 100%)",
-          }}
-        >
-          <div
-            className="rounded-circle bg-white bg-opacity-25 d-flex align-items-center justify-content-center flex-shrink-0"
-            style={{ width: "3rem", height: "3rem" }}
-            aria-hidden="true"
-          >
-            <i className="fa-solid fa-building-columns fs-4" />
+      {error && (
+        <div className="bg-destructive/10 text-destructive p-4 rounded-xl flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <p className="text-sm font-medium">{error}</p>
+          <button onClick={handleErrorDismiss} className="ml-auto text-destructive/60 hover:text-destructive text-lg leading-none">&times;</button>
+        </div>
+      )}
+
+      <Card className="border-border/50 shadow-sm overflow-hidden">
+        {/* Gradient banner */}
+        <div className="px-6 py-4 flex items-center gap-4 text-white" style={{ background: "linear-gradient(135deg, #0f4c5c 0%, #1a8a9e 100%)" }}>
+          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+            <Building2 className="w-6 h-6" />
           </div>
           <div>
-            <div className="small text-white-50 mb-0">Prestataire partenaire</div>
-            <div className="fw-semibold">Virement sortant — vérification bancaire</div>
+            <p className="text-white/70 text-xs">Prestataire partenaire</p>
+            <p className="font-semibold">Virement sortant — vérification bancaire</p>
           </div>
         </div>
 
-        <div className="card-body p-4 p-md-5">
-          <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div className="p-6 md:p-8 space-y-6">
+          {/* Amount + status */}
+          <div className="flex flex-wrap justify-between items-start gap-4">
             <div>
-              <div className="text-muted small text-uppercase" style={{ letterSpacing: "0.06em" }}>
-                Montant du transfert
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Montant du transfert</p>
+              <div className="text-4xl font-black text-foreground">
+                {amountLabel ? <>{amountLabel} <span className="text-xl font-semibold text-muted-foreground">{currency}</span></> : "—"}
               </div>
-              <div className="display-6 fw-bold text-dark mt-1">
-                {amountLabel ? (
-                  <>
-                    {amountLabel}{" "}
-                    <span className="fs-4 fw-semibold text-muted">{currency}</span>
-                  </>
-                ) : (
-                  "—"
-                )}
-              </div>
-              {opRef ? (
-                <div className="small text-muted mt-2">
-                  Réf. opération <span className="font-monospace fw-semibold text-dark">···{opRef}</span>
-                </div>
-              ) : null}
+              {opRef && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Réf. opération <span className="font-mono font-semibold text-foreground">···{opRef}</span>
+                </p>
+              )}
             </div>
-            <div className="text-end">
-              <span className={`badge ${pres.badgeClass} px-3 py-2`}>{pres.label}</span>
-            </div>
+            <Badge variant="outline" className={`${pres.cls} text-xs uppercase tracking-wider font-semibold`}>
+              {pres.label}
+            </Badge>
           </div>
 
-          {pres.description ? <p className="text-muted small mb-0 mb-md-4">{pres.description}</p> : null}
+          {pres.desc && <p className="text-sm text-muted-foreground">{pres.desc}</p>}
 
           {!payoutId || !transferId ? (
-            <Alert variant="warning" className="mb-0">
-              Cette page doit être ouverte depuis l’administration après initiation d’un virement.
-            </Alert>
+            <div className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-200 text-sm">
+              Cette page doit être ouverte depuis l'administration après initiation d'un virement.
+            </div>
           ) : null}
 
-          {payoutId && transferId && !terminal ? (
+          {payoutId && transferId && !terminal && (
             <>
-              <hr className="my-4" />
+              <hr className="border-border/50" />
               {status === "TRAITEMENT" ? (
-                <div className="d-flex align-items-center gap-2 py-2 text-muted" role="status">
-                  <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+                <div className="flex items-center gap-2 py-2 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" />
                   Enregistrement de la réponse…
                 </div>
               ) : (
-                <>
-                  <div className="d-flex flex-column flex-sm-row flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-success btn-sm px-3"
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
                       disabled={disabled}
                       onClick={() => confirm("COMPLETED")}
+                      className="bg-green-600 hover:bg-green-700 text-white flex-1"
                     >
-                      <i className="fa-solid fa-circle-check me-2" aria-hidden="true" />
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
                       Confirmer le virement
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-outline-danger btn-sm px-3"
+                    </Button>
+                    <Button
+                      variant="outline"
                       disabled={disabled}
                       onClick={() => confirm("FAILED")}
+                      className="text-destructive border-destructive/30 hover:bg-destructive/10 flex-1"
                     >
-                      <i className="fa-solid fa-triangle-exclamation me-2" aria-hidden="true" />
+                      <XCircle className="w-4 h-4 mr-2" />
                       Signaler un refus / échec
-                    </button>
+                    </Button>
                   </div>
-                  <p className="small text-muted mt-3 mb-0">
-                    Indiquez le résultat tel qu’il apparaît dans votre outil de virement ou de contrôle des opérations.
+                  <p className="text-xs text-muted-foreground">
+                    Indiquez le résultat tel qu'il apparaît dans votre outil de virement ou de contrôle des opérations.
                   </p>
-                </>
+                </div>
               )}
             </>
-          ) : null}
+          )}
 
-          {terminal && !outcomeBannerHidden ? (
-            <div className="mt-3" style={{ maxWidth: "min(26rem, 100%)" }}>
-              <Alert
-                variant={status === "COMPLETED" ? "success" : "danger"}
-                dismissAfterMs={5000}
-                onDismiss={handleOutcomeDismiss}
-                className="mb-0 py-2 px-3 shadow-sm"
-              >
-                <strong>{status === "COMPLETED" ? "Réponse enregistrée." : "Échec signalé."}</strong> Vous pouvez
-                fermer cette page ou revenir au tableau des retraits.
-              </Alert>
+          {terminal && showOutcome && (
+            <div className={`p-4 rounded-xl flex items-center justify-between gap-3 ${status === "COMPLETED" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+              <div className="flex items-center gap-2">
+                {status === "COMPLETED" ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                <span className="text-sm font-medium">
+                  {status === "COMPLETED" ? "Réponse enregistrée." : "Échec signalé."} Vous pouvez fermer cette page ou revenir au tableau des retraits.
+                </span>
+              </div>
+              <button onClick={() => setShowOutcome(false)} className="opacity-60 hover:opacity-100 text-lg leading-none">&times;</button>
             </div>
-          ) : null}
+          )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -14,3 +14,4 @@ require("./FailedWorkflowEvent");
 require("./FailedCancellationEvent");
 require("./FailedRefundEvent");
 require("./FailedPayoutEvent");
+require("./ExpertConsultation");

@@ -2,7 +2,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { investmentsApi } from "../../api/investments";
 import { extractApiError } from "../../utils/apiError";
-import Alert from "../../components/ui/Alert.jsx";
+import { CreditCard, CheckCircle2, XCircle, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { onlyDigits, isValidExpiry } from "./cardUtils.js";
 import { useMockPaymentQuery } from "./useMockPaymentQuery.js";
 import MockCardForm from "./MockCardForm.jsx";
@@ -24,38 +26,38 @@ export default function MockPaymentProviderPage() {
   const [cardNumber, setCardNumber] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
-  /** Intention après 3DS : SUCCEEDED ou FAILED */
   const [pendingIntent, setPendingIntent] = useState("");
   const [otp, setOtp] = useState("");
   const [otpErr, setOtpErr] = useState("");
 
-  const cardDigits = onlyDigits(cardNumber);
+  const cardDigits = onlyDigits(cardNumber).slice(0, 16);
   const cvvDigits = onlyDigits(cvv);
-  const looksLikeCard = cardDigits.length >= 13 && cardDigits.length <= 19;
+  const looksLikeCard = cardDigits.length === 15 || cardDigits.length === 16;
   const looksLikeCvv = cvvDigits.length >= 3 && cvvDigits.length <= 4;
   const looksLikeName = String(cardName || "").trim().length >= 3;
   const looksLikeExpiry = isValidExpiry(expiry);
-  const canSubmit =
-    Boolean(providerPaymentId) && looksLikeCard && looksLikeExpiry && looksLikeCvv && looksLikeName;
+  const canSubmit = Boolean(providerPaymentId) && looksLikeCard && looksLikeExpiry && looksLikeCvv && looksLikeName;
+
+  const statusBadge = {
+    PENDING: "bg-amber-100 text-amber-800 border-amber-200",
+    "3DS": "bg-blue-100 text-blue-800 border-blue-200",
+    TRAITEMENT: "bg-purple-100 text-purple-800 border-purple-200",
+    SUCCEEDED: "bg-green-100 text-green-800 border-green-200",
+    FAILED: "bg-red-100 text-red-800 border-red-200",
+  };
 
   async function confirm(nextStatus) {
     setLoading(true);
     setError("");
     try {
       setStatus("TRAITEMENT");
-      await investmentsApi.mockConfirm(
-        {
-          providerPaymentId,
-          status: nextStatus,
-          paymentMethod: "MOCK_CARD",
-          otp: status === "3DS" ? otp : undefined,
-        },
+      const { data } = await investmentsApi.mockConfirm(
+        { providerPaymentId, status: nextStatus, paymentMethod: "MOCK_CARD", otp: status === "3DS" ? otp : undefined },
         { timeout: 15000 }
       );
-      window.location.assign("/investments");
+      window.location.assign(data?.redirectTo || "/investments");
     } catch (e) {
-      const out = extractApiError(e, "Impossible de confirmer le paiement.");
-      setError(out.message);
+      setError(extractApiError(e, "Impossible de confirmer le paiement.").message);
       setStatus("PENDING");
     } finally {
       setLoading(false);
@@ -63,164 +65,123 @@ export default function MockPaymentProviderPage() {
   }
 
   function start3ds(intent) {
-    setError("");
-    setOtp("");
-    setOtpErr("");
-    setPendingIntent(String(intent || "").toUpperCase());
+    setError(""); setOtp(""); setOtpErr("");
+    if (intent !== undefined) {
+      setPendingIntent(String(intent || "").toUpperCase());
+    }
     setStatus("3DS");
+    setLoading(true);
     void investmentsApi
       .mockSendOtp({ providerPaymentId }, { timeout: 15000 })
-      .then((res) => {
-        const previewUrl = res?.data?.previewUrl;
-        if (previewUrl) console.info("[OTP] Aperçu:", previewUrl);
-      })
-      .catch(() => {
-        // Ne pas bloquer le parcours si l’envoi échoue.
-      });
+      .then((res) => { const url = res?.data?.previewUrl; if (url) console.info("[OTP] Aperçu:", url); })
+      .catch((err) => { setOtpErr(extractApiError(err, "Erreur d'envoi du code.").message); })
+      .finally(() => setLoading(false));
   }
 
   async function confirm3ds() {
     const code = onlyDigits(otp);
-    if (code.length !== 6) {
-      setOtpErr("Code invalide (6 chiffres).");
-      return;
-    }
+    if (code.length !== 6) { setOtpErr("Code invalide (6 chiffres)."); return; }
     setOtpErr("");
     await confirm(pendingIntent || "SUCCEEDED");
   }
 
   function cancel3ds() {
-    setStatus("PENDING");
-    setPendingIntent("");
-    setOtp("");
-    setOtpErr("");
+    setStatus("PENDING"); setPendingIntent(""); setOtp(""); setOtpErr("");
   }
 
   const cardFormDisabled = loading || status !== "PENDING";
 
   return (
-    <div className="d-flex flex-column gap-3">
-      <nav aria-label="fil d’Ariane" className="mb-1">
-        <ol className="breadcrumb small mb-0">
-          <li className="breadcrumb-item">
-            <Link to="/projects">Explorer</Link>
-          </li>
-          <li className="breadcrumb-item active" aria-current="page">
-            Paiement sécurisé
-          </li>
-        </ol>
-      </nav>
-
-      <div className="card border-0 fc-surface-card">
-        <div className="card-body p-4 p-md-5">
-          <div className="d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div className="space-y-4">
+      <div className="bg-card border border-border/50 rounded-xl shadow-sm overflow-hidden">
+        <div className="p-5 md:p-7">
+          {/* Header */}
+          <div className="flex flex-wrap justify-between items-start gap-3 mb-5">
             <div>
-              <h1 className="h5 mb-1 d-flex align-items-center gap-2 text-dark">
-                <i className="fa-solid fa-credit-card text-primary" aria-hidden="true" />
+              <h1 className="text-xl font-bold text-foreground mb-1 flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-primary" aria-hidden="true" />
                 Paiement sécurisé
               </h1>
-              <div className="text-muted small">
-                Complétez le formulaire, puis indiquez le résultat pour poursuivre et enregistrer votre soutien.
-              </div>
+              <p className="text-sm text-muted-foreground">
+                Complétez le formulaire, puis indiquez le résultat pour enregistrer votre soutien.
+              </p>
             </div>
-            <span
-              className={`badge ${
-                status === "SUCCEEDED"
-                  ? "bg-success"
-                  : status === "FAILED"
-                    ? "bg-danger"
-                    : status === "3DS"
-                      ? "bg-info text-dark"
-                      : "bg-warning text-dark"
-              }`}
-            >
+            <Badge variant="outline" className={`text-[10px] uppercase tracking-wider font-semibold ${statusBadge[status] || statusBadge.PENDING}`}>
               {status}
-            </span>
+            </Badge>
           </div>
 
-          <hr className="my-3" />
+          <hr className="border-border/50 mb-5" />
 
-          <div className="row g-3 small">
-            <div className="col-12 col-sm-6">
-              <div className="text-muted">Montant</div>
-              <div className="fw-semibold">
-                {amount} {currency}
-              </div>
-            </div>
+          {/* Amount */}
+          <div className="mb-2">
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Montant</span>
+            <p className="font-bold text-foreground text-lg">{amount} <span className="text-sm font-normal text-muted-foreground">{currency}</span></p>
           </div>
 
+          {/* Card form */}
           <MockCardForm
-            cardName={cardName}
-            onCardNameChange={setCardName}
-            cardNumber={cardNumber}
-            onCardNumberChange={setCardNumber}
-            expiry={expiry}
-            onExpiryChange={setExpiry}
-            cvv={cvv}
-            onCvvChange={setCvv}
+            cardName={cardName} onCardNameChange={setCardName}
+            cardNumber={cardNumber} onCardNumberChange={setCardNumber}
+            expiry={expiry} onExpiryChange={setExpiry}
+            cvv={cvv} onCvvChange={setCvv}
             disabled={cardFormDisabled}
             looksLikeCard={looksLikeCard}
             looksLikeCvv={looksLikeCvv}
             looksLikeExpiry={looksLikeExpiry}
           />
 
+          {/* Error */}
           {error && (
-            <Alert variant="danger" className="mt-3 mb-0">
-              {error}
-            </Alert>
-          )}
-
-          {status === "3DS" ? (
-            <MockThreeDSStep
-              otp={otp}
-              onOtpChange={setOtp}
-              otpErr={otpErr}
-              loading={loading}
-              onCancel={cancel3ds}
-              onConfirm={confirm3ds}
-            />
-          ) : (
-            <div className="d-flex flex-wrap gap-2 mt-3">
-              <button
-                type="button"
-                className="btn btn-success"
-                disabled={!canSubmit || loading || status !== "PENDING"}
-                onClick={(e) => {
-                  e.currentTarget.blur();
-                  start3ds("SUCCEEDED");
-                }}
-              >
-                <i className="fa-solid fa-circle-check me-2" aria-hidden="true" />
-                Poursuivre — succès
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline-danger"
-                disabled={!canSubmit || loading || status !== "PENDING"}
-                onClick={(e) => {
-                  e.currentTarget.blur();
-                  start3ds("FAILED");
-                }}
-              >
-                <i className="fa-solid fa-circle-xmark me-2" aria-hidden="true" />
-                Poursuivre — échec
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline-secondary ms-auto"
-                onClick={() => navigate(-1)}
-                disabled={loading}
-              >
-                <i className="fa-solid fa-arrow-left me-2" aria-hidden="true" />
-                Retour
-              </button>
+            <div className="mt-4 bg-destructive/10 text-destructive p-3 rounded-xl flex items-center gap-2 text-sm">
+              <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
             </div>
           )}
 
-          <div className="text-muted small mt-3">
-            Saisissez des valeurs cohérentes : elles servent uniquement à valider le formulaire avant enregistrement du
-            soutien dans l’application.
-          </div>
+          {/* 3DS or action buttons */}
+          {status === "3DS" ? (
+            <MockThreeDSStep
+              otp={otp} onOtpChange={setOtp} otpErr={otpErr}
+              loading={loading} onCancel={cancel3ds} onConfirm={confirm3ds}
+              onResend={() => start3ds()}
+            />
+          ) : (
+            <div className="flex flex-wrap gap-3 mt-5">
+              <Button
+                type="button"
+                className="bg-green-600 hover:bg-green-700 text-white"
+                disabled={!canSubmit || loading || status !== "PENDING"}
+                onClick={(e) => { e.currentTarget.blur(); start3ds("SUCCEEDED"); }}
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Poursuivre — succès
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                disabled={!canSubmit || loading || status !== "PENDING"}
+                onClick={(e) => { e.currentTarget.blur(); start3ds("FAILED"); }}
+              >
+                <XCircle className="w-4 h-4 mr-2" />
+                Poursuivre — échec
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="ml-auto"
+                onClick={() => navigate(-1)}
+                disabled={loading}
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Retour
+              </Button>
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground mt-5">
+            Saisissez des valeurs cohérentes : elles servent uniquement à valider le formulaire avant enregistrement du soutien dans l'application.
+          </p>
         </div>
       </div>
     </div>

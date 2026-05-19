@@ -12,7 +12,7 @@ router.post(
   requireAuth,
   requireNotAdmin,
   asyncHandler(async (req, res) => {
-    const { projectId, amount } = req.body || {};
+    const { projectId, amount, wantsConsultation, tipAmount } = req.body || {};
     if (!projectId) throw new HttpError(400, "projectId est requis.");
     if (amount == null) throw new HttpError(400, "amount est requis.");
     if (Number(amount) < 100) throw new HttpError(400, "Le montant minimum est 100 TND.");
@@ -21,6 +21,8 @@ router.post(
       investorId: req.user.id,
       projectId,
       amount,
+      wantsConsultation,
+      tipAmount: tipAmount != null ? Number(tipAmount) : undefined,
     });
 
     res.status(201).json(result);
@@ -84,6 +86,19 @@ router.post(
   requireNotAdmin,
   asyncHandler(async (req, res) => {
     const result = await investmentService.retryInvestmentPayment({
+      investorId: req.user.id,
+      investmentId: req.params.id,
+    });
+    res.json(result);
+  })
+);
+
+router.post(
+  "/:id/finalize-consultation",
+  requireAuth,
+  requireNotAdmin,
+  asyncHandler(async (req, res) => {
+    const result = await investmentService.finalizeInvestmentAfterConsultation({
       investorId: req.user.id,
       investmentId: req.params.id,
     });

@@ -7,7 +7,7 @@ export function onlyDigits(s) {
 }
 
 export function formatCardNumber(digits) {
-  const d = onlyDigits(digits).slice(0, 19);
+  const d = onlyDigits(digits).slice(0, 16);
   return d.replace(/(.{4})/g, "$1 ").trim();
 }
 

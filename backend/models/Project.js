@@ -37,6 +37,7 @@ const projectSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     description: { type: String, default: "" },
     category: { type: String, default: "", trim: true },
+    realBudget: { type: Number, min: 1 },
     fundingGoal: { type: Number, required: true, min: 1 },
     currentFunding: { type: Number, default: 0, min: 0 },
     status: {
@@ -83,6 +84,10 @@ const projectSchema = new mongoose.Schema(
     images: [{ type: String }],
     documents: [{ type: String }],
     aiAnalysis: { type: aiAnalysisSchema, default: undefined },
+    isCompany: { type: Boolean, default: false },
+    companyName: { type: String, default: "" },
+    companyMatricule: { type: String, default: "" },
+    companyRNE: { type: String, default: "" },
   },
   { timestamps: true, collection: "projects" }
 );

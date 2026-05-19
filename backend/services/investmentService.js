@@ -4,6 +4,7 @@ const Project = require("../models/Project");
 const Investment = require("../models/Investment");
 const Transaction = require("../models/Transaction");
 const Notification = require("../models/Notification");
+const ExpertConsultation = require("../models/ExpertConsultation");
 const AuditLog = require("../models/AuditLog");
 const HttpError = require("../utils/HttpError");
 const mockProvider = require("../integrations/mockPaymentProvider");
@@ -14,6 +15,9 @@ const FailedCancellationEvent = require("../models/FailedCancellationEvent");
 const FailedRefundEvent = require("../models/FailedRefundEvent");
 const { ProjectStatus, transitionProjectStatus } = require("../config/projectLifecycle");
 const { withOptionalTransaction } = require("../utils/withOptionalTransaction");
+const invoiceService = require("./invoiceService");
+const Invoice = require("../models/Invoice");
+
 
 function nowStartOfDay(d) {
   const x = new Date(d);
@@ -38,12 +42,14 @@ function paymentConfirmedAt(tx) {
   return null;
 }
 
-async function createInvestment({ investorId, projectId, amount }) {
+async function createInvestment({ investorId, projectId, amount, wantsConsultation, tipAmount }) {
   if (!mongoose.isValidObjectId(projectId)) {
     throw new HttpError(400, "Identifiant de projet invalide.");
   }
 
   const amt = requirePositiveAmount(amount);
+  const tip = tipAmount != null ? Math.round(Number(tipAmount) * 100) / 100 : 0;
+  const totalCharged = Math.round((amt + tip) * 100) / 100;
 
   const project = await Project.findById(projectId).lean();
   if (!project) throw new HttpError(404, "Projet introuvable.");
@@ -67,11 +73,18 @@ async function createInvestment({ investorId, projectId, amount }) {
     throw new HttpError(400, "Vous ne pouvez pas investir dans votre propre projet.");
   }
 
+  if (wantsConsultation) {
+    const threshold = Number(project.fundingGoal) * 0.30;
+    if (Number(amt) < threshold) {
+      throw new HttpError(400, `La consultation expert est réservée aux investissements d'au moins 30% (${threshold} TND).`);
+    }
+  }
+
   // générer la clé d’idempotence AVANT tout appel au provider.
   const investmentId = new mongoose.Types.ObjectId();
 
   const providerResp = mockProvider.createPaymentLink({
-    amount: amt,
+    amount: totalCharged,
     currency: "TND",
     referenceId: String(investmentId),
   });
@@ -84,8 +97,10 @@ async function createInvestment({ investorId, projectId, amount }) {
           investorId,
           projectId,
           amount: amt,
+          tipAmount: tip,
           status: "INITIATED",
           paymentAttempts: 1,
+          wantsConsultation: !!wantsConsultation,
         },
       ],
       session ? { session } : undefined
@@ -97,7 +112,7 @@ async function createInvestment({ investorId, projectId, amount }) {
           investmentId,
           provider: providerResp.provider,
           providerPaymentId: providerResp.providerPaymentId,
-          amount: amt,
+          amount: totalCharged,
           status: "PENDING",
           attemptNumber: 1,
         },
@@ -187,6 +202,83 @@ async function handleMockWebhookPayload(payload) {
   }
 
   // Cas SUCCEEDED — détection atomique du sur-financement.
+  const requestConsultation = Boolean(payload?.requestConsultation) || investment.wantsConsultation;
+
+  if (requestConsultation) {
+    tx.status = "SUCCEEDED";
+    tx.succeededAt = new Date();
+    tx.paymentMethod = paymentMethod || tx.paymentMethod;
+    tx.onHoldForConsultation = true; // Je devrais peut-être ajouter ce champ au modèle Transaction ou juste me fier à Investment.status
+    await tx.save();
+
+    investment.status = "PENDING_CONSULTATION";
+    await investment.save();
+
+    // Création automatique de la facture correspondante
+    const invObj = await invoiceService.createInvoiceForInvestment(investment);
+
+    // Création automatique du dossier de consultation pour que l'investisseur le retrouve
+    await ExpertConsultation.create([{
+      projectId: project._id,
+      investorId: investment.investorId,
+      investmentId: investment._id,
+      investedAmount: investment.amount,
+      subject: "Consultation requise pour valider l'investissement",
+      status: "OPEN",
+    }]);
+
+    await AuditLog.create([
+      {
+        actorId: investment.investorId,
+        actorRole: "USER",
+        action: "INVESTMENT_HOLD_FOR_CONSULTATION",
+        targetType: "Investment",
+        targetId: investment._id,
+        details: { amount: investment.amount, projectId: project._id },
+      },
+    ]);
+
+    const notifs = await Notification.create([
+      {
+        userId: investment.investorId,
+        type: "PAYMENT_HELD_CONSULTATION",
+        title: "Paiement en attente de consultation",
+        message: "Votre paiement est confirmé mais l'investissement est en attente de votre consultation avec l'expert.",
+        relatedEntityId: investment._id,
+        relatedEntityType: "INVESTMENT",
+      },
+    ]);
+    void enqueueEmailForNotifications(notifs).catch(() => {});
+
+    // Notification aux experts qu'une nouvelle demande de consultation est ouverte
+    try {
+      const experts = await User.find({ role: "EXPERT", deletedAt: null }).lean();
+      if (experts.length > 0) {
+        const expertNotifs = experts.map((exp) => ({
+          userId: exp._id,
+          type: "NEW_ASSIGNMENT",
+          title: "Nouvelle demande de consultation",
+          message: `Un investisseur sollicite une consultation d'expert pour le projet "${project.title}" (${investment.amount} TND).`,
+          relatedEntityId: investment._id,
+          relatedEntityType: "INVESTMENT",
+        }));
+        const createdExpertNotifs = await Notification.create(expertNotifs);
+        void enqueueEmailForNotifications(createdExpertNotifs).catch(() => {});
+      }
+    } catch (err) {
+      console.error("[expert-notification] Erreur lors de la notification aux experts:", err);
+    }
+
+    return {
+      ok: true,
+      status: "PENDING_CONSULTATION",
+      investmentId: investment._id,
+      projectId: project._id,
+      invoiceId: invObj?._id,
+      redirectTo: invObj ? `/invoices/${invObj._id}` : "/investments",
+    };
+  }
+
   const updateResult = await Project.updateOne(
     {
       _id: project._id,
@@ -276,6 +368,9 @@ async function handleMockWebhookPayload(payload) {
   investment.status = "SUCCESS";
   await investment.save();
 
+  // Création automatique de la facture correspondante
+  const invObj = await invoiceService.createInvoiceForInvestment(investment);
+
   await AuditLog.create([
     {
       actorId: investment.investorId,
@@ -333,6 +428,7 @@ async function handleMockWebhookPayload(payload) {
     refunded: false,
     investmentId: investment._id,
     projectId: project._id,
+    invoiceId: invObj?._id,
     redirectTo: "/investments",
   };
 }
@@ -394,6 +490,8 @@ async function sendMockOtpEmail({ investorId, providerPaymentId }) {
   tx.mockOtpSentAt = new Date();
   await tx.save();
 
+  console.info(`\n==================================================\n[3DS SECURE OTP] Transaction: ${providerPaymentId}\nCode OTP : ${code}\n==================================================\n`);
+
   const subject = "FinCollab — Code de vérification (démo)";
   const text = `Votre code OTP (démo) est : ${code}\n\nIl expire dans 10 minutes.\n`;
   const html = `<p>Votre code OTP (démo) est : <strong style="font-size:18px;letter-spacing:2px">${code}</strong></p><p>Il expire dans 10 minutes.</p>`;
@@ -415,11 +513,12 @@ async function cancelInvestment({ investorId, investmentId }) {
   const eligibleInitiated = investment.status === "INITIATED" && tx.status === "PENDING";
   const confirmedAt = paymentConfirmedAt(tx);
   const eligibleSuccess =
-    investment.status === "SUCCESS" &&
+    (investment.status === "SUCCESS" || investment.status === "PENDING_CONSULTATION") &&
     tx.status === "SUCCEEDED" &&
     confirmedAt &&
-    Date.now() <
-      confirmedAt.getTime() + investment.cancellationGracePeriodMinutes * 60 * 1000;
+    (investment.status === "PENDING_CONSULTATION" ||
+      Date.now() <
+        confirmedAt.getTime() + investment.cancellationGracePeriodMinutes * 60 * 1000);
 
   if (!eligibleInitiated && !eligibleSuccess) {
     throw new HttpError(
@@ -431,6 +530,13 @@ async function cancelInvestment({ investorId, investmentId }) {
   await withOptionalTransaction(async (session) => {
     investment.status = "CANCELLING";
     await investment.save(session ? { session } : undefined);
+
+    // Mettre à jour le statut de la facture associée en REFUNDED
+    await Invoice.updateOne(
+      { type: "INVESTMENT", referenceId: investment._id },
+      { status: "REFUNDED" },
+      session ? { session } : undefined
+    );
   });
 
   const providerResp = mockProvider.cancelPayment();
@@ -730,6 +836,141 @@ async function retryInvestmentPayment({ investorId, investmentId }) {
   });
 }
 
+async function finalizeInvestmentAfterConsultation({ investorId, investmentId }) {
+  if (!mongoose.isValidObjectId(investmentId)) {
+    throw new HttpError(400, "Identifiant d’investissement invalide.");
+  }
+
+  const investment = await Investment.findOne({ _id: investmentId, investorId });
+  if (!investment) throw new HttpError(404, "Investissement introuvable.");
+
+  if (investment.status !== "PENDING_CONSULTATION") {
+    throw new HttpError(400, "L'investissement n'est pas en attente de consultation.");
+  }
+
+  const project = await Project.findById(investment.projectId);
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+
+  const refundAndFail = async (reasonText) => {
+    investment.status = "REFUNDED";
+    investment.cancelReason = "OVER_FUNDED_OR_INACTIVE";
+    investment.cancelledAt = new Date();
+    await investment.save();
+
+    await Invoice.updateOne(
+      { type: "INVESTMENT", referenceId: investment._id },
+      { status: "REFUNDED" }
+    );
+
+    const tx = await Transaction.findOne({ investmentId: investment._id, status: "SUCCEEDED" });
+    if (tx) {
+      const refundResp = mockProvider.refundPayment({
+        provider: tx.provider,
+        providerPaymentId: tx.providerPaymentId,
+        amount: tx.amount,
+        reason: "OVER_FUNDED_OR_INACTIVE",
+      });
+
+      if (refundResp && refundResp.ok) {
+        tx.status = "REFUNDED";
+        tx.refundStatus = "SUCCEEDED";
+        tx.refundedAt = new Date();
+        tx.cancelledAt = new Date();
+        await tx.save();
+      } else {
+        await FailedRefundEvent.create({
+          investmentId: investment._id,
+          projectId: project._id,
+          error: "Échec remboursement automatique lors du sur-financement",
+          retryCount: 0,
+          reason: "OVER_FUNDED_OR_INACTIVE",
+          resolved: false,
+        });
+      }
+    }
+
+    const notifs = await Notification.create([
+      {
+        userId: investorId,
+        type: "PAYMENT_REFUNDED",
+        title: "Investissement remboursé automatiquement",
+        message: `Votre investissement de ${investment.amount} TND dans le projet "${project.title}" a été remboursé car le projet a déjà atteint son objectif ou n'est plus actif.`,
+        relatedEntityId: investment._id,
+        relatedEntityType: "INVESTMENT",
+      }
+    ]);
+    void enqueueEmailForNotifications(notifs).catch(() => {});
+
+    throw new HttpError(400, reasonText);
+  };
+
+  // On vérifie à nouveau si le projet est encore investissable (même si le paiement est déjà fait)
+  // Car si le projet est clôturé ou archivé, on ne peut plus ajouter de fonds.
+  if (project.status !== ProjectStatus.ACTIVE || project.isArchived) {
+    await refundAndFail("Le projet n'est plus actif. Vous allez être remboursé.");
+  }
+
+  const updateResult = await Project.updateOne(
+    {
+      _id: project._id,
+      status: ProjectStatus.ACTIVE,
+      isArchived: false,
+      $expr: { $lte: [{ $add: ["$currentFunding", investment.amount] }, "$fundingGoal"] },
+    },
+    { $inc: { currentFunding: investment.amount } }
+  );
+
+  if (updateResult.modifiedCount === 0) {
+    // Cas sur-financement entre temps: remboursement nécessaire.
+    await refundAndFail("Le projet a atteint son objectif. Vous allez être remboursé.");
+  }
+
+  investment.status = "SUCCESS";
+  await investment.save();
+
+  // Vérifier si le projet a maintenant atteint son objectif de financement suite à cette confirmation
+  try {
+    const updated = await Project.findById(project._id);
+    if (updated && Number(updated.currentFunding) >= Number(updated.fundingGoal)) {
+      transitionProjectStatus(updated, ProjectStatus.FUNDED, { action: "FUNDING_GOAL_REACHED" });
+      updated.fundedAt = new Date();
+      await updated.save();
+
+      await Notification.create([
+        {
+          userId: updated.creatorId,
+          type: "PROJECT_FUNDED",
+          title: "Objectif atteint",
+          message: "Félicitations ! Votre projet a atteint son objectif de financement.",
+          relatedEntityId: updated._id,
+          relatedEntityType: "PROJECT",
+        },
+      ]);
+    }
+  } catch (err) {
+    console.error("[finalize-consultation] Erreur lors de la transition du projet vers FUNDED:", err);
+  }
+
+  // Mettre à jour la facture (PAID) et réinitialiser issuedAt pour que le compteur
+  // de grâce (5 min) ne démarre que maintenant.
+  await Invoice.updateOne(
+    { type: "INVESTMENT", referenceId: investment._id },
+    { status: "PAID", issuedAt: new Date() }
+  );
+
+  // Également réinitialiser `succeededAt` sur la transaction pour que l'interface
+  // utilisateur (MyInvestments) commence son décompte de grâce à partir de cet instant.
+  await mongoose.model("Transaction").updateOne(
+    { investmentId: investment._id, status: "SUCCEEDED" },
+    { succeededAt: new Date() }
+  );
+
+  // Notifs etc. (copier-coller de handleMockWebhookPayload ?)
+  // ... (simplifié pour le moment)
+  
+  return { ok: true, investment };
+}
+
 module.exports = {
   createInvestment,
   handleMockWebhook,
@@ -738,5 +979,6 @@ module.exports = {
   listMyInvestments,
   retryInvestmentPayment,
   sendMockOtpEmail,
+  finalizeInvestmentAfterConsultation,
 };
 

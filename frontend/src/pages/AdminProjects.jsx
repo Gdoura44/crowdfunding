@@ -1,45 +1,59 @@
 import { useEffect, useMemo, useState } from "react";
 import { adminApi } from "../api/admin";
 import { useAuth } from "../hooks/useAuth";
-import PageHeader from "../components/ui/PageHeader.jsx";
-import PageLoader from "../components/ui/PageLoader.jsx";
-import EmptyState from "../components/ui/EmptyState.jsx";
 import { extractApiError } from "../utils/apiError";
-import { confirmAlert } from "react-confirm-alert";
-import Alert from "../components/ui/Alert.jsx";
+import { 
+  CheckCircle2, AlertTriangle, FileText, Lock, 
+  RefreshCw, PauseCircle, PlayCircle, Eye, Loader2, X, Send
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-function badgeClass(status) {
+function StatusBadge({ status }) {
   const map = {
-    DRAFT: "bg-secondary",
-    AWAITING_AI: "bg-secondary",
-    UNDER_REVIEW: "bg-warning text-dark",
-    APPROVED: "bg-success",
-    REJECTED: "bg-danger",
-    ACTIVE: "bg-primary",
-    FUNDED: "bg-info text-dark",
-    CLOSED: "bg-light text-dark border",
-    SUSPENDED: "bg-dark",
+    DRAFT: "bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200",
+    AWAITING_AI: "bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200",
+    UNDER_REVIEW: "bg-amber-100 text-amber-800 hover:bg-amber-200 border-amber-200",
+    APPROVED: "bg-teal-100 text-teal-800 hover:bg-teal-200 border-teal-200",
+    REJECTED: "bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/20",
+    ACTIVE: "bg-green-100 text-green-700 hover:bg-green-200 border-green-200",
+    FUNDED: "bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200",
+    CLOSED: "bg-muted text-muted-foreground border-border",
+    SUSPENDED: "bg-slate-800 text-white hover:bg-slate-700 border-slate-800",
   };
-  return `badge ${map[status] || "bg-secondary"}`;
-}
+  
+  const labelMap = {
+    APPROVED: "APPROUVÉ (à publier)",
+    DRAFT: "BROUILLON",
+    AWAITING_AI: "EN ATTENTE IA",
+    UNDER_REVIEW: "EN REVUE",
+    ACTIVE: "EN LIGNE",
+    FUNDED: "FINANCÉ",
+    REJECTED: "REJETÉ",
+    CLOSED: "CLÔTURÉ",
+    SUSPENDED: "SUSPENDU",
+  };
 
-function statusLabel(status) {
-  if (status === "APPROVED") return "APPROUVÉ (non publié)";
-  if (status === "DRAFT") return "BROUILLON";
-  if (status === "AWAITING_AI") return "EN ATTENTE IA";
-  if (status === "UNDER_REVIEW") return "EN REVUE";
-  if (status === "ACTIVE") return "EN LIGNE";
-  if (status === "FUNDED") return "FINANCÉ";
-  if (status === "REJECTED") return "REJETÉ";
-  if (status === "CLOSED") return "CLÔTURÉ";
-  if (status === "SUSPENDED") return "SUSPENDU";
-  return String(status || "—");
+  const css = map[status] || map.DRAFT;
+  return <Badge className={`${css} font-semibold uppercase text-[10px] tracking-wider`}>{labelMap[status] || status}</Badge>;
 }
 
 function formatDate(d) {
   if (!d) return "—";
   try {
-    return new Date(d).toLocaleDateString();
+    return new Date(d).toLocaleDateString("fr-FR");
   } catch {
     return "—";
   }
@@ -47,34 +61,32 @@ function formatDate(d) {
 
 export default function AdminProjects() {
   const { user } = useAuth();
-  const [tab, setTab] = useState("UNDER_REVIEW");
+  const [tab, setTab] = useState(user?.role === "ADMIN" ? "APPROVED" : "UNDER_REVIEW");
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [feedbackById, setFeedbackById] = useState({});
   const [busyId, setBusyId] = useState(null);
+  const [confirmConfig, setConfirmConfig] = useState(null);
+  const [selectedAiReport, setSelectedAiReport] = useState(null);
 
   const canAccess = user?.role === "ADMIN";
+
   const usesFeedback = useMemo(() => {
-    // Feedback utile uniquement quand il est envoyé comme motif au créateur.
-    // - UNDER_REVIEW: Rejeter (raison)
-    // - APPROVED: Annuler approbation (motif obligatoire)
-    // - ACTIVE/FUNDED: Suspendre (motif optionnel)
-    return ["UNDER_REVIEW", "APPROVED", "ACTIVE", "FUNDED"].includes(String(tab));
+    return ["APPROVED", "ACTIVE", "FUNDED"].includes(String(tab));
   }, [tab]);
-  const title = useMemo(() => {
-    if (tab === "DRAFT") return "Brouillons";
-    if (tab === "AWAITING_AI") return "En attente d’analyse IA";
-    if (tab === "UNDER_REVIEW") return "Projets en revue";
-    if (tab === "APPROVED") return "Projets approuvés (à publier)";
-    if (tab === "ACTIVE") return "Campagnes en ligne";
-    if (tab === "FUNDED") return "Projets financés";
-    if (tab === "SUSPENDED") return "Projets suspendus";
-    if (tab === "REJECTED") return "Projets rejetés";
-    if (tab === "CLOSED") return "Projets clôturés";
-    return "Projets";
-  }, [tab]);
+
+  const TABS = [
+    { id: "AWAITING_AI", label: "IA en cours" },
+    { id: "UNDER_REVIEW", label: "En revue" },
+    { id: "APPROVED", label: "À publier" },
+    { id: "ACTIVE", label: "En ligne" },
+    { id: "FUNDED", label: "Financés" },
+    { id: "CLOSED", label: "Clôturés" },
+    { id: "REJECTED", label: "Rejetés" },
+    { id: "SUSPENDED", label: "Suspendus" },
+  ];
 
   async function load() {
     setLoading(true);
@@ -96,7 +108,7 @@ export default function AdminProjects() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, canAccess]);
 
-  async function doApprove(p, { publishAfter = false } = {}) {
+  async function doApprove(p, publishAfter = false) {
     setBusyId(p._id);
     setError("");
     setOk("");
@@ -109,200 +121,7 @@ export default function AdminProjects() {
         await adminApi.publishProject(p._id);
       }
       await load();
-      setOk(
-        publishAfter
-          ? "Projet approuvé et publié (campagne en ligne)."
-          : "Projet approuvé. Il doit encore être publié pour apparaître dans l’explorer."
-      );
-    } catch (e) {
-      const out = extractApiError(e, "Action impossible.");
-      setError(out.message);
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  function approve(p) {
-    confirmAlert({
-      title: "Approuver le projet",
-      message:
-        "Un projet approuvé n’est pas encore visible dans “Explorer” tant qu’il n’est pas publié.\n\nSouhaitez-vous le publier maintenant ?",
-      buttons: [
-        {
-          label: "Approuver seulement",
-          onClick: () => doApprove(p, { publishAfter: false }),
-        },
-        {
-          label: "Approuver & publier",
-          onClick: () => doApprove(p, { publishAfter: true }),
-        },
-      ],
-    });
-  }
-
-  function viewAiReport(p) {
-    const a = p?.aiAnalysis || null;
-    const report = a?.report || null;
-    const improvements = Array.isArray(report?.improvements) ? report.improvements : [];
-    const disadvantages = Array.isArray(report?.disadvantages) ? report.disadvantages : [];
-    const advantages = Array.isArray(report?.advantages) ? report.advantages : [];
-    const removals = Array.isArray(report?.removals) ? report.removals : [];
-    const questions = Array.isArray(report?.questionsToClarify) ? report.questionsToClarify : [];
-    const summary = String(report?.summary || "").trim();
-
-    const riskLevel = String(a?.riskLevel || "");
-    const riskLabel = riskLevel === "HIGH" ? "Élevé" : riskLevel === "MEDIUM" ? "Moyen" : riskLevel === "LOW" ? "Faible" : "—";
-    const riskBadge =
-      riskLevel === "HIGH"
-        ? "bg-danger"
-        : riskLevel === "MEDIUM"
-          ? "bg-warning text-dark"
-          : riskLevel === "LOW"
-            ? "bg-success"
-            : "bg-light text-dark border";
-    const scoreLabel = Number.isFinite(Number(a?.riskScore)) ? `${Number(a.riskScore)}/100` : "—";
-
-    confirmAlert({
-      customUI: ({ onClose }) => (
-        <div className="card border-0 shadow" style={{ width: "min(860px, 94vw)" }}>
-          <div className="card-body">
-            <div className="d-flex justify-content-between align-items-start gap-3">
-              <div className="d-flex flex-column gap-1">
-                <div className="h5 mb-0">Rapport d’analyse IA</div>
-                <div className="text-muted small">
-                  {p?.title ? (
-                    <>
-                      Projet: <strong className="text-dark">{p.title}</strong>
-                    </>
-                  ) : (
-                    "—"
-                  )}
-                </div>
-                <div className="d-flex flex-wrap gap-2 mt-1">
-                  <span className={`badge ${riskBadge}`}>Risque: {riskLabel}</span>
-                  <span className="badge bg-light text-dark border">Score: {scoreLabel}</span>
-                </div>
-              </div>
-              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onClose}>
-                Fermer
-              </button>
-            </div>
-
-            <div className="mt-3">
-              <div className="fw-semibold mb-1">Résumé</div>
-              <div className="small text-muted" style={{ whiteSpace: "pre-wrap" }}>
-                {summary || "—"}
-              </div>
-            </div>
-
-            <div className="row g-3 mt-1">
-              <div className="col-12 col-md-6">
-                <div className="card border-0 bg-light">
-                  <div className="card-body py-3">
-                    <div className="fw-semibold mb-2">Points forts</div>
-                    {advantages.length ? (
-                      <ul className="small mb-0">
-                        {advantages.slice(0, 6).map((x, i) => (
-                          <li key={`adv-${i}`}>{x}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="small text-muted">—</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="col-12 col-md-6">
-                <div className="card border-0 bg-light">
-                  <div className="card-body py-3">
-                    <div className="fw-semibold mb-2">Points faibles</div>
-                    {disadvantages.length ? (
-                      <ul className="small mb-0">
-                        {disadvantages.slice(0, 6).map((x, i) => (
-                          <li key={`dis-${i}`}>{x}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="small text-muted">—</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-12 col-md-6">
-                <div className="card border-0 bg-light">
-                  <div className="card-body py-3">
-                    <div className="fw-semibold mb-2">Améliorations suggérées</div>
-                    {improvements.length ? (
-                      <ul className="small mb-0">
-                        {improvements.slice(0, 6).map((x, i) => (
-                          <li key={`imp-${i}`}>{x}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="small text-muted">—</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-12 col-md-6">
-                <div className="card border-0 bg-light">
-                  <div className="card-body py-3">
-                    <div className="fw-semibold mb-2">À enlever / corriger</div>
-                    {removals.length ? (
-                      <ul className="small mb-0">
-                        {removals.slice(0, 6).map((x, i) => (
-                          <li key={`rem-${i}`}>{x}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="small text-muted">—</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-12">
-                <div className="card border-0 bg-light">
-                  <div className="card-body py-3">
-                    <div className="fw-semibold mb-2">Questions à clarifier</div>
-                    {questions.length ? (
-                      <ul className="small mb-0">
-                        {questions.slice(0, 6).map((x, i) => (
-                          <li key={`q-${i}`}>{x}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="small text-muted">—</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ),
-    });
-  }
-
-  async function reject(p) {
-    if (p?.aiStatus !== "COMPLETED" || !p?.aiAnalysis) {
-      setError(
-        "Rejet impossible pour l’instant : l’analyse IA n’est pas terminée. Attendez la fin de l’analyse (ou relancez en cas d’échec)."
-      );
-      return;
-    }
-    setBusyId(p._id);
-    setError("");
-    setOk("");
-    try {
-      await adminApi.validateProject(p._id, {
-        decision: "REJECTED",
-        feedback: feedbackById[p._id] || "",
-      });
-      await load();
-      setOk("Projet rejeté. Le créateur a été notifié avec le motif.");
+      setOk(publishAfter ? "Projet approuvé et publié (en ligne)." : "Projet approuvé (à publier manuellement).");
     } catch (e) {
       const out = extractApiError(e, "Action impossible.");
       setError(out.message);
@@ -327,40 +146,6 @@ export default function AdminProjects() {
     }
   }
 
-  async function revokeApproval(p) {
-    const reason = String(feedbackById[p._id] || "").trim();
-    if (!reason) {
-      setError("Merci de renseigner le feedback (motif) avant d’annuler l’approbation.");
-      return;
-    }
-    confirmAlert({
-      title: "Annuler l’approbation ?",
-      message:
-        "Le projet repassera en “Rejeté” (à corriger) et le créateur sera notifié avec votre motif.\n\nConfirmer ?",
-      buttons: [
-        { label: "Annuler", onClick: () => {} },
-        {
-          label: "Confirmer",
-          onClick: async () => {
-            setBusyId(p._id);
-            setError("");
-            setOk("");
-            try {
-              await adminApi.revokeApproval(p._id, { reason });
-              await load();
-              setOk("Approbation annulée. Corrections demandées au créateur.");
-            } catch (e) {
-              const out = extractApiError(e, "Action impossible.");
-              setError(out.message);
-            } finally {
-              setBusyId(null);
-            }
-          },
-        },
-      ],
-    });
-  }
-
   async function retryAi(p) {
     setBusyId(p._id);
     setError("");
@@ -369,13 +154,8 @@ export default function AdminProjects() {
       const { data } = await adminApi.retryAiAnalysis(p._id);
       await load();
       const queued = Boolean(data?.diagnostics?.queued);
-      const jobId = data?.diagnostics?.jobId ? String(data.diagnostics.jobId) : "";
       const hint = String(data?.diagnostics?.hint || "").trim();
-      setOk(
-        queued
-          ? `Analyse IA relancée. Job en file${jobId ? ` (#${jobId})` : ""}. ${hint || ""}`.trim()
-          : `Impossible de mettre en file l’analyse IA. ${hint || "Vérifiez Redis/n8n."}`.trim()
-      );
+      setOk(queued ? `Analyse IA relancée. ${hint}` : `Échec de la relance IA. ${hint}`);
     } catch (e) {
       const out = extractApiError(e, "Action impossible.");
       setError(out.message);
@@ -400,280 +180,275 @@ export default function AdminProjects() {
     }
   }
 
-  async function deactivate(p) {
-    confirmAlert({
-      title: "Suspendre ce projet ?",
-      message:
-        "Le projet ne sera plus visible publiquement et les investissements ne seront plus possibles.\n\nConfirmer ?",
-      buttons: [
-        { label: "Annuler", onClick: () => {} },
-        {
-          label: "Suspendre",
-          onClick: async () => {
-            setBusyId(p._id);
-            setError("");
-            setOk("");
-            try {
-              await adminApi.deactivateProject(p._id, { reason: feedbackById[p._id] || "" });
-              await load();
-              setOk("Projet suspendu.");
-            } catch (e) {
-              const out = extractApiError(e, "Action impossible.");
-              setError(out.message);
-            } finally {
-              setBusyId(null);
-            }
-          },
-        },
-      ],
-    });
-  }
-
   if (!canAccess) {
     return (
-      <div className="card border-0 fc-surface-card">
-        <div className="card-body p-4 p-md-5 text-center">
-          <div className="fc-empty__icon mb-3" aria-hidden="true">
-            <i className="fa-solid fa-lock" />
-          </div>
-          <h1 className="h5 mb-2 text-dark">Espace administration</h1>
-          <p className="text-muted small mb-0 mx-auto" style={{ maxWidth: "28rem" }}>
-            Cette page est réservée aux comptes administrateur.
-          </p>
-        </div>
+      <div className="max-w-2xl mx-auto mt-12 text-center p-8 bg-destructive/5 rounded-2xl border border-destructive/20">
+        <Lock className="w-12 h-12 text-destructive mx-auto mb-4" />
+        <h2 className="text-xl font-bold text-destructive mb-2">Accès restreint</h2>
+        <p className="text-muted-foreground">Cette page est strictement réservée aux administrateurs.</p>
       </div>
     );
   }
 
   return (
-    <div className="d-flex flex-column gap-3">
-      <PageHeader
-        title={title}
-        subtitle="Validez les dossiers en revue, publiez les projets approuvés, puis modérez les campagnes en ligne (suspension possible avec motif optionnel)."
-        actions={
-          <div className="btn-group shadow-sm">
-            <button
-              type="button"
-              className={`btn btn-sm ${tab === "AWAITING_AI" ? "btn-primary" : "btn-outline-primary"}`}
-              onClick={() => setTab("AWAITING_AI")}
-            >
-              IA en cours
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${tab === "UNDER_REVIEW" ? "btn-primary" : "btn-outline-primary"}`}
-              onClick={() => setTab("UNDER_REVIEW")}
-            >
-              À valider
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${tab === "APPROVED" ? "btn-primary" : "btn-outline-primary"}`}
-              onClick={() => setTab("APPROVED")}
-            >
-              À publier
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${tab === "ACTIVE" ? "btn-primary" : "btn-outline-primary"}`}
-              onClick={() => setTab("ACTIVE")}
-            >
-              En ligne
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${tab === "FUNDED" ? "btn-primary" : "btn-outline-primary"}`}
-              onClick={() => setTab("FUNDED")}
-            >
-              Financés
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${tab === "CLOSED" ? "btn-primary" : "btn-outline-primary"}`}
-              onClick={() => setTab("CLOSED")}
-            >
-              Clôturés
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${tab === "REJECTED" ? "btn-primary" : "btn-outline-primary"}`}
-              onClick={() => setTab("REJECTED")}
-            >
-              Rejetés
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${tab === "SUSPENDED" ? "btn-primary" : "btn-outline-primary"}`}
-              onClick={() => setTab("SUSPENDED")}
-            >
-              Suspendus
-            </button>
-          </div>
-        }
-      />
+    <div className="max-w-[1400px] mx-auto space-y-6 pb-12 relative">
+      {/* Header */}
+      <div className="border-b border-border/40 pb-6 mb-6">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">Gestion des Projets</h1>
+        <p className="text-muted-foreground max-w-3xl">
+          Validez les dossiers en revue, publiez les projets approuvés, et modérez les campagnes actives.
+        </p>
+      </div>
 
-      {error && <Alert variant="danger" className="mb-0">{error}</Alert>}
-      {ok && (
-        <Alert variant="success" className="mb-0">
-          {ok}
-        </Alert>
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {TABS.map(t => (
+          <Button
+            key={t.id}
+            variant={tab === t.id ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTab(t.id)}
+            className={`rounded-full px-4 ${tab === t.id ? "shadow-md" : "bg-background"}`}
+          >
+            {t.label}
+          </Button>
+        ))}
+      </div>
+
+      {error && (
+        <div className="bg-destructive/10 text-destructive p-4 rounded-xl flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <p className="text-sm font-medium whitespace-pre-line">{error}</p>
+        </div>
       )}
 
-      <div className="card border-0 fc-surface-card">
-        <div className="card-body p-0 p-md-1">
+      {ok && (
+        <div className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 p-4 rounded-xl flex items-center gap-3">
+          <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+          <p className="text-sm font-medium">{ok}</p>
+        </div>
+      )}
+
+      {/* Table Card */}
+      <Card className="border-border/50 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto min-h-[400px]">
           {loading ? (
-            <PageLoader label="Chargement des dossiers…" />
+            <div className="flex flex-col items-center justify-center py-24 space-y-4">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <p className="text-muted-foreground font-medium">Chargement des dossiers…</p>
+            </div>
           ) : projects.length === 0 ? (
-            <div className="p-3 p-md-4">
-              <EmptyState
-                icon="fa-solid fa-clipboard-check"
-                title="Rien à traiter ici"
-                description="Quand des projets arriveront dans cette étape, ils apparaîtront dans ce tableau."
-              />
+            <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
+              <div className="w-16 h-16 bg-muted text-muted-foreground flex items-center justify-center rounded-full mb-4">
+                <FileText className="w-8 h-8" />
+              </div>
+              <h2 className="text-xl font-bold text-foreground mb-2">Aucun projet</h2>
+              <p className="text-muted-foreground max-w-md">
+                Les projets dans ce statut apparaîtront ici.
+              </p>
             </div>
           ) : (
-            <div className="table-responsive rounded-3">
-              <table className="table align-middle mb-0">
-                <thead>
-                  <tr>
-                    <th>Titre</th>
-                    <th>Statut</th>
-                    <th>Créé</th>
-                    <th>Début</th>
-                    <th>Deadline</th>
-                    {usesFeedback ? <th style={{ minWidth: "18rem" }}>Feedback</th> : null}
-                    <th style={{ width: "1%" }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {projects.map((p) => (
-                    <tr key={p._id}>
-                      <td className="fw-semibold">{p.title}</td>
-                      <td>
-                        <span className={badgeClass(p.status)}>{statusLabel(p.status)}</span>
-                        {p.status === "AWAITING_AI" ? (
-                          <div className="text-muted small mt-1">
-                            IA: <strong>{p.aiStatus || "PENDING"}</strong>
-                            {p.aiQueuedAt ? ` · mis en file: ${new Date(p.aiQueuedAt).toLocaleString("fr-FR")}` : ""}
-                            {p.aiLastError ? ` · erreur: ${String(p.aiLastError).slice(0, 90)}…` : ""}
-                          </div>
-                        ) : null}
-                        {p.status === "APPROVED" && (
-                          <div className="text-muted small mt-1">
-                            Visible public : <strong>non</strong> (publier pour ouvrir la campagne).
-                          </div>
-                        )}
-                      </td>
-                      <td className="text-muted small">{formatDate(p.createdAt)}</td>
-                      <td className="text-muted small">{formatDate(p.startAt)}</td>
-                      <td className="text-muted small">{formatDate(p.deadline)}</td>
-                      {usesFeedback ? (
-                        <td>
-                          <input
-                            className="form-control form-control-sm"
-                            placeholder="Message (optionnel)…"
-                            value={feedbackById[p._id] || ""}
-                            onChange={(e) =>
-                              setFeedbackById((prev) => ({
-                                ...prev,
-                                [p._id]: e.target.value,
-                              }))
-                            }
-                          />
-                        </td>
-                      ) : null}
-                      <td className="text-end">
-                        <div className="d-inline-flex flex-column align-items-stretch gap-1" style={{ minWidth: 140 }}>
-                          {p.aiStatus === "COMPLETED" && p.aiAnalysis ? (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-dark"
-                              disabled={busyId === p._id}
-                              onClick={() => viewAiReport(p)}
+            <table className="w-full text-sm text-left">
+              <thead className="bg-muted/50 text-muted-foreground border-b border-border text-xs uppercase tracking-wider font-semibold">
+                <tr>
+                  <th className="px-5 py-4">Titre & Statut IA</th>
+                  <th className="px-5 py-4">Statut Global</th>
+                  <th className="px-5 py-4">Dates</th>
+                  {usesFeedback && <th className="px-5 py-4 w-[280px]">Feedback (Optionnel)</th>}
+                  <th className="px-5 py-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border bg-card">
+                {projects.map((p) => (
+                  <tr key={p._id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-5 py-4">
+                      <div className="font-semibold text-foreground max-w-[300px] truncate" title={p.title}>{p.title}</div>
+                      {p.aiStatus && (
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <Badge variant="outline" className="text-[9px] uppercase px-1.5 py-0 border-border bg-muted/50">
+                            IA: {p.aiStatus}
+                          </Badge>
+                          {p.aiAnalysis?.report && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-5 px-1.5 text-[10px] text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => setSelectedAiReport(p)}
                             >
-                              Rapport IA
-                            </button>
-                          ) : null}
-
-                          {p.status === "UNDER_REVIEW" ? (
-                            <div className="btn-group">
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-success"
-                                disabled={busyId === p._id}
-                                onClick={() => approve(p)}
-                              >
-                                {busyId === p._id ? "..." : "Approuver"}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-danger"
-                                disabled={busyId === p._id}
-                                onClick={() => reject(p)}
-                              >
-                                {busyId === p._id ? "..." : "Rejeter"}
-                              </button>
-                            </div>
-                          ) : p.status === "AWAITING_AI" || p.aiStatus === "FAILED" ? (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-primary"
-                              disabled={busyId === p._id}
-                              onClick={() => retryAi(p)}
-                            >
-                              {busyId === p._id ? "Relance…" : "Relancer IA"}
-                            </button>
-                        ) : p.status === "REJECTED" ? (
-                          <div className="text-muted small">En attente de corrections côté créateur.</div>
-                          ) : p.status === "SUSPENDED" ? (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-success"
-                              disabled={busyId === p._id}
-                              onClick={() => reactivate(p)}
-                            >
-                              Réactiver
-                            </button>
-                          ) : p.status === "APPROVED" ? (
-                            <div className="btn-group">
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-primary"
-                                disabled={busyId === p._id}
-                                onClick={() => publish(p)}
-                              >
-                                Publier
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-danger"
-                                disabled={busyId === p._id}
-                                onClick={() => revokeApproval(p)}
-                              >
-                                Annuler
-                              </button>
-                            </div>
-                          ) : p.status === "ACTIVE" || p.status === "FUNDED" ? (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-danger"
-                              disabled={busyId === p._id}
-                              onClick={() => deactivate(p)}
-                            >
-                              Suspendre
-                            </button>
-                          ) : null}
+                              <Eye className="w-3 h-3 mr-1" /> Voir rapport
+                            </Button>
+                          )}
                         </div>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
+                      <StatusBadge status={p.status} />
+                      {p.status === "APPROVED" && (
+                         <div className="text-[11px] text-muted-foreground mt-1.5 leading-tight">
+                           Prêt à être mis en ligne
+                         </div>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 text-[13px] text-muted-foreground whitespace-nowrap">
+                      <div>Créé: <span className="font-medium text-foreground">{formatDate(p.createdAt)}</span></div>
+                      <div>Début: <span className="font-medium text-foreground">{formatDate(p.startAt)}</span></div>
+                      <div>Fin: <span className="font-medium text-foreground">{formatDate(p.deadline)}</span></div>
+                    </td>
+                    {usesFeedback && (
+                      <td className="px-5 py-4">
+                        <Input
+                          placeholder="Motif / Explication..."
+                          className="h-8 text-xs bg-background"
+                          value={feedbackById[p._id] || ""}
+                          onChange={(e) => setFeedbackById((prev) => ({ ...prev, [p._id]: e.target.value }))}
+                        />
                       </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                    )}
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {p.status === "AWAITING_AI" || p.aiStatus === "FAILED" ? (
+                          <Button size="sm" variant="outline" disabled={busyId === p._id} onClick={() => retryAi(p)} className="h-8">
+                            {busyId === p._id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />} Relancer IA
+                          </Button>
+                        ) : p.status === "SUSPENDED" ? (
+                          <Button size="sm" className="bg-green-600 hover:bg-green-700 h-8" disabled={busyId === p._id} onClick={() => reactivate(p)}>
+                            <PlayCircle className="w-3.5 h-3.5 mr-1.5" /> Réactiver
+                          </Button>
+                        ) : p.status === "APPROVED" ? (
+                          <>
+                            <Button size="sm" disabled={busyId === p._id} onClick={() => publish(p)} className="h-8">
+                              <Send className="w-3.5 h-3.5 mr-1.5" /> Publier
+                            </Button>
+                            <Button size="sm" variant="destructive" className="h-8" disabled={busyId === p._id} onClick={() => {
+                              const reason = String(feedbackById[p._id] || "").trim();
+                              if (!reason) return setError("Renseignez un feedback avant d'annuler.");
+                              setConfirmConfig({
+                                title: "Annuler l'approbation ?",
+                                message: "Le projet repassera en 'Rejeté' et le créateur devra corriger selon votre feedback.",
+                                isDanger: true,
+                                confirmLabel: "Annuler l'approbation",
+                                onConfirm: async () => {
+                                  setBusyId(p._id); setError(""); setOk("");
+                                  try { await adminApi.revokeApproval(p._id, { reason }); await load(); setOk("Approbation annulée."); } 
+                                  catch (e) { setError(extractApiError(e, "Erreur.").message); } 
+                                  finally { setBusyId(null); }
+                                }
+                              });
+                            }}>
+                              Annuler
+                            </Button>
+                          </>
+                        ) : p.status === "ACTIVE" || p.status === "FUNDED" ? (
+                          <Button size="sm" variant="destructive" className="h-8" disabled={busyId === p._id} onClick={() => {
+                            setConfirmConfig({
+                              title: "Suspendre ce projet ?",
+                              message: "Il ne sera plus visible et les paiements seront bloqués.",
+                              isDanger: true,
+                              confirmLabel: "Suspendre",
+                              onConfirm: async () => {
+                                setBusyId(p._id); setError(""); setOk("");
+                                try { await adminApi.deactivateProject(p._id, { reason: feedbackById[p._id] || "" }); await load(); setOk("Projet suspendu."); } 
+                                catch (e) { setError(extractApiError(e, "Erreur.").message); } 
+                                finally { setBusyId(null); }
+                              }
+                            });
+                          }}>
+                            <PauseCircle className="w-3.5 h-3.5 mr-1.5" /> Suspendre
+                          </Button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
-      </div>
+      </Card>
+
+      {/* AI Report Modal */}
+      {selectedAiReport && (() => {
+        const p = selectedAiReport;
+        const report = p.aiAnalysis?.report || {};
+        const riskLevel = p.aiAnalysis?.riskLevel || "";
+        const riskBadge = riskLevel === "HIGH" ? "bg-destructive text-destructive-foreground" : riskLevel === "MEDIUM" ? "bg-amber-500 text-white" : "bg-green-500 text-white";
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+            <div className="bg-card border border-border shadow-2xl rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-muted/20">
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">Rapport d'Analyse IA</h3>
+                  <p className="text-sm text-muted-foreground truncate max-w-lg">{p.title}</p>
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setSelectedAiReport(null)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex gap-3">
+                  <Badge className={riskBadge}>Risque : {riskLevel}</Badge>
+                  <Badge variant="outline">Score : {p.aiAnalysis?.riskScore || 0}/100</Badge>
+                </div>
+
+                <div className="bg-muted/30 p-4 rounded-lg border border-border/50">
+                  <h4 className="font-semibold mb-2">Résumé</h4>
+                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{report.summary || "—"}</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card className="p-4 shadow-sm">
+                    <h4 className="font-semibold text-green-600 mb-2">Points forts</h4>
+                    <ul className="text-sm space-y-1.5 list-disc pl-4 text-muted-foreground">
+                      {(report.advantages || []).map((x, i) => <li key={i}>{x}</li>)}
+                    </ul>
+                  </Card>
+                  <Card className="p-4 shadow-sm">
+                    <h4 className="font-semibold text-destructive mb-2">Points faibles</h4>
+                    <ul className="text-sm space-y-1.5 list-disc pl-4 text-muted-foreground">
+                      {(report.disadvantages || []).map((x, i) => <li key={i}>{x}</li>)}
+                    </ul>
+                  </Card>
+                  <Card className="p-4 shadow-sm">
+                    <h4 className="font-semibold text-blue-600 mb-2">Améliorations suggérées</h4>
+                    <ul className="text-sm space-y-1.5 list-disc pl-4 text-muted-foreground">
+                      {(report.improvements || []).map((x, i) => <li key={i}>{x}</li>)}
+                    </ul>
+                  </Card>
+                  <Card className="p-4 shadow-sm">
+                    <h4 className="font-semibold text-amber-600 mb-2">Questions à clarifier</h4>
+                    <ul className="text-sm space-y-1.5 list-disc pl-4 text-muted-foreground">
+                      {(report.questionsToClarify || []).map((x, i) => <li key={i}>{x}</li>)}
+                    </ul>
+                  </Card>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Dynamic Confirmation Dialog */}
+      {confirmConfig && (
+        <AlertDialog open={!!confirmConfig} onOpenChange={(open) => !open && setConfirmConfig(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{confirmConfig.title}</AlertDialogTitle>
+              <AlertDialogDescription>{confirmConfig.message}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={() => { confirmConfig.onConfirm(); setConfirmConfig(null); }} 
+                className={confirmConfig.isDanger ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+              >
+                {confirmConfig.confirmLabel || "Confirmer"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
-

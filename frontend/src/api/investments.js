@@ -8,5 +8,7 @@ export const investmentsApi = {
   retry: (id) => http.post(paths.investments.retry(id)),
   mockConfirm: (body, config) => http.post(paths.investments.mockConfirm, body, config),
   mockSendOtp: (body, config) => http.post(paths.investments.mockSendOtp, body, config),
+  finalizeConsultation: (id) => http.post(paths.investments.finalizeConsultation(id)),
 };
+
 

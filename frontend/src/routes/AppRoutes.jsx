@@ -3,6 +3,7 @@ import Layout from "../components/Layout.jsx";
 import ProtectedRoute from "../components/ProtectedRoute.jsx";
 import AdminRoute from "../components/AdminRoute.jsx";
 import GuestRoute from "../components/GuestRoute.jsx";
+import ExpertRoute from "../components/ExpertRoute.jsx";
 import Home from "../pages/Home.jsx";
 import Register from "../pages/Register.jsx";
 import Login from "../pages/Login.jsx";
@@ -23,6 +24,7 @@ import PayoutDetail from "../pages/PayoutDetail.jsx";
 import MyReports from "../pages/MyReports.jsx";
 import AdminProjects from "../pages/AdminProjects.jsx";
 import AdminUsers from "../pages/AdminUsers.jsx";
+import AdminExperts from "../pages/AdminExperts.jsx";
 import AdminEmailFailures from "../pages/AdminEmailFailures.jsx";
 import AdminReports from "../pages/AdminReports.jsx";
 import AdminPayouts from "../pages/AdminPayouts.jsx";
@@ -31,11 +33,17 @@ import MockPaymentProviderPage from "../pages/MockPaymentProviderPage.jsx";
 import Recommendations from "../pages/Recommendations.jsx";
 import AdminOps from "../pages/AdminOps.jsx";
 import MockPayoutTransfer from "../pages/MockPayoutTransfer.jsx";
+import ExpertProjects from "../pages/ExpertProjects.jsx";
+import ExpertProjectReview from "../pages/ExpertProjectReview.jsx";
+import ExpertConsultations from "../pages/ExpertConsultations.jsx";
+import InvoiceDetail from "../pages/InvoiceDetail.jsx";
+
 
 /**
  * Public vs authentifié :
  * - Visiteur : accueil, détail projet (si actif côté API), inscription, connexion, vérif. e-mail.
  * - Connecté : tableau de bord, création de projet (+ redirection après login).
+ * - Expert : validation des analyses IA + consultations investisseurs.
  */
 export default function AppRoutes() {
   return (
@@ -66,19 +74,33 @@ export default function AppRoutes() {
           <Route path="projects/new" element={<ProjectNew />} />
           <Route path="projects/:id/edit" element={<ProjectEdit />} />
           <Route path="mock-checkout" element={<MockPaymentProviderPage />} />
+          <Route path="invoices/:id" element={<InvoiceDetail />} />
+          {/* Consultations expert accessibles aux investisseurs connectés */}
+          <Route path="consultations" element={<ExpertConsultations />} />
+          <Route path="consultations/:id" element={<ExpertConsultations />} />
         </Route>
 
         <Route element={<AdminRoute />}>
           <Route path="admin/projects" element={<AdminProjects />} />
           <Route path="admin/comments" element={<AdminComments />} />
           <Route path="admin/users" element={<AdminUsers />} />
+          <Route path="admin/experts" element={<AdminExperts />} />
           <Route path="admin/reports" element={<AdminReports />} />
           <Route path="admin/payouts" element={<AdminPayouts />} />
           <Route path="admin/ops" element={<AdminOps />} />
           <Route path="admin/email-failures" element={<AdminEmailFailures />} />
           <Route path="mock-payout-transfer" element={<MockPayoutTransfer />} />
         </Route>
+
+        <Route element={<ExpertRoute />}>
+          <Route path="expert/projects" element={<ExpertProjects />} />
+          <Route path="expert/projects/:id/review" element={<ExpertProjectReview />} />
+          <Route path="expert/consultations" element={<ExpertConsultations />} />
+          <Route path="expert/consultations/:id" element={<ExpertConsultations />} />
+        </Route>
       </Route>
     </Routes>
   );
 }
+
+

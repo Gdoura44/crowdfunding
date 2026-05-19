@@ -30,6 +30,7 @@ const runRiskAnalysisSchema = z.object({
   description: z.string().max(20000).optional(),
   category: z.string().max(100).optional(),
   fundingGoal: z.coerce.number().finite().nonnegative().optional(),
+  realBudget: z.coerce.number().finite().nonnegative().optional(),
   deadline: z.coerce.date().optional(),
 });
 

@@ -10,6 +10,8 @@ const { seal, open } = require("../utils/cryptoSeal");
 const { enqueueEmailForNotifications } = require("../integrations/emailQueue");
 const User = require("../models/User");
 const mockPayoutProvider = require("../integrations/mockPayoutProvider");
+const invoiceService = require("./invoiceService");
+
 
 // Pourquoi : l’intégration bancaire est simulée par un fournisseur factice (cf. mockPaymentProvider),
 // mais on modélise tout le workflow réel (PENDING → READY → COMPLETED) afin que l’UX et le processus
@@ -318,6 +320,11 @@ async function confirmMockPayoutTransfer({ adminId, payoutId, providerTransferId
     payout.completedAt = now;
     payout.failureReason = "";
     payout.failedAt = undefined;
+    
+    // Créer la facture pour le créateur du projet
+    await invoiceService.createInvoiceForPayout(payout).catch((err) => {
+      console.error("Erreur création facture payout:", err);
+    });
   } else {
     payout.failureReason = "Virement refusé par le prestataire (simulation)";
     payout.failedAt = now;

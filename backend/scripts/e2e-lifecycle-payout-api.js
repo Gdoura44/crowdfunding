@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 require("../models");
 
 const User = require("../models/User");
+const Invoice = require("../models/Invoice");
 
 const base = "http://localhost:3000";
 
@@ -52,6 +53,7 @@ async function httpJson(path, { method = "GET", cookie = "", body } = {}) {
 }
 
 async function registerVerifyLogin({ email, password, firstName, lastName }) {
+  console.log(`[TRACER] Registering user: ${email}...`);
   const s = { cookie: "" };
   const reg = await httpJson("/api/auth/register", {
     method: "POST",
@@ -75,13 +77,18 @@ async function registerVerifyLogin({ email, password, firstName, lastName }) {
 async function main() {
   const password = "Test12345a";
 
-  console.log("== E2E lifecycle payout via API ==");
+  console.log("== E2E Enterprise Payout & Invoice Lifecycle Verification ==");
+
+  console.log("[TRACER] Connecting to Mongoose...");
+  await mongoose.connect(process.env.DATABASE);
+  console.log("[TRACER] Mongoose connected successfully.");
 
   // Utilisateurs
   const creatorEmail = randEmail("creator.payout");
   const investorEmail = randEmail("investor.payout");
   const adminEmail = randEmail("admin.payout");
 
+  console.log("[TRACER] Starting user setup...");
   const creator = await registerVerifyLogin({
     email: creatorEmail,
     password,
@@ -101,11 +108,10 @@ async function main() {
     lastName: "PFE",
   });
 
-  // Promote admin (DB)
-  await mongoose.connect(process.env.DATABASE);
+  console.log("[TRACER] Promoting admin in Database...");
   await User.updateOne({ email: adminEmail }, { $set: { role: "ADMIN" } });
-  await mongoose.disconnect();
 
+  console.log("[TRACER] Logging in as Admin...");
   const admin = await (async () => {
     const login = await httpJson("/api/auth/login", {
       method: "POST",
@@ -120,25 +126,28 @@ async function main() {
   const deadline = new Date(Date.now() + 40 * 24 * 60 * 60 * 1000);
   deadline.setHours(0, 0, 0, 0);
 
+  console.log("[TRACER] Creating an Enterprise draft project as Creator...");
   const projectCreate = await httpJson("/api/projects", {
     method: "POST",
     cookie: creator.cookie,
     body: {
-      title: "Projet Payout Test",
+      title: "FinCollab Green Solar Power",
       description: "Budget:\n- Matériel: 6000 TND\n- Communication: 2000 TND\n- Logistique: 2000 TND",
       category: "Autre",
       fundingGoal: 10000,
       startAt: startAt.toISOString(),
       deadline: deadline.toISOString(),
+      isCompany: true,
+      companyName: "FinCollab Enterprise S.A.",
+      companyMatricule: "1675849/A/M/000",
+      companyRNE: "1827463X",
     },
   });
   const projectId = projectCreate.json?.project?._id;
   if (!projectId) throw new Error("No project id returned by POST /api/projects");
   console.log("ProjectId:", projectId);
 
-  // Simuler la fin de l’analyse IA (helper DB / update direct) pour débloquer la validation admin.
-  // Mise à jour DB minimale pour permettre la validation (champs aiAnalysis requis)
-  await mongoose.connect(process.env.DATABASE);
+  console.log("[TRACER] Simulating AI analysis completion directly in Database...");
   const Project = require("../models/Project");
   const now = new Date();
   await Project.updateOne(
@@ -150,13 +159,13 @@ async function main() {
         aiCompletedAt: now,
         aiAnalysis: {
           analyzedAt: now,
-          successProbability: 72,
-          riskLevel: "MEDIUM",
+          successProbability: 88,
+          riskLevel: "LOW",
           report: {
-            summary: "Analyse IA simulée (tests).",
-            advantages: ["Cohérence globale"],
-            disadvantages: ["Détails à compléter"],
-            improvements: ["Ajouter des jalons et livrables."],
+            summary: "Excellente viabilité économique, cadre légal d'entreprise valide.",
+            advantages: ["Structure d'entreprise solide", "Garanties réelles"],
+            disadvantages: [],
+            improvements: [],
             removals: [],
             questionsToClarify: [],
           },
@@ -166,29 +175,28 @@ async function main() {
       },
     }
   );
-  await mongoose.disconnect();
 
-  // Validate + publish
+  console.log("[TRACER] Validating project by Admin...");
   await httpJson(`/api/admin/projects/${projectId}/validate`, {
     method: "POST",
     cookie: admin.cookie,
     body: { decision: "APPROVED", feedback: "OK" },
   });
+
+  console.log("[TRACER] Publishing project by Admin...");
   await httpJson(`/api/admin/projects/${projectId}/publish`, {
     method: "POST",
     cookie: admin.cookie,
     body: {},
   });
 
-  // Make investable now (DB)
-  await mongoose.connect(process.env.DATABASE);
+  console.log("[TRACER] Setting project startAt to yesterday to make it investable...");
   const y = new Date();
   y.setDate(y.getDate() - 1);
   y.setHours(0, 0, 0, 0);
   await Project.updateOne({ _id: projectId }, { $set: { startAt: y } });
-  await mongoose.disconnect();
 
-  // Invest + mock confirm
+  console.log("[TRACER] Making an investment of 10000 TND as Investor...");
   const inv = await httpJson("/api/investments", {
     method: "POST",
     cookie: investor.cookie,
@@ -197,37 +205,29 @@ async function main() {
   const providerPaymentId = inv.json?.providerPaymentId;
   if (!providerPaymentId) throw new Error("No providerPaymentId returned by POST /api/investments");
 
+  console.log("[TRACER] Confirming investor payment...");
   await httpJson("/api/investments/mock/confirm", {
     method: "POST",
     cookie: investor.cookie,
     body: { providerPaymentId, status: "SUCCEEDED", paymentMethod: "CARD" },
   });
 
-  const projAfter = await httpJson(`/api/projects/${projectId}`, { method: "GET", cookie: creator.cookie });
-  console.log("After payment:", {
-    status: projAfter.json?.project?.status,
-    currentFunding: projAfter.json?.project?.currentFunding,
-    fundingGoal: projAfter.json?.project?.fundingGoal,
-  });
-
-  // Ensure payout (direct service)
-  await mongoose.connect(process.env.DATABASE);
+  console.log("[TRACER] Ensuring Payout model instantiation...");
   const payoutService = require("../services/payoutService");
   await payoutService.ensurePayoutForFundedProject(projectId);
-  await mongoose.disconnect();
 
-  // Creator list payouts
+  console.log("[TRACER] Listing Creator's payouts...");
   const payouts = await httpJson("/api/payouts/mine?limit=10", { method: "GET", cookie: creator.cookie });
   const payoutId = payouts.json?.payouts?.[0]?._id;
   if (!payoutId) throw new Error("No payout returned by GET /api/payouts/mine");
   console.log("PayoutId:", payoutId);
 
-  // Bank details + approve
+  console.log("[TRACER] Submitting Creator bank details...");
   const bankJson = JSON.stringify({
-    accountHolderName: "CREATOR PFE",
+    accountHolderName: "FINCOLLAB ENTERPRISE SA",
     iban: "TN590000000000000000000000",
-    bankName: "Banque Test",
-    swiftCode: "ABCDEFGH",
+    bankName: "BIAT Tunisie",
+    swiftCode: "BIATTNTT",
   });
 
   await httpJson(`/api/payouts/${payoutId}/bank-details`, {
@@ -236,22 +236,57 @@ async function main() {
     body: { bankDetails: bankJson },
   });
 
-  await httpJson(`/api/admin/payouts/${payoutId}/approve`, {
+  console.log("[TRACER] Approving Payout by Admin...");
+  const approveRes = await httpJson(`/api/admin/payouts/${payoutId}/approve`, {
     method: "POST",
     cookie: admin.cookie,
-    body: { notes: "Validé (test)" },
+    body: { notes: "Virement de fonds approuvé par l'administration" },
+  });
+  const providerTransferId = approveRes.json?.payout?.providerTransferId;
+  console.log("[TRACER] Payout approved. providerTransferId:", providerTransferId);
+
+  console.log("[TRACER] Simulating final bank confirmation (COMPLETED)...");
+  await httpJson(`/api/admin/payouts/${payoutId}/mock-confirm`, {
+    method: "POST",
+    cookie: admin.cookie,
+    body: { providerTransferId, status: "COMPLETED" },
   });
 
+  console.log("[TRACER] Verifying final payout status...");
   const payoutFinal = await httpJson(`/api/payouts/${payoutId}`, { method: "GET", cookie: creator.cookie });
-  console.log("Payout status:", payoutFinal.json?.payout?.status);
+  console.log("Final Payout status:", payoutFinal.json?.payout?.status);
 
-  console.log("OK: payout lifecycle completed");
+  console.log("[TRACER] Querying generated corporate Invoice from database...");
+  const invoiceDoc = await Invoice.findOne({ type: "PAYOUT", projectId })
+    .populate("projectId")
+    .populate("userId")
+    .lean();
+
+  if (!invoiceDoc) {
+    throw new Error("No payout invoice generated! Payout flow failed.");
+  }
+
+  console.log("\n=======================================================");
+  console.log("🎉 SUCCESS: VERIFIED INVOICE (FACTURE) DATA STRUCTURE:");
+  console.log("=======================================================");
+  console.log(`- Facture N°:      ${invoiceDoc.invoiceNumber}`);
+  console.log(`- Type:            ${invoiceDoc.type}`);
+  console.log(`- Projet soutenu:  ${invoiceDoc.projectId?.title}`);
+  console.log(`- Porté par Cie?   ${invoiceDoc.projectId?.isCompany}`);
+  console.log(`- Nom Entreprise:  ${invoiceDoc.projectId?.companyName}`);
+  console.log(`- Matricule Fisc:  ${invoiceDoc.projectId?.companyMatricule}`);
+  console.log(`- Numéro RNE:      ${invoiceDoc.projectId?.companyRNE}`);
+  console.log(`- Montant Total:   ${invoiceDoc.total} TND`);
+  console.log("=======================================================\n");
+
+  console.log("OK: payout & invoicing lifecycle completed successfully.");
+  await mongoose.disconnect();
   process.exit(0);
 }
 
-main().catch((e) => {
+main().catch(async (e) => {
   console.error("E2E FAILED:", e?.message || e);
   if (e?.body) console.error("Body:", JSON.stringify(e.body, null, 2));
+  await mongoose.disconnect().catch(() => {});
   process.exit(1);
 });
-

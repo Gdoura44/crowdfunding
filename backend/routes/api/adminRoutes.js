@@ -3,7 +3,9 @@ const mongoose = require("mongoose");
 const asyncHandler = require("../../middleware/asyncHandler");
 const { requireAuth } = require("../../middleware/auth");
 const { requireAdmin } = require("../../middleware/requireAdmin");
+const { requireExpert } = require("../../middleware/requireExpert");
 const HttpError = require("../../utils/HttpError");
+
 const adminProjectService = require("../../services/adminProjectService");
 const adminUserService = require("../../services/adminUserService");
 const reportService = require("../../services/reportService");
@@ -195,8 +197,9 @@ router.patch(
 router.post(
   "/projects/:id/validate",
   requireAuth,
-  requireAdmin,
+  requireExpert,
   asyncHandler(async (req, res) => {
+
     const { decision, feedback } = req.body || {};
     if (!decision) throw new HttpError(400, "Le champ « decision » est requis (APPROVED ou REJECTED).");
 
@@ -405,6 +408,80 @@ router.post(
   asyncHandler(async (req, res) => {
     const summary = await adminOpsService.retryPayoutsOnce({ limit: req.body?.limit });
     res.json({ ok: true, summary });
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Routes Gestion des Experts (Admin uniquement)
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/admin/experts
+ * Liste tous les experts inscrits et actifs.
+ */
+router.get(
+  "/experts",
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const experts = await adminUserService.listExperts({ limit: req.query.limit });
+    res.json({ experts });
+  })
+);
+
+/**
+ * POST /api/admin/experts
+ * Crée un nouveau profil Expert directement activé.
+ */
+router.post(
+  "/experts",
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const { email, password, firstName, lastName, cabinetName, phone } = req.body || {};
+    if (!email || !password) {
+      throw new HttpError(400, "L'adresse e-mail et le mot de passe sont requis.");
+    }
+    const expert = await adminUserService.createExpert({
+      email,
+      password,
+      firstName,
+      lastName,
+      cabinetName,
+      phone,
+    });
+    res.status(201).json({
+      expert: {
+        id: expert._id,
+        email: expert.email,
+        role: expert.role,
+        isActive: expert.isActive,
+        profile: expert.profile,
+      },
+      message: "Compte expert créé avec succès.",
+    });
+  })
+);
+
+/**
+ * DELETE /api/admin/experts/:id
+ * Révoque et supprime un expert (de manière logique).
+ */
+router.delete(
+  "/experts/:id",
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const expert = await adminUserService.deleteExpert(req.params.id);
+    res.json({
+      expert: {
+        id: expert._id,
+        email: expert.email,
+        role: expert.role,
+        isActive: expert.isActive,
+      },
+      message: "L'expert a été révoqué avec succès.",
+    });
   })
 );
 

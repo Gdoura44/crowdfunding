@@ -66,6 +66,7 @@ async function createDraftProject(creatorId, payload) {
     title: payload.title,
     description: payload.description || "",
     category: payload.category || "",
+    realBudget: payload.realBudget || payload.fundingGoal,
     fundingGoal: payload.fundingGoal,
     startAt,
     deadline,
@@ -74,6 +75,10 @@ async function createDraftProject(creatorId, payload) {
     aiStatus: AIStatus.PENDING,
     currentFunding: 0,
     aiAnalysisRetries: 0,
+    isCompany: payload.isCompany || false,
+    companyName: payload.isCompany ? payload.companyName || "" : "",
+    companyMatricule: payload.isCompany ? payload.companyMatricule || "" : "",
+    companyRNE: payload.isCompany ? payload.companyRNE || "" : "",
   });
 
   try {
@@ -116,9 +121,14 @@ async function updateProject(creatorId, projectId, changes) {
   if (changes.title != null) project.title = changes.title;
   if (changes.description != null) project.description = changes.description;
   if (changes.category != null) project.category = changes.category;
+  if (changes.realBudget != null) project.realBudget = changes.realBudget;
   if (changes.fundingGoal != null) project.fundingGoal = changes.fundingGoal;
   if (changes.startAt != null) project.startAt = changes.startAt;
   if (changes.deadline != null) project.deadline = changes.deadline;
+  if (changes.isCompany != null) project.isCompany = changes.isCompany;
+  if (changes.companyName != null) project.companyName = changes.isCompany ? changes.companyName : "";
+  if (changes.companyMatricule != null) project.companyMatricule = changes.isCompany ? changes.companyMatricule : "";
+  if (changes.companyRNE != null) project.companyRNE = changes.isCompany ? changes.companyRNE : "";
 
   // Re-appliquer les règles de dates (comme la création)
   // Règles métier dates (PFE):
@@ -209,15 +219,20 @@ async function listMyProjects(creatorId) {
   return Project.find({ creatorId }).sort({ updatedAt: -1 }).lean();
 }
 
-async function getProjectById(projectId, userId) {
+async function getProjectById(projectId, userOrId) {
   const project = await Project.findById(projectId).lean();
   if (!project) {
     throw new HttpError(404, "Projet introuvable.");
   }
+  
+  const userId = typeof userOrId === "object" && userOrId ? (userOrId.id || userOrId._id) : userOrId;
+  const userRole = typeof userOrId === "object" && userOrId ? userOrId.role : "USER";
+
   const isOwner = userId && String(project.creatorId) === String(userId);
   const isPublic = isPubliclyVisible(project);
+  const isPrivileged = userRole === "ADMIN" || userRole === "EXPERT";
 
-  if (!isOwner && !isPublic) {
+  if (!isOwner && !isPublic && !isPrivileged) {
     throw new HttpError(404, "Projet introuvable.");
   }
 

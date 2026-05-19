@@ -172,10 +172,9 @@ router.get(
     if (!mongoose.isValidObjectId(req.params.id)) {
       throw new HttpError(400, "Identifiant de projet invalide.");
     }
-    const userId = req.user?.id || null;
     const { project, isOwner } = await projectService.getProjectById(
       req.params.id,
-      userId
+      req.user || null
     );
     res.json({ project, isOwner });
   })
@@ -189,7 +188,7 @@ router.get(
       throw new HttpError(400, "Identifiant de projet invalide.");
     }
     const userId = req.user?.id || null;
-    const { project, isOwner } = await projectService.getProjectById(req.params.id, userId);
+    const { project, isOwner } = await projectService.getProjectById(req.params.id, req.user || null);
     const isPublicStatus = ["ACTIVE", "FUNDED"].includes(String(project.status));
     if (!isOwner && (!isPublicStatus || project.isArchived)) {
       throw new HttpError(404, "Projet introuvable.");
@@ -217,7 +216,7 @@ router.post(
       throw new HttpError(400, "Identifiant de projet invalide.");
     }
     const userId = req.user.id;
-    const { project, isOwner } = await projectService.getProjectById(req.params.id, userId);
+    const { project, isOwner } = await projectService.getProjectById(req.params.id, req.user);
     if (isOwner) {
       throw new HttpError(400, "Vous ne pouvez pas commenter votre propre projet.");
     }

@@ -78,6 +78,7 @@ router.post(
         startAt: new Date(),
         deadline: data.deadline,
         fundingGoal: data.fundingGoal,
+        realBudget: data.realBudget,
         description: data.description,
       });
 

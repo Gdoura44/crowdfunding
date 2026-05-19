@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { authApi } from "../api/auth";
 import { extractApiError } from "../utils/apiError";
-import Alert from "../components/ui/Alert.jsx";
+import { MailCheck, Loader2, CheckCircle2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 export default function VerifyEmail() {
   const [params] = useSearchParams();
@@ -12,7 +15,7 @@ export default function VerifyEmail() {
 
   const [email, setEmail] = useState(emailFromQuery);
   const [code, setCode] = useState("");
-  const [status, setStatus] = useState(token ? "pending" : "idle"); // idle | pending | ok | error
+  const [status, setStatus] = useState(token ? "pending" : "idle");
   const [message, setMessage] = useState("");
 
   const flash = useMemo(() => {
@@ -29,16 +32,12 @@ export default function VerifyEmail() {
         setStatus("ok");
         setMessage(data.message || "E-mail vérifié.");
       } catch (err) {
-        // Ignorer l’abort (React StrictMode / navigation).
         if (err?.name === "CanceledError" || err?.code === "ERR_CANCELED") return;
         setStatus("error");
-        const out = extractApiError(err, "Vérification impossible.");
-        setMessage(out.message);
+        setMessage(extractApiError(err, "Vérification impossible.").message);
       }
     })();
-    return () => {
-      controller.abort();
-    };
+    return () => { controller.abort(); };
   }, [token]);
 
   async function onSubmitCode(e) {
@@ -54,86 +53,96 @@ export default function VerifyEmail() {
       setMessage(data.message || "E-mail vérifié.");
     } catch (err) {
       setStatus("error");
-      const out = extractApiError(err, "Vérification impossible.");
-      setMessage(out.message);
+      setMessage(extractApiError(err, "Vérification impossible.").message);
     }
   }
 
   return (
-    <div className="row justify-content-center py-4">
-      <div className="col-12 col-md-6 col-lg-5">
-        <div className="card auth-card">
-          <div className="card-body p-4 p-md-5">
-            <h1 className="h4 fw-bold text-dark mb-3">Vérification de l’e-mail</h1>
-            {status !== "ok" && flash && <Alert variant="info">{flash}</Alert>}
-            {status === "pending" && (
-              <div className="py-4">
-                <div className="spinner-border text-primary" role="status" aria-hidden="true">
-                  <span className="visually-hidden">Vérification…</span>
-                </div>
-              </div>
-            )}
-            {status === "ok" && (
-              <>
-                <Alert variant="success">{message}</Alert>
-                <Link to="/login" className="btn btn-fc-primary text-white w-100">
-                  Se connecter
-                </Link>
-              </>
-            )}
-            {status === "error" && (
-              <>
-                {message && <Alert variant="danger">{message}</Alert>}
-              </>
-            )}
-            {!token && status !== "ok" && (
-              <>
-                <form onSubmit={onSubmitCode} className="vstack gap-3">
-                  <div>
-                    <label className="form-label small text-muted mb-1">E-mail</label>
-                    <input
-                      className="form-control"
-                      type="email"
-                      required
-                      autoComplete="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="vous@exemple.com"
-                    />
-                  </div>
-                  <div>
-                    <label className="form-label small text-muted mb-1">Code</label>
-                    <input
-                      className="form-control text-center"
-                      inputMode="numeric"
-                      pattern="[0-9]{4,6}"
-                      maxLength={6}
-                      required
-                      value={code}
-                      onChange={(e) => setCode(String(e.target.value || "").replace(/[^0-9]/g, ""))}
-                      placeholder="------"
-                      style={{ letterSpacing: "0.35em", fontWeight: 700 }}
-                    />
-                    <div className="form-text">Code valable 15 minutes.</div>
-                  </div>
-                  <button className="btn btn-fc-primary text-white w-100" type="submit" disabled={status === "pending"}>
-                    Vérifier
-                  </button>
-                </form>
-
-                <div className="mt-3 d-flex flex-wrap gap-2 justify-content-between small">
-                  <Link to={`/resend-verification?email=${encodeURIComponent(email)}`} className="fw-semibold text-decoration-none">
-                    Renvoyer le code
-                  </Link>
-                  <Link to="/register" className="text-muted text-decoration-none">
-                    Retour
-                  </Link>
-                </div>
-              </>
-            )}
+    <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] py-8 px-4">
+      <Card className="w-full max-w-md shadow-lg border-border/50">
+        <CardHeader className="space-y-3 pb-4">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#0f4c5c] to-[#1a8a9e] text-white shadow-inner">
+              <MailCheck className="h-6 w-6" />
+            </div>
+            <div className="space-y-1">
+              <CardTitle className="text-2xl font-bold tracking-tight">Vérification de l'e-mail</CardTitle>
+              <CardDescription>Confirmez votre adresse pour activer votre compte.</CardDescription>
+            </div>
           </div>
-        </div>
-      </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {status !== "ok" && flash && (
+            <div className="bg-blue-50 text-blue-800 p-3 rounded-lg text-sm border border-blue-200">{flash}</div>
+          )}
+
+          {status === "pending" && (
+            <div className="flex flex-col items-center py-8 space-y-3">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <p className="text-muted-foreground text-sm">Vérification en cours…</p>
+            </div>
+          )}
+
+          {status === "ok" && (
+            <div className="space-y-4">
+              <div className="bg-green-50 text-green-800 p-4 rounded-xl flex items-center gap-3 border border-green-200">
+                <CheckCircle2 className="w-5 h-5 shrink-0" />
+                <p className="text-sm font-medium">{message}</p>
+              </div>
+              <Button asChild className="w-full">
+                <Link to="/login">Se connecter</Link>
+              </Button>
+            </div>
+          )}
+
+          {status === "error" && message && (
+            <div className="bg-destructive/10 text-destructive p-3 rounded-xl flex items-center gap-3">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <p className="text-sm">{message}</p>
+            </div>
+          )}
+
+          {!token && status !== "ok" && (
+            <>
+              <form onSubmit={onSubmitCode} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">E-mail <span className="text-destructive font-bold">*</span></label>
+                  <Input
+                    type="email" required autoComplete="email"
+                    value={email} onChange={(e) => setEmail(e.target.value)}
+                    placeholder="vous@exemple.com"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Code de vérification <span className="text-destructive font-bold">*</span></label>
+                  <Input
+                    inputMode="numeric" pattern="[0-9]{4,6}" maxLength={6} required
+                    value={code}
+                    onChange={(e) => setCode(String(e.target.value || "").replace(/[^0-9]/g, ""))}
+                    placeholder="------"
+                    className="text-center text-xl tracking-[0.35em] font-bold"
+                  />
+                  <p className="text-xs text-muted-foreground">Code valable 15 minutes.</p>
+                </div>
+                <Button type="submit" disabled={status === "pending"} className="w-full">
+                  {status === "pending" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  Vérifier
+                </Button>
+              </form>
+
+              <div className="flex justify-between text-sm pt-2">
+                <Link
+                  to={`/resend-verification?email=${encodeURIComponent(email)}`}
+                  className="text-primary font-medium hover:underline flex items-center gap-1"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Renvoyer le code
+                </Link>
+                <Link to="/register" className="text-muted-foreground hover:underline">Retour</Link>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,13 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
 import { notificationsApi } from "../api/notifications";
 import { projectsApi } from "../api/projects";
-import PageHeader from "../components/ui/PageHeader.jsx";
-import PageLoader from "../components/ui/PageLoader.jsx";
-import EmptyState from "../components/ui/EmptyState.jsx";
 import { extractApiError } from "../utils/apiError";
 import { emitNotificationsChanged } from "../utils/notificationsEvents";
 import { labelNotificationType } from "../utils/notificationLabels";
-import Alert from "../components/ui/Alert.jsx";
+import {
+  Bell, Clock, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Info, AlertTriangle, MessageSquare, HandCoins, CheckSquare, XCircle, ShieldCheck
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+// Map notification types to modern icons and colors
+const getIconForType = (type) => {
+  const t = String(type).toUpperCase();
+  if (t.includes("APPROVED") || t.includes("SUCCESS")) return <CheckSquare className="w-5 h-5 text-green-500" />;
+  if (t.includes("REJECTED") || t.includes("FAILED")) return <XCircle className="w-5 h-5 text-destructive" />;
+  if (t.includes("WARNING") || t.includes("REPORT")) return <AlertTriangle className="w-5 h-5 text-amber-500" />;
+  if (t.includes("INVESTMENT") || t.includes("PAYOUT") || t.includes("PAYMENT")) return <HandCoins className="w-5 h-5 text-indigo-500" />;
+  if (t.includes("COMMENT") || t.includes("MESSAGE")) return <MessageSquare className="w-5 h-5 text-blue-500" />;
+  if (t.includes("AI") || t.includes("REVIEW")) return <ShieldCheck className="w-5 h-5 text-purple-500" />;
+  return <Bell className="w-5 h-5 text-primary" />;
+};
 
 export default function Notifications() {
   const [items, setItems] = useState([]);
@@ -25,7 +39,6 @@ export default function Notifications() {
       if (!isProject || !id) return false;
       if (projectTitleCache[id]) return false;
       const t = String(n.title || "");
-      // Si le backend inclut déjà "— <titre>", ne rien faire.
       if (t.includes("—")) return false;
       return true;
     });
@@ -63,7 +76,6 @@ export default function Notifications() {
     const notifs = data.notifications || [];
     setItems(notifs);
     setHasMore(Boolean(data.hasMore));
-    // Enrichissement au mieux pour les anciennes notifications sans titre de projet.
     await enrichProjectTitles(notifs);
   }, [enrichProjectTitles, feedFilter, page]);
 
@@ -100,137 +112,150 @@ export default function Notifications() {
   }
 
   return (
-    <div>
-      <PageHeader
-        title="Notifications"
-        subtitle="Du plus récent au plus ancien, 30 messages par page. Projets, paiements et actions importantes."
-        actions={
-          <div className="btn-group shadow-sm">
-            <button
-              type="button"
-              className={`btn btn-sm ${feedFilter === "ALL" ? "btn-dark" : "btn-outline-dark"}`}
-              onClick={() => {
-                setFeedFilter("ALL");
-                setPage(1);
-              }}
-            >
-              Toutes
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${feedFilter === "UNREAD" ? "btn-dark" : "btn-outline-dark"}`}
-              onClick={() => {
-                setFeedFilter("UNREAD");
-                setPage(1);
-              }}
-            >
-              Non lues
-            </button>
-          </div>
-        }
-      />
+    <div className="max-w-4xl mx-auto space-y-6 pb-12">
+      {/* Header section */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/40 pb-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground mb-1">Notifications</h1>
+          <p className="text-muted-foreground">Suivez l'activité de vos projets, paiements et messages importants.</p>
+        </div>
+        
+        <div className="flex bg-muted/50 p-1 rounded-lg border border-border">
+          <button
+            onClick={() => { setFeedFilter("ALL"); setPage(1); }}
+            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${feedFilter === "ALL" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Toutes
+          </button>
+          <button
+            onClick={() => { setFeedFilter("UNREAD"); setPage(1); }}
+            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${feedFilter === "UNREAD" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Non lues
+          </button>
+        </div>
+      </div>
 
-      {loading && <PageLoader label="Chargement de vos messages…" />}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <p className="text-muted-foreground font-medium">Chargement de vos messages…</p>
+        </div>
+      )}
 
-      {error && <Alert variant="warning">{error}</Alert>}
+      {error && (
+        <div className="p-4 bg-destructive/10 text-destructive rounded-xl flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <p className="text-sm font-medium">{error}</p>
+        </div>
+      )}
 
       {!loading && !error && items.length === 0 && (
-        <EmptyState
-          icon="fa-regular fa-bell"
-          title={feedFilter === "UNREAD" ? "Aucune notification non lue" : "Vous êtes à jour"}
-          description={
-            feedFilter === "UNREAD"
+        <div className="flex flex-col items-center justify-center py-20 px-4 text-center border border-dashed border-border rounded-xl bg-muted/10">
+          <div className="w-16 h-16 bg-primary/10 text-primary flex items-center justify-center rounded-full mb-4">
+            <Bell className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground mb-2">
+            {feedFilter === "UNREAD" ? "Aucune notification non lue" : "Vous êtes à jour"}
+          </h2>
+          <p className="text-muted-foreground max-w-md">
+            {feedFilter === "UNREAD"
               ? "Toutes vos notifications ont été lues."
-              : "Quand une étape change (validation, publication, paiement…), un message apparaîtra ici."
-          }
-        />
+              : "Quand une étape change (validation, publication, paiement…), un message apparaîtra ici."}
+          </p>
+        </div>
       )}
 
       {!loading && !error && items.length > 0 && (
         <>
-          <div className="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
-            <span className="small text-muted">
-              Page {page}
-              {hasMore ? " · d’autres messages suivent" : ""}
+          <div className="flex justify-between items-center bg-muted/30 p-3 rounded-lg border border-border">
+            <span className="text-sm text-muted-foreground font-medium pl-2">
+              Page {page} {hasMore && <span className="hidden sm:inline">· d’autres messages suivent</span>}
             </span>
-            <div className="btn-group">
-              <button
-                type="button"
-                className="btn btn-outline-secondary btn-sm"
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
-                Précédent
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline-secondary btn-sm"
+                <ChevronLeft className="w-4 h-4 mr-1" /> Précédent
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={!hasMore}
                 onClick={() => setPage((p) => p + 1)}
               >
-                Suivant
-              </button>
+                Suivant <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
             </div>
           </div>
-          <div className="list-group list-group-flush rounded-3 overflow-hidden border fc-surface-card">
-          {items.map((n) => (
-            <div
-              key={n._id}
-              className={`list-group-item py-3 px-3 ${!n.read ? "bg-primary bg-opacity-10" : ""}`}
-            >
-              <div className="d-flex flex-column flex-md-row justify-content-between gap-3">
-                <div className="d-flex gap-3 min-w-0">
-                  <div
-                    className="flex-shrink-0 rounded-3 d-flex align-items-center justify-content-center text-primary bg-white border"
-                    style={{ width: "2.75rem", height: "2.75rem" }}
-                    aria-hidden="true"
-                  >
-                    <i className="fa-solid fa-bell" />
+
+          <div className="space-y-3">
+            {items.map((n) => (
+              <Card 
+                key={n._id} 
+                className={`overflow-hidden transition-colors border ${!n.read ? "bg-primary/5 border-primary/20 shadow-sm" : "bg-card border-border/50"}`}
+              >
+                <div className="p-4 sm:p-5 flex flex-col sm:flex-row gap-4">
+                  <div className="flex flex-1 gap-4">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${!n.read ? "bg-background shadow-sm border border-primary/20" : "bg-muted text-muted-foreground"}`}>
+                      {getIconForType(n.type)}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                        {!n.read && <Badge variant="default" className="bg-primary hover:bg-primary text-xs">Nouveau</Badge>}
+                        {labelNotificationType(n.type) && (
+                          <Badge variant="secondary" className="text-xs font-medium text-muted-foreground border-border/50">
+                            {labelNotificationType(n.type)}
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      <h3 className={`text-base font-semibold ${!n.read ? "text-foreground" : "text-foreground/90"}`}>
+                        {n.title}
+                      </h3>
+                      <p className={`text-sm mt-1 mb-2 ${!n.read ? "text-muted-foreground" : "text-muted-foreground/80"}`}>
+                        {n.message}
+                      </p>
+                      
+                      {String(n.relatedEntityType || "").toUpperCase() === "PROJECT" &&
+                        String(n.relatedEntityId || "") &&
+                        projectTitleCache[String(n.relatedEntityId || "")] &&
+                        !String(n.title || "").includes("—") && (
+                          <div className="text-xs font-medium text-muted-foreground bg-muted/50 inline-flex items-center px-2 py-1 rounded mb-2">
+                            Projet : <span className="ml-1 text-foreground">{projectTitleCache[String(n.relatedEntityId || "")]}</span>
+                          </div>
+                        )}
+                        
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                        <Clock className="w-3.5 h-3.5" />
+                        {n.createdAt ? new Date(n.createdAt).toLocaleString("fr-FR") : ""}
+                      </div>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <div className="d-flex flex-wrap align-items-center gap-2 mb-1">
-                      {!n.read && <span className="badge bg-primary">Nouveau</span>}
-                      {labelNotificationType(n.type) ? (
-                        <span className="badge bg-light text-dark text-truncate">
-                          {labelNotificationType(n.type)}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="fw-semibold text-dark">{n.title}</div>
-                    <div className="small text-muted">{n.message}</div>
-                    {String(n.relatedEntityType || "").toUpperCase() === "PROJECT" &&
-                      String(n.relatedEntityId || "") &&
-                      projectTitleCache[String(n.relatedEntityId || "")] &&
-                      !String(n.title || "").includes("—") && (
-                        <div className="small text-muted mt-1">
-                          Projet : <strong>{projectTitleCache[String(n.relatedEntityId || "")]}</strong>
-                        </div>
-                      )}
-                    <div className="small text-muted mt-2 d-inline-flex align-items-center gap-2">
-                      <i className="fa-regular fa-clock" aria-hidden="true" />
-                      {n.createdAt ? new Date(n.createdAt).toLocaleString("fr-FR") : ""}
-                    </div>
+                  
+                  <div className="flex sm:flex-col justify-end items-center sm:items-end flex-shrink-0 mt-2 sm:mt-0">
+                    {!n.read && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-primary hover:text-primary hover:bg-primary/10 h-8 px-2"
+                        onClick={() => markRead(n._id)}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        <span className="text-xs font-medium">Marquer lue</span>
+                      </Button>
+                    )}
                   </div>
                 </div>
-                <div className="d-flex align-items-start justify-content-md-end flex-shrink-0">
-                  {!n.read && (
-                    <button
-                      type="button"
-                      className="btn btn-outline-secondary btn-sm"
-                      onClick={() => markRead(n._id)}
-                    >
-                      <i className="fa-regular fa-circle-check me-2" aria-hidden="true" />
-                      Marquer comme lue
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              </Card>
+            ))}
+          </div>
         </>
       )}
     </div>
   );
 }
-

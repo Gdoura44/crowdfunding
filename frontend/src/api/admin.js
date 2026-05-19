@@ -23,6 +23,10 @@ export const adminApi = {
   listFailedNotifications: (params) => http.get(paths.admin.failedNotifications, { params }),
   retryNotification: (eventId) => http.post(paths.admin.retryNotification, { eventId }),
 
+  listExperts: (params) => http.get(paths.admin.experts, { params }),
+  createExpert: (body) => http.post(paths.admin.experts, body),
+  deleteExpert: (id) => http.delete(paths.admin.deleteExpert(id)),
+
   opsListFailedRefunds: (params) => http.get(paths.admin.opsFailedRefunds, { params }),
   opsListFailedPayouts: (params) => http.get(paths.admin.opsFailedPayouts, { params }),
   opsRetryRefunds: (body) => http.post(paths.admin.opsRetryRefunds, body),

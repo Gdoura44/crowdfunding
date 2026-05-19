@@ -18,6 +18,7 @@ const investmentSchema = new mongoose.Schema(
       type: String,
       enum: [
         "INITIATED",
+        "PENDING_CONSULTATION",
         "CANCELLING",
         "CANCELLED",
         "SUCCESS",
@@ -37,12 +38,15 @@ const investmentSchema = new mongoose.Schema(
         "FRAUDULENT",
         "USER_DEACTIVATED",
         "ACCOUNT_DELETION",
+        "OVER_FUNDED_OR_INACTIVE",
       ],
     },
     cancelledAt: { type: Date },
     cancellingStartedAt: { type: Date },
     scheduledForDeactivation: { type: Boolean, default: false },
     cancellationGracePeriodMinutes: { type: Number, default: 5, min: 1 },
+    wantsConsultation: { type: Boolean, default: false },
+    tipAmount: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true, collection: "investments" }
 );
@@ -59,6 +63,19 @@ investmentSchema.pre("validate", function () {
   }
   if (this.status !== "CANCELLING") {
     this.cancellingStartedAt = undefined;
+  }
+});
+
+investmentSchema.post("save", async function (doc) {
+  if (["SUCCESS", "REFUNDED", "CANCELLED", "FAILED"].includes(doc.status)) {
+    try {
+      await mongoose.model("ExpertConsultation").updateMany(
+        { investmentId: doc._id, status: { $ne: "CLOSED" } },
+        { $set: { status: "CLOSED", closedAt: new Date() } }
+      );
+    } catch (err) {
+      console.error("Error auto-closing consultation:", err);
+    }
   }
 });
 

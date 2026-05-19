@@ -122,8 +122,8 @@ function estimateBudgetFromDescription(description) {
   return { estimateTnd: Math.round(sum), lineItemsDetected: count };
 }
 
-function computeGoalGap({ fundingGoal, description }) {
-  const goal = Number(fundingGoal);
+function computeGoalGap({ fundingGoal, realBudget, description }) {
+  const goal = Number(realBudget || fundingGoal);
   if (!Number.isFinite(goal) || goal <= 0) {
     return { estimateTnd: null, gapTnd: null, gapPct: null, lineItemsDetected: 0 };
   }
@@ -261,12 +261,13 @@ function scoreDescriptionQuality(description) {
  * Pourquoi: sans données externes, les signaux les plus fiables sont la clarté,
  * la transparence et la cohérence (pas le montant absolu).
  */
-function computeSuccessHeuristic({ startAt, deadline, fundingGoal, description }) {
+function computeSuccessHeuristic({ startAt, deadline, fundingGoal, realBudget, description }) {
   const durationDays = daysBetween(startAt, deadline);
   const duration = scoreDurationCoherence({ durationDays, description });
-  const goal = scoreGoalJustification({ fundingGoal, description });
+  const targetBudget = Number(realBudget || fundingGoal);
+  const goal = scoreGoalJustification({ fundingGoal: targetBudget, description });
   const desc = scoreDescriptionQuality(description);
-  const goalGap = computeGoalGap({ fundingGoal, description });
+  const goalGap = computeGoalGap({ fundingGoal, realBudget, description });
   const gapAssessment = assessGoalGapCoherence({ goalGap, description });
 
   const successProbability = Math.round(
