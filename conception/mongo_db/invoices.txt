@@ -1,0 +1,35 @@
+{
+  "_id": ObjectId,
+  "invoiceNumber": { "type": "string", "unique": true, "required": true },
+  "type": { "type": "string", "enum": ["INVESTMENT", "PAYOUT"], "required": true },
+  "referenceId": { "type": "ObjectId", "required": true },
+  "userId": { "type": "ObjectId", "ref": "User", "index": true, "required": true },
+  "projectId": { "type": "ObjectId", "ref": "Project", "index": true, "required": true },
+  "amount": { "type": "number", "required": true },
+  "feeAmount": { "type": "number", "default": 0 },
+  "tipAmount": { "type": "number", "default": 0 },
+  "netAmount": { "type": "number", "required": true },
+  "status": { "type": "string", "enum": ["ISSUED", "PAID", "REFUNDED", "FAILED"], "default": "ISSUED" },
+  "issuedAt": { "type": "Date", "default": "Date.now" },
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "updatedAt": { "type": "Date", "default": "Date.now" }
+}
+
+// Indexes
+db.invoices.createIndex({ invoiceNumber: 1 }, { unique: true });
+db.invoices.createIndex({ userId: 1 });
+db.invoices.createIndex({ projectId: 1 });
+db.invoices.createIndex({ type: 1, referenceId: 1 });
+
+// ============================================================================
+// RÈGLES MÉTIER (services / routes)
+// ============================================================================
+//
+// **1. Facturation des investissements :**
+// - Générée séquentiellement avec le préfixe INV-EST- à la suite d'un investissement réussi.
+// - Contient le montant net investi, la commission éventuelle et le pourboire volontaire.
+//
+// **2. Facturation des retraits (Payouts) :**
+// - Générée séquentiellement avec le préfixe INV-PAY- à l'approbation finale du virement.
+// - Contient le montant transféré au créateur diminué de la commission fixe de la plateforme (5%).
+// ============================================================================

@@ -228,7 +228,7 @@ export default function ExpertProjectReview() {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-border/50 text-center">
                     <div className="text-3xl font-black text-primary mb-1">{ai.riskScore ?? "—"}<span className="text-lg text-muted-foreground font-medium">/100</span></div>
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Score Global</div>
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Score de Risque</div>
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-border/50 text-center">
                     <div className={`text-2xl font-black mb-1 mt-1 ${ai.riskLevel === "LOW" ? "text-green-600" : ai.riskLevel === "HIGH" ? "text-red-600" : "text-amber-600"}`}>

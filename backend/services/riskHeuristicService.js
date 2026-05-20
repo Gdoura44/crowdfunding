@@ -72,8 +72,12 @@ function estimateBudgetFromDescription(description) {
   const text = String(description || "");
   const lines = text.split(/\r?\n/);
 
-  // Se concentrer sur les lignes “budget” : monnaie/budget ou listes à puces.
-  const budgetish = lines.filter((l) => /budget|tnd|\bdt\b|dinars?/i.test(l) || /^\s*-\s+/.test(l));
+  // Se concentrer sur les lignes "budget" : monnaie/budget ou listes à puces.
+  // Ignorer les lignes parlant d'économies, de gains ou de revenus pour éviter les faux positifs.
+  const budgetish = lines.filter((l) => {
+    if (/économie|economie|gain|revenu|chiffre d'affaires?|bénéfice|benefice/i.test(l)) return false;
+    return /budget|tnd|\bdt\b|dinars?/i.test(l) || /^\s*-\s+/.test(l);
+  });
 
   let sum = 0;
   let count = 0;
@@ -146,6 +150,7 @@ function assessGoalGapCoherence({ goalGap, description }) {
       label: "écart budget non évalué",
     };
   }
+
 
   const absPct = Math.abs(gapPct);
   const lower = String(description || "").toLowerCase();
@@ -280,7 +285,6 @@ function computeSuccessHeuristic({ startAt, deadline, fundingGoal, realBudget, d
   return {
     successProbability: clamp(adjusted, 0, 100),
     breakdown: {
-      // La durée sert uniquement à la cohérence (pas un facteur direct du score).
       weights: { goalJustification: 0.45, description: 0.55 },
       durationDays,
       duration,

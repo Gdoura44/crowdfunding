@@ -6,7 +6,7 @@
 '  - <<boundary>> : IHM_Administration
 '  - <<control>>  : Controleur_Administration
 '  - <<entity>>   : Retrait(Payout), Projet, Notification
-'  - <<external>> : Prestataire_Virement_(demo)
+'  - Service externe : Système Bancaire
 ' ============================
 
 hide footbox
@@ -14,8 +14,6 @@ skinparam shadowing false
 skinparam defaultFontName "Times New Roman"
 skinparam defaultFontSize 12
 skinparam sequenceMessageAlign left
-skinparam ParticipantPadding 10
-skinparam BoxPadding 6
 skinparam maxMessageSize 45
 skinparam wrapWidth 150
 skinparam dpi 150
@@ -29,7 +27,8 @@ control "Controleur_Administration" as CA
 entity "Retrait (Payout)" as R
 entity "Projet" as P
 entity "Notification" as N
-participant "Prestataire_Virement_(demo)" as Bank <<external>>
+entity "Facture (Invoice)" as Inv
+participant "Système Bancaire" as Bank
 
 == Consultation des retraits ==
 A -> IHM : consulterRetraitsEnAttente()
@@ -39,7 +38,7 @@ CA --> IHM : afficherListe(retraits)
 
 == Approbation du retrait ==
 A -> IHM : approuverRetrait(payoutId, notes)
-IHM -> CA : approvePayout(adminId, payoutId, notes)
+IHM -> CA : approuverRetrait(adminId, payoutId, notes)
 
 CA -> R : charger(payoutId)
 alt Retrait introuvable
@@ -53,30 +52,23 @@ else Remboursements sur-financement en attente
   IHM --> A : message d’erreur
 else Approbation autorisée
   CA -> R : maj(status=PROCESSING, transferInitiatedAt, provider, providerTransferId, notes)
-  CA -> Bank : initierVirement(amount, referenceId=payoutId)
-  Bank --> CA : transferUrl, providerTransferId
+  CA -> Bank : initierVirementBancaire(amount, referenceId=payoutId)
+  Bank --> CA : urlVirement, providerTransferId
   CA -> N : creer(type=PAYOUT_PROCESSING, destinataire=créateur)
-  CA --> IHM : afficherConfirmation(transferUrl)
+  CA --> IHM : afficherConfirmation(urlVirement)
 end
 
-== Confirmation du prestataire (simulation) ==
-note over A,IHM
-Dans la version démo, l’administrateur ouvre la page\n
-du prestataire simulé et confirme le statut du virement.
-end note
-
-A -> IHM : confirmerVirement(payoutId, providerTransferId, status)
-IHM -> CA : confirmMockPayoutTransfer(adminId, payoutId, providerTransferId, status)
-CA -> R : verifierEtat(status=PROCESSING) et identifiant transfert
+== Confirmation du virement bancaire ==
+Bank -> CA : notifierStatutVirement(payoutId, providerTransferId, status)
+CA -> R : verifierEtatVirement(status=PROCESSING)
 
 alt status = COMPLETED
   CA -> R : maj(status=COMPLETED, completedAt)
+  CA -> Inv : creerFacture(type=PAYOUT, payoutId)
   CA -> N : creer(type=PAYOUT_COMPLETED, destinataire=créateur)
-  CA --> IHM : afficherSucces()
 else status = FAILED
   CA -> R : maj(status=FAILED, failedAt, failureReason)
   CA -> N : creer(type=PAYOUT_FAILED, destinataire=créateur)
-  CA --> IHM : afficherEchec()
 end
 
 @enduml

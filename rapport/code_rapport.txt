@@ -419,7 +419,10 @@ Les concepts métier centraux portés par l'application sont les suivants :
     \item \textbf{Analyse de risque} : rapport structuré (résumé, avantages, inconvénients, améliorations, éléments à retirer, questions, score/\texttt{riskLevel}) produit par un service LLM orchestré par n8n, et destiné à éclairer la revue administrative.
     \item \textbf{Recommandations personnalisées} : classement des projets accessibles à un investisseur en fonction de ses catégories préférées et de sa tolérance au risque.
     \item \textbf{Notifications} : chaque message \textit{in-app} est stocké en base avec un destinataire explicite (\texttt{userId}) ; l'interface expose une boîte \textbf{personnelle} identique pour tous les rôles (y compris l'administrateur), avec liste paginée (30~entrées par page, ordre antéchronologique sur \texttt{createdAt}), marquage \texttt{lu/non lu} et compteur global de non-lus pour le badge. Les e-mails asynchrones ne concernent que les événements jugés critiques (politique métier), afin de limiter le bruit.
-    \item \textbf{Retrait (\textit{payout})} : flux de versement au porteur de projet une fois la campagne \texttt{FUNDED} ou \texttt{CLOSED}, après saisie chiffrée des coordonnées bancaires et approbation administrative.
+    \item \textbf{Retrait (\textit{payout})} : flux de versement au porteur de projet une fois la campagne \texttt{FUNDED} ou \texttt{CLOSED}, après saisie chiffrée des coordonnées bancaires, génération d'une facture PDF automatisée et approbation administrative.
+    \item \textbf{Chatbot IA} : assistant conversationnel interactif (alimenté par Gemini) intégré à chaque page de projet, capable de répondre aux questions des visiteurs en se basant sur la description du projet et sur ses connaissances générales.
+    \item \textbf{Consultation Expert en Finance} : option offerte à l'investisseur lors de la contribution (si le montant est éligible) permettant de mettre le paiement en attente et de solliciter l'avis d'un expert financier humain (boîte de consultation) avant de confirmer son investissement.
+    \item \textbf{Modèle économique (Pourboire)} : mécanisme de financement de la plateforme reposant sur un pourboire (Tip) optionnel ajouté volontairement par l'investisseur au moment du paiement, supprimant ainsi les frais fixes pour les porteurs de projet.
 \end{itemize}
 
 \subsection{Objectifs à atteindre}
@@ -429,18 +432,23 @@ La plateforme doit répondre aux objectifs suivants, formulés à la fois sur le
 \begin{itemize}
     \item Permettre aux porteurs de projets de créer, soumettre, publier et suivre leurs campagnes de financement.
     \item Offrir aux investisseurs une expérience claire de découverte, d'évaluation et de contribution aux projets.
-    \item Automatiser l'évaluation préliminaire du risque pour fiabiliser et accélérer la revue administrative.
+    \item Automatiser l'évaluation préliminaire du risque via l'IA, et permettre à un \textbf{expert en finance humain} de valider cette analyse avant la publication du projet.
+    \item Proposer une assistance interactive via un chatbot IA pour répondre instantanément aux interrogations des investisseurs sur les projets.
+    \item Offrir la possibilité aux investisseurs s'engageant sur des montants significatifs ($\geq 30\%$) de solliciter une boîte de consultation d'expert en finance avant de valider leur paiement.
     \item Personnaliser les recommandations selon le profil de l'investisseur (catégories, tolérance au risque).
     \item Assurer la traçabilité des transactions (statuts d'investissement, de transaction et de \textit{payout}).
-    \item Outiller la gouvernance de la plateforme (validation, modération, signalements, retraits, statistiques).
+    \item Expérimenter un modèle économique hybride combinant une commission fixe modérée (5\%) sur les collectes réussies et un pourboire volontaire (Tip) optionnel lors de l'investissement.
+    \item Outiller la gouvernance de la plateforme (validation, modération, signalements, retraits, factures PDF, statistiques).
 \end{itemize}
 
 \textbf{Objectifs techniques :}
 \begin{itemize}
-    \item Concevoir une architecture modulaire (Node.js / Express + React + MongoDB) avec une séparation nette entre logique métier et accès aux données.
-    \item Mettre en place un parcours de paiement de démonstration (\textit{mock}) avec confirmation par \textit{webhook} signé et idempotent, extensible vers un prestataire réel.
-    \item Orchestrer les traitements asynchrones (analyse IA, notifications, reprises) via n8n et des files BullMQ/Redis, avec stockage des échecs définitifs (\textit{dead-letter queues}).
-    \item Garantir la sécurité (authentification par JWT en cookies HttpOnly, contrôle d'accès par rôle, \textit{rate limiting}, signature des \textit{webhooks}, chiffrement AES-256-GCM des coordonnées bancaires).
+    \item Concevoir une architecture moderne et modulaire assurant la séparation entre le frontend, le backend et la base de données.
+    \item Garantir la sécurité des accès et des données grâce à des mécanismes d'authentification, d'autorisation et de protection des échanges.
+    \item Intégrer des services d'intelligence artificielle afin d'automatiser certaines tâches d'analyse et d'assistance utilisateur.
+    \item Assurer la scalabilité et la maintenabilité de la plateforme grâce à l'utilisation de technologies web récentes.
+    \item Mettre en place un système de paiement simulé permettant de reproduire le cycle complet des transactions financières.
+    \item Automatiser certains traitements asynchrones tels que les notifications, les analyses et les mises à jour du système.
 \end{itemize}
 
 \section{Contexte du sujet}
@@ -532,6 +540,7 @@ La revue des plateformes existantes met en évidence quatre manques structurels 
     \item Manque de personnalisation des recommandations selon le profil de l'investisseur (catégories, tolérance au risque).
     \item Processus de validation des projets manuels et chronophages pour les administrateurs.
     \item Intégration paiement souvent peu transparente, difficile à tester sans environnement de bac à sable, et faiblement résiliente face aux échecs (annulations, remboursements, sur-financement).
+    \item Manque d'assistance interactive (IA ou expert humain) pour accompagner les investisseurs et répondre à leurs questions en temps réel.
 \end{enumerate}
 
 Le tableau~\ref{tab:comparison} synthétise ces écarts et positionne la solution proposée par rapport aux plateformes étudiées.
@@ -553,7 +562,7 @@ Paiement TN & Non & Non & Limité & Oui & \textbf{Démo (\textit{mock}) / extens
 \hline
 Gestion des\newline échecs & Manuelle & Manuelle & Manuelle & Manuelle & \textbf{Automatisée (\textit{retries} + DLQ)} \\
 \hline
-Frais & 8--10\% & 8--13\% & 5\% & 5\% & \textbf{— (hors périmètre du prototype PFE)} \\
+Frais / Modèle & 8--10\% & 8--13\% & 5\% & 5\% & \textbf{5\% + Pourboire optionnel (Tip)} \\
 \hline
 \end{tabularx}
 \caption{Comparaison des plateformes de crowdfunding}
@@ -562,12 +571,15 @@ Frais & 8--10\% & 8--13\% & 5\% & 5\% & \textbf{— (hors périmètre du prototy
 
 \textbf{Question de recherche.} Comment concevoir une plateforme de financement collaboratif intégrant l'intelligence artificielle pour automatiser l'évaluation des risques et personnaliser les recommandations, tout en garantissant la conformité réglementaire (BCT) et la sécurité des transactions ?
 
-\textbf{Solution proposée.} La plateforme développée combine quatre choix structurants :
+\textbf{Solution proposée.} La plateforme développée combine sept choix structurants :
 \begin{itemize}
-    \item Une \textbf{analyse de risque automatisée} (LLM orchestré par n8n) qui produit un rapport structuré (résumé, avantages, inconvénients, améliorations, éléments à retirer, questions, score) lors de la soumission d'un projet, avec \textbf{auto-rejet} lorsque une heuristique de \textbf{cohérence budgétaire} (objectif \texttt{fundingGoal} vs estimation des besoins extraits de la description) détecte un \textbf{écart absolu $\geq$ 30~\%} (règle bloquante), et relances automatiques en cas d'indisponibilité du workflow.
-    \item Un \textbf{moteur de recommandations} entièrement déterministe dans le code livré (catégories préférées, adéquation au \texttt{riskLevel} issu de l'analyse IA du projet, progression et récence de la campagne), extensible ultérieurement par enrichissement LLM.
-    \item Un \textbf{parcours de paiement de démonstration} (\textit{mock}) avec confirmation par \textit{webhook} signé et idempotent, conçu pour être remplacé par un prestataire réel sans changer la logique métier.
-    \item Une \textbf{gestion résiliente des échecs} via files BullMQ/Redis et workflows n8n, avec stockage des événements définitivement échoués (\textit{dead-letter queues}) pour reprise manuelle par l'administrateur.
+    \item Une \textbf{analyse de risque automatisée} (LLM orchestré par n8n) qui produit un rapport structuré (résumé, avantages, inconvénients, améliorations, éléments à retirer, questions, score) lors de la soumission d'un projet, avec \textbf{auto-rejet} en cas d'incohérence budgétaire détectée par heuristique.
+    \item Un \textbf{moteur de recommandations} déterministe (catégories préférées, adéquation au \texttt{riskLevel} issu de l'analyse IA du projet, progression et récence de la campagne), extensible ultérieurement par enrichissement LLM.
+    \item Une \textbf{assistance interactive par Chatbot IA} (Gemini) sur chaque projet, permettant aux investisseurs de poser des questions en langage naturel et d'obtenir des réponses fondées sur la description du projet.
+    \item L'intervention d'un \textbf{Expert en finance} assumant un double rôle : il \textbf{valide les analyses IA} des projets pour sécuriser la chaîne de décision avant publication, et anime une boîte de consultation pour conseiller les investisseurs s'engageant sur de forts montants ($\geq 30\%$).
+    \item Un \textbf{parcours de paiement de démonstration} (\textit{mock}) résilient, supportant les remboursements automatiques en cas de sur-financement ou d'expiration de la campagne, accompagné d'une interface de \textbf{payouts} générant des factures PDF pour les porteurs de projet.
+    \item Un \textbf{modèle économique hybride} appliquant une commission fixe et maîtrisée de \textbf{5\%} sur le montant collecté, complétée par une fonctionnalité de \textbf{pourboire optionnel} (Tip) ajouté volontairement par l'investisseur.
+    \item Une \textbf{gestion résiliente des échecs} via files BullMQ/Redis et tâches planifiées (Cron). Une \textbf{mécanique d'auto-guérison} (Self-healing) et un bouton administrateur \textbf{Relancer IA} permettent de contourner les files d'attente hors ligne ou bloquées par les quotas (ex: dépassement des limites Gemini) en effectuant un audit d'urgence direct, garantissant l'absence de blocage définitif.
 \end{itemize}
 
 \section{Conclusion}
@@ -587,6 +599,7 @@ La plateforme distingue des acteurs humains et des acteurs systèmes externes. U
 \begin{itemize}
     \item \textbf{Visiteur} : utilisateur non authentifié ; consulte et recherche les projets publics, peut créer un compte et lancer une procédure de récupération de mot de passe.
     \item \textbf{Utilisateur authentifié} (porteur de projet et / ou investisseur) : gère son compte, crée et soumet des projets, contribue à des campagnes, commente et signale des contenus, suit ses investissements, ses paiements et ses retraits.
+    \item \textbf{Expert en finance} : acteur spécialisé assumant un double rôle : il \textbf{valide les rapports d'analyse IA} des projets avant leur publication, et il est sollicité par les investisseurs (lorsque le montant investi atteint un seuil de \textbf{30\%}) pour émettre un avis consultatif avant la validation finale du paiement.
     \item \textbf{Administrateur} : valide, publie, suspend ou rejette les projets, modère les commentaires, traite les signalements, supervise les retraits, désactive ou réactive les comptes, et relance les traitements échoués (notifications, retraits, remboursements).
     \item \textbf{Passerelle de paiement (démo)} : partenaire externe simulé qui confirme ou infirme les paiements via un \textit{webhook} signé. Les messages de ce tiers déclenchent des transitions métier (statut de transaction, statut d'investissement, mise à jour du montant collecté, remboursements en cas de sur-financement).
     \item \textbf{Service d'analyse de risque (orchestrateur)} : service externe qui exécute les workflows d'analyse (sollicitation, reprises, mise à jour du rapport) et retourne un rapport structuré via les routes internes du backend (\texttt{/internal/*}) ; l'assistance conversationnelle sur un projet (\texttt{POST /api/projects/:id/chat}) est, quant à elle, implémentée \textbf{dans l'API Express} avec appel direct à un service LLM côté serveur (sans passage par n8n).
@@ -594,10 +607,10 @@ La plateforme distingue des acteurs humains et des acteurs systèmes externes. U
 \end{itemize}
 
 \section{Contexte du système informatisé (boîte noire)}
-Du point de vue externe, la plateforme échange des messages avec \textbf{quatre familles d'interlocuteurs} (canal web humain, passerelle de paiement, service d'analyse de risque, messagerie). La figure~\ref{fig:collaboration} en restitue la lecture : le système apparaît comme une «\,boîte noire\,» centrale, les acteurs périphériques étant reliés par des associations libellées qui matérialisent les échanges fonctionnels attendus.
+Du point de vue externe, la plateforme échange des messages avec \textbf{quatre grandes familles d'interlocuteurs} (les canaux web humains, la passerelle de paiement, le service d'analyse de risque, la messagerie). La figure~\ref{fig:collaboration} en restitue la lecture : le système apparaît comme une «\,boîte noire\,» centrale, les acteurs périphériques étant reliés par des associations libellées qui matérialisent les échanges fonctionnels attendus.
 
 \begin{itemize}
-    \item Les \textbf{acteurs humains web} (visiteur, utilisateur authentifié, administrateur) interagissent avec le système via l'application front-end (HTTPS, REST, cookies HttpOnly).
+    \item Les \textbf{acteurs humains web} (visiteur, utilisateur authentifié, expert, administrateur) interagissent avec le système via l'application front-end (HTTPS, REST, cookies HttpOnly).
     \item La \textbf{passerelle de paiement (démo)} envoie des confirmations signées (\textit{webhook}) ; le système répond de façon idempotente pour absorber les retentatives.
     \item Le \textbf{service d'analyse de risque (orchestrateur)} consomme des demandes d'analyse (via file de jobs/Redis) et appelle des routes internes du backend (\texttt{/internal/*}) pour mettre à jour les résultats (succès/échec) de manière contrôlée.
     \item Le \textbf{service de messagerie} (SMTP) est sollicité pour les e-mails critiques (vérification, réinitialisation, décisions admin, paiement/retrait).
@@ -618,8 +631,8 @@ Les cas d'utilisation sont regroupés en thèmes métier qui structurent la plat
 \begin{itemize}
     \item \textbf{Comptes} : inscription (avec OTP / lien de vérification), connexion, déconnexion, rafraîchissement de session, mot de passe oublié, mise à jour du profil, suppression de compte.
     \item \textbf{Projets} : exploration / consultation, recherche, création (\texttt{DRAFT}), soumission à l'analyse IA (\texttt{AWAITING\_AI}), revue administrative (\texttt{UNDER\_REVIEW}), décision (\texttt{APPROVED}/\texttt{REJECTED}), publication (\texttt{ACTIVE}), édition / re-soumission, archivage.
-    \item \textbf{Contributions \& finance} : contribution (paiement simulé), suivi des investissements, relance de paiement, annulation dans la fenêtre de grâce, remboursement en cas de sur-financement, retraits (\textit{payouts}) et saisie chiffrée des coordonnées bancaires.
-    \item \textbf{Échanges \& confiance} : commentaires sur les projets publics (publication/suppression), notifications \textit{in-app}, signalement (projet ou commentaire), consultation de ses signalements, recommandations personnalisées, chatbot d'aide à la consultation d'un projet.
+    \item \textbf{Contributions \& finance} : contribution (paiement simulé avec pourboire), suivi des investissements, relance de paiement, annulation dans la fenêtre de grâce, remboursement en cas de sur-financement, retraits (\textit{payouts}) et saisie chiffrée des coordonnées bancaires avec génération de factures PDF.
+    \item \textbf{Échanges \& confiance} : commentaires sur les projets publics (publication/suppression), notifications \textit{in-app}, signalement (projet ou commentaire), consultation de ses signalements, recommandations personnalisées, chatbot d'aide (LLM), demande de consultation d'expert en finance.
     \item \textbf{Administration} : gestion des projets (liste, validation/rejet, publication, suspension/réactivation, relance analyse IA), gestion des utilisateurs (désactivation/réactivation), modération des commentaires (masquer/rétablir), traitement des signalements (résolution), supervision des retraits (approbation), relance des jobs en échec (envois SMTP, payouts, remboursements, annulations ; files DLQ / routes \texttt{/api/admin/*}).
 \end{itemize}
 La représentation graphique synthétique de ces cas d'utilisation est donnée par la figure~\ref{fig:usecase}.
@@ -636,7 +649,7 @@ La représentation graphique synthétique de ces cas d'utilisation est donnée p
 
 \medskip
 \noindent
-\textbf{Alignement avec l’implémentation.} La couverture fonctionnelle du diagramme correspond aux modules exposés par le backend (\texttt{/api/auth}, \texttt{/api/users}, \texttt{/api/projects}, \texttt{/api/investments}, \texttt{/api/webhooks}, \texttt{/api/payouts}, \texttt{/api/notifications}, \texttt{/api/reports}, \texttt{/api/recommendations}, \texttt{/api/projects/:id/chat} (chatbot), \texttt{/api/admin}, \texttt{/internal/*}). Les tableaux~\ref{tab:uc_inventory} à~\ref{tab:uc_inv_admin} en donnent la cartographie exhaustive ; le chapitre~\ref{chap:conception} en reprend une partie sous forme UML.
+\textbf{Alignement avec l’implémentation.} La couverture fonctionnelle du diagramme correspond aux modules exposés par le backend (\texttt{/api/auth}, \texttt{/api/users}, \texttt{/api/projects}, \texttt{/api/investments}, \texttt{/api/webhooks}, \texttt{/api/payouts}, \texttt{/api/invoices}, \texttt{/api/experts}, \texttt{/api/notifications}, \texttt{/api/reports}, \texttt{/api/recommendations}, \texttt{/api/projects/:id/chat} (chatbot), \texttt{/api/admin}, \texttt{/internal/*}). Les tableaux~\ref{tab:uc_inventory} à~\ref{tab:uc_inv_admin} en donnent la cartographie exhaustive ; le chapitre~\ref{chap:conception} en reprend une partie sous forme UML.
 
 \section{Description textuelle des cas d'utilisation}
 \label{sec:uc_textuel}
@@ -714,7 +727,7 @@ Révoquer une approbation (\texttt{APPROVED} $\rightarrow$ \texttt{REJECTED}) po
 \endhead
 \hline
 \endfoot
-Initier une contribution, paiement simulé, \textit{webhook} signé et idempotent & Investisseur, passerelle ; \texttt{/api/investments}, \texttt{/api/webhooks} \\
+Initier une contribution (avec pourboire optionnel), paiement simulé, \textit{webhook} signé et idempotent & Investisseur, passerelle ; \texttt{/api/investments}, \texttt{/api/webhooks} \\
 \hline
 Annulation pendant la fenêtre de grâce (\texttt{CANCELLING}/\texttt{CANCELLED}) & Investisseur ; \texttt{/api/investments/\dots/cancel} \\
 \hline
@@ -753,6 +766,8 @@ Supervision des envois SMTP en échec et relance manuelle & Administrateur ; \te
 Recommandations (score déterministe : catégories, \texttt{riskLevel}, progression, récence) & Utilisateur ; \texttt{/api/recommendations} \\
 \hline
 Chatbot d'aide contextualisé sur un projet (LLM) & Utilisateur ; \texttt{POST /api/projects/:id/chat} \\
+\hline
+Demande de consultation d'expert en finance (mise en attente du paiement) et gestion de l'avis & Investisseur, Expert/Administrateur ; \texttt{/api/experts} \\
 \hline
 \end{longtable}
 
@@ -828,9 +843,9 @@ Les tableaux~\ref{tab:create_project} à~\ref{tab:report} détaillent cinq cas t
         \hline
         Postcondition & Investissement \texttt{INITIATED} puis \texttt{SUCCESS} si \textit{webhook} \texttt{SUCCEEDED} ; incrément atomique de \texttt{currentFunding} \\
         \hline
-        \multirow{6}{2.5cm}{\raggedright Scénario nominal} & 1.\ L'utilisateur saisit un montant $\geq 100$ TND. \\
+        \multirow{6}{2.5cm}{\raggedright Scénario nominal} & 1.\ L'utilisateur saisit un montant $\geq 100$ TND et sélectionne ou saisit éventuellement un pourboire pour la plateforme. \\
         \cline{2-2}
-        & 2.\ Le système crée un investissement (\texttt{INITIATED}) et une transaction (\texttt{PENDING}, couple \texttt{provider}+\texttt{providerPaymentId} unique). \\
+        & 2.\ Le système crée un investissement (\texttt{INITIATED}) en incluant le pourboire optionnel, et une transaction (\texttt{PENDING}, couple \texttt{provider}+\texttt{providerPaymentId} unique). \\
         \cline{2-2}
         & 3.\ Le système renvoie une URL de paiement simulée. \\
         \cline{2-2}
@@ -840,11 +855,13 @@ Les tableaux~\ref{tab:create_project} à~\ref{tab:report} détaillent cinq cas t
         \cline{2-2}
         & 6.\ Transaction \texttt{SUCCEEDED}, investissement \texttt{SUCCESS}, mise à jour du total collecté (garde-fou anti-sur-financement). \\
         \hline
-        \multirow{3}{2.5cm}{\raggedright Scénarios alternatifs} & 1.\ Paiement refusé : transaction \texttt{FAILED} / \texttt{CANCELLED}, investissement \texttt{FAILED}. \\
+        \multirow{4}{2.5cm}{\raggedright Scénarios alternatifs} & 1.\ Paiement refusé : transaction \texttt{FAILED} / \texttt{CANCELLED}, investissement \texttt{FAILED}. \\
         \cline{2-2}
         & 2.\ Sur-financement : statuts \texttt{REFUNDED}, remontées admin pour relance éventuelle. \\
         \cline{2-2}
         & 3.\ Annulation utilisateur dans la fenêtre de grâce (\texttt{CANCELLING} $\rightarrow$ \texttt{CANCELLED}). \\
+        \cline{2-2}
+        & 4.\ \textbf{Demande d'expert} : Si le montant $\geq 30\%$ de l'objectif, l'investisseur sollicite un expert ; l'investissement est mis en attente (\texttt{ON\_HOLD}) le temps de la consultation. \\
         \hline
         \multirow{2}{2.5cm}{\raggedright Exceptions} & 1.\ Projet indisponible ou investisseur administrateur (règle \texttt{requireNotAdmin}). \\
         \cline{2-2}
@@ -1032,7 +1049,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
     \label{fig:invest}
 \end{figure}
 \noindent
-\textbf{Diagramme de séquence (figure~\ref{fig:invest}) :} il met en évidence le caractère \textbf{asynchrone} du paiement démo : l'investisseur initie le flux côté application, la passerelle confirme ou refuse le paiement, puis le \textit{webhook} rappelle le backend pour finaliser la transaction, promouvoir l'investissement au statut réussi et déclencher les notifications associées.
+\textbf{Diagramme de séquence (figure~\ref{fig:invest}) :} il met en évidence le caractère \textbf{asynchrone} du paiement démo : l'investisseur initie le flux côté application en incluant éventuellement un \textbf{pourboire}, la passerelle confirme ou refuse le paiement, puis le \textit{webhook} rappelle le backend pour finaliser la transaction, promouvoir l'investissement au statut réussi et déclencher les notifications associées.
 
 \begin{figure}[H]
     \centering
@@ -1041,9 +1058,9 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
     \label{fig:class_invest}
 \end{figure}
 \noindent
-\textbf{Diagramme de classes participantes (figure~\ref{fig:class_invest}) :} il explicite les entités et attributs impliqués (\texttt{Utilisateur} investisseur, \texttt{Projet}, \texttt{Investissement}, \texttt{Transaction}, \texttt{Notification}, passerelle) et permet de relier chaque message de la séquence à une structure de données concrète (montants, statuts, identifiants fournisseur, liens vers le projet).
+\textbf{Diagramme de classes participantes (figure~\ref{fig:class_invest}) :} il explicite les entités et attributs impliqués (\texttt{Utilisateur} investisseur, \texttt{Projet}, \texttt{Investissement} avec son champ \texttt{tipAmount}, \texttt{Transaction}, \texttt{Notification}, passerelle) et permet de relier chaque message de la séquence à une structure de données concrète (montants, statuts, identifiants fournisseur, liens vers le projet).
 
-\subsection{Valider un projet (Admin)}
+\subsection{Valider un projet (Expert \& Admin)}
 \begin{figure}[H]
     \centering
     \safeincludegraphics[width=\textwidth,height=0.76\textheight,keepaspectratio]{sequence_diagram/valider_rejeter_projet.png}
@@ -1051,7 +1068,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
     \label{fig:validate}
 \end{figure}
 \noindent
-\textbf{Diagramme de séquence (figure~\ref{fig:validate}) :} il décrit le parcours administrateur : chargement d'un projet en revue, contrôle des éléments de décision (y compris synthèse d'analyse lorsqu'elle est disponible), enregistrement du verdict (approbation ou rejet avec motif), mise à jour du cycle de vie du projet et envoi de notifications au créateur.
+\textbf{Diagramme de séquence (figure~\ref{fig:validate}) :} il décrit le parcours de validation : chargement d'un projet en revue, contrôle par un \textbf{Expert en finance} de la synthèse d'analyse IA, enregistrement du verdict de l'expert (approbation ou rejet avec motif) via \texttt{EXPERT\_VALIDATE\_PROJECT}, mise à jour du cycle de vie du projet vers l'état \texttt{APPROVED}, puis publication finale par l'Administrateur avec envoi de notifications au créateur.
 
 \begin{figure}[H]
     \centering
@@ -1089,7 +1106,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
     \label{fig:approve_payout}
 \end{figure}
 \noindent
-\textbf{Diagramme de séquence (figure~\ref{fig:approve_payout}) :} il ordonne les actions d'approbation : contrôle des préconditions (retrait \texttt{READY}, coordonnées présentes), appel au prestataire de virement de démonstration, mise à jour des statuts temporels du \texttt{Payout} (\texttt{PROCESSING}, \texttt{COMPLETED} ou échec) et notification au créateur.
+\textbf{Diagramme de séquence (figure~\ref{fig:approve_payout}) :} il ordonne les actions d'approbation : contrôle des préconditions (retrait \texttt{READY}, coordonnées présentes), appel au prestataire de virement de démonstration, mise à jour des statuts temporels du \texttt{Payout} (\texttt{PROCESSING}, \texttt{COMPLETED} ou échec), \textbf{génération automatique de la facture PDF} (\texttt{Invoice}) et notification au créateur.
 
 \begin{figure}[H]
     \centering
@@ -1098,7 +1115,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
     \label{fig:class_approve_payout}
 \end{figure}
 \noindent
-\textbf{Diagramme de classes participantes (figure~\ref{fig:class_approve_payout}) :} il identifie les classes du domaine et l'acteur externe (\texttt{Projet}, \texttt{Payout}, \texttt{Utilisateur}, \texttt{Notification}, prestataire) et précise quelles données sont lues ou écrites à chaque étape visible sur la séquence.
+\textbf{Diagramme de classes participantes (figure~\ref{fig:class_approve_payout}) :} il identifie les classes du domaine et l'acteur externe (\texttt{Projet}, \texttt{Payout}, \texttt{Invoice}, \texttt{Utilisateur}, \texttt{Notification}, prestataire) et précise quelles données sont lues ou écrites à chaque étape visible sur la séquence.
 
 \subsection{Mise à jour de l'état d'un projet (Admin)}
 \begin{figure}[H]
@@ -1136,7 +1153,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \end{sidewaysfigure}
 
 \noindent
-\textbf{Lecture du diagramme.} Le diagramme de classes qui précède matérialise le \textbf{modèle du domaine} de la plateforme : il explicite les entités métier centrales (\textbf{Utilisateur}, \textbf{Projet}, \textbf{Investissement}, \textbf{Transaction}, \textbf{Retrait}, \textbf{Notification}, \textbf{Commentaire}, \textbf{Signalement}) avec leurs attributs, leurs opérations et leurs relations assorties de multiplicités. Les énumérations portant sur le rôle, les statuts ou les types de notification rendent lisibles les cycles de vie et les règles de gestion correspondantes. Trois invariants y sont rappelés de manière synthétique : (i) unicité de l'adresse électronique ; (ii) plafonnement de la collecte par l'objectif de financement ; (iii) limitation à un retrait par projet. Ce modèle fait office de référence pour les développements ultérieurs relatifs à l'architecture et au \textbf{modèle de données MongoDB}.
+\textbf{Lecture du diagramme.} Le diagramme de classes qui précède matérialise le \textbf{modèle du domaine} de la plateforme : il explicite les entités métier centrales (\textbf{Utilisateur}, \textbf{Projet}, \textbf{Investissement}, \textbf{Transaction}, \textbf{Retrait}, \textbf{Facture}, \textbf{Consultation Expert}, \textbf{Notification}, \textbf{Commentaire}, \textbf{Signalement}) avec leurs attributs, leurs opérations et leurs relations assorties de multiplicités. Les énumérations portant sur le rôle, les statuts ou les types de notification rendent lisibles les cycles de vie et les règles de gestion correspondantes. Trois invariants y sont rappelés de manière synthétique : (i) unicité de l'adresse électronique ; (ii) plafonnement de la collecte par l'objectif de financement ; (iii) limitation à un retrait par projet. Ce modèle fait office de référence pour les développements ultérieurs relatifs à l'architecture et au \textbf{modèle de données MongoDB}.
 
 \section{Architecture du futur logiciel}
 \subsection{Vue d'ensemble en couches}
@@ -1146,7 +1163,7 @@ L'application suit une architecture client-serveur à trois couches, déployée 
     \item \textbf{Couche métier} : Node.js + Express, qui expose les points d'accès API, applique les règles de validation (Zod), orchestre les services internes et gère les transactions MongoDB.
     \item \textbf{Couche données} : MongoDB (replica set requis pour les transactions multi-documents).
 \end{itemize}
-Les services internes (\texttt{projectService}, \texttt{investmentService}, \texttt{payoutService}, \texttt{adminProjectService}, \texttt{adminUserService}, \texttt{accountService}, \texttt{notificationService}, \texttt{recommendationService}, \texttt{reportService}, \texttt{authService}, \texttt{workflowInternalService}, \texttt{geminiRiskService}, \texttt{geminiChatService}) sont des modules distincts au sein du backend. Ils sont assemblés par l'\textit{Express router} et leurs traitements asynchrones sont délégués à des files BullMQ/Redis (e-mails, retentatives) ou à des workflows n8n (analyse de risque) ; le chatbot est traité par l'API Express (\texttt{POST /api/projects/:id/chat}) avec appel LLM côté serveur.
+Les services internes (\texttt{projectService}, \texttt{investmentService}, \texttt{payoutService}, \texttt{adminProjectService}, \texttt{adminUserService}, \texttt{accountService}, \texttt{notificationService}, \texttt{recommendationService}, \texttt{reportService}, \texttt{authService}, \texttt{expertService}, \texttt{invoiceService}, \texttt{workflowInternalService}, \texttt{geminiRiskService}, \texttt{geminiChatService}) sont des modules distincts au sein du backend. Ils sont assemblés par l'\textit{Express router} et leurs traitements asynchrones sont délégués à des files BullMQ/Redis (e-mails, retentatives) ou à des workflows n8n (analyse de risque) ; le chatbot est traité par l'API Express (\texttt{POST /api/projects/:id/chat}) avec appel LLM côté serveur.
 
 \subsection{Intégration de n8n}
 n8n est un outil d'orchestration visuelle de workflows utilisé pour découpler la logique métier des services externes. Dans le projet :
@@ -1191,6 +1208,8 @@ Le modèle de données est dérivé du modèle du domaine et des schémas Mongoo
     \item \texttt{investments} : lie un investisseur à un projet avec un montant et un statut.
     \item \texttt{transactions} : enregistre les informations de paiement (démo / extensible).
     \item \texttt{payouts} : stocke les retraits (statut, coordonnées bancaires chiffrées, suivi du virement).
+    \item \texttt{invoices} : stocke les factures PDF générées séquentiellement pour la traçabilité financière (investissement et retraits).
+    \item \texttt{expertconsultations} : trace le processus de consultation entre l'investisseur et l'expert (statut \texttt{OPEN}, \texttt{IN\_PROGRESS}, \texttt{CLOSED}).
     \item \texttt{comments} : stocke les commentaires (modération, masquage, suppression).
     \item \texttt{reports} : gère les signalements.
     \item \texttt{notifications} : stocke les notifications in‑app.
@@ -1243,7 +1262,7 @@ Le tableau~\ref{tab:dictionary} détaille les principaux champs retenus au sein 
 \cline{2-3}
 & \mongoid{passwordHash} & Mot de passe haché avec bcrypt. \\
 \cline{2-3}
-& \mongoid{role} & Rôle de l'utilisateur (USER ou ADMIN). \\
+& \mongoid{role} & Rôle de l'utilisateur (USER, EXPERT ou ADMIN). \\
 \cline{2-3}
 & \mongoid{isActive} & Statut du compte (actif / désactivé). \\
 \cline{2-3}
@@ -1445,15 +1464,15 @@ Les principaux outils et bibliothèques utilisés sont présentés ci-dessous se
         \begin{minipage}{\linewidth}\centering
             \safeincludegraphics[height=2.15cm]{icon_outils/vite.png}%
         \end{minipage}\par\vspace{0.55em}
-        \item \textbf{Bootstrap~5} : framework CSS et composants JavaScript (modales, dépliants) pour uniformiser la mise en page responsive.
+        \item \textbf{Tailwind CSS v4 et Shadcn UI} : framework utilitaire CSS moderne de nouvelle génération combiné à une bibliothèque de composants d'interface utilisateur haut de gamme, accessibles et personnalisables (Radix UI sous le capot).
 
-        \textbf{Dans l'application :} les feuilles et scripts Bootstrap sont importés dans \texttt{main.jsx} aux côtés des styles propres à la plateforme (\texttt{index.css}, \texttt{styles/platform.css}), ce qui fournit la grille, les utilitaires d'espacement et les composants de base réemployés dans les pages.
+        \textbf{Dans l'application :} le style global est géré via la directive \texttt{@import "tailwindcss";} configurée via le compilateur natif ultra-rapide de Vite (\texttt{@tailwindcss/vite}). Les composants haut de gamme de la plateforme (boutons, modales, dialogues, toasts) sont issus de \textbf{Shadcn UI} et configurés dans \texttt{frontend/src/components/ui/}, permettant une expérience utilisateur (UX) fluide avec des micro-animations interactives (\texttt{tw-animate-css}, \texttt{clsx}).
 
-        \textbf{Avantages :} cohérence visuelle sur mobile et bureau, gain de temps sur les patterns UI courants (formulaires, grilles, navigation), documentation extensive.
+        \textbf{Avantages :} absence de fichiers CSS superflus grâce au compilateur JIT natif de Tailwind v4, personnalisation illimitée du design system sans dépendre d'un thème rigide préexistant, intégration parfaite avec React 19 et conformité stricte aux normes d'accessibilité (WAI-ARIA).
 
         \par\vspace{1.15em}\noindent
         \begin{minipage}{\linewidth}\centering
-            \safeincludegraphics[height=2.15cm]{icon_outils/bootstrap5.png}%
+            \safeincludegraphics[height=2.15cm]{icon_outils/tailwind.png}%
         \end{minipage}\par\vspace{0.45em}
     \end{itemize}
     \item \textbf{MongoDB} : base de données \textbf{NoSQL} orientée documents, adaptée aux schémas évolutifs et aux regroupements logiques (sous-documents, tableaux embarqués).
@@ -1569,7 +1588,7 @@ Les tableaux~\ref{tab:tech} et~\ref{tab:techsuite} synthétisent les technologie
         \hline
         \textbf{Composant} & \textbf{Technologie} & \textbf{Justification} \\
         \hline
-        Frontend & React + Vite + Bootstrap~5 & Composants réutilisables, écosystème riche, UI cohérente responsive. \\
+        Frontend & React + Vite + Tailwind CSS v4 + Shadcn UI & Composants haut de gamme, design system sur mesure, UI cohérente, accessible et ultra-responsive. \\
         \hline
         Backend & Node.js + Express & Environnement JavaScript unifié, non bloquant, adapté aux API REST et aux traitements asynchrones. \\
         \hline
@@ -1739,9 +1758,9 @@ En cas d'indisponibilité temporaire du service IA (quota/timeout/503), le proje
 \subsubsection*{Description fonctionnelle}
 Le parcours de paiement est simulé (mock) afin de valider la logique métier (statuts, webhooks signés, idempotence) sans dépendre d’un prestataire externe.
 \begin{itemize}
-    \item \textbf{Création du lien de paiement} : lorsqu'un utilisateur initie un soutien, le backend retourne une URL de paiement simulé. L'investissement et la transaction sont créés en \texttt{INITIATED} / \texttt{PENDING}.
-    \item \textbf{Webhook mock signé} : une confirmation HTTP signée met à jour transaction/investissement et ajoute le montant au \texttt{currentFunding} du projet, sous une condition atomique qui empêche de dépasser l'objectif de financement.
-    \item \textbf{Coordonnées bancaires (RIB)} : les RIB des porteurs de projet sont chiffrés en AES-256-GCM (IV unique par enregistrement) avant stockage et utilisés au moment du \textit{payout}.
+    \item \textbf{Création du lien de paiement} : lorsqu'un utilisateur initie un soutien (incluant un \textbf{pourboire} optionnel), le backend retourne une URL de paiement simulé. Si le montant atteint ou dépasse \textbf{30\%} de l'objectif, l'investissement est mis en \texttt{ON\_HOLD} pour imposer une consultation avec l'Expert en finance. Sinon, l'investissement et la transaction sont créés en \texttt{INITIATED} / \texttt{PENDING}.
+    \item \textbf{Webhook mock signé} : une confirmation HTTP signée met à jour transaction/investissement et ajoute le montant au \texttt{currentFunding} du projet (sous une condition atomique qui empêche de dépasser l'objectif de financement). Une \textbf{facture} (Invoice) numérotée est générée simultanément pour assurer la traçabilité financière.
+    \item \textbf{Coordonnées bancaires et retraits} : les RIB des porteurs de projet sont chiffrés en AES-256-GCM (IV unique par enregistrement). Lors de l'approbation d'un \textit{payout}, une facture de retrait est générée en parallèle.
 \end{itemize}
 
 \subsubsection*{Bibliothèques utilisées}

@@ -2,7 +2,7 @@
   "_id": ObjectId,
   "email": { "type": "string", "unique": true, "index": true, "required": true },
   "passwordHash": { "type": "string", "required": true },
-  "role": { "type": "string", "enum": ["USER", "ADMIN"], "required": true },
+  "role": { "type": "string", "enum": ["USER", "EXPERT", "ADMIN"], "required": true },
   "isActive": { "type": "boolean", "default": false },
   // Vérification email : OTP (prioritaire) + lien (fallback)
   "verifyCodeHash": { "type": "string", "default": null },

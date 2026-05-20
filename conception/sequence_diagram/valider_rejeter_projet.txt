@@ -1,10 +1,10 @@
-@startuml UC_Valider_Rejeter_Projet_Admin
+@startuml UC_Valider_Publier_Projet
 
 ' ============================
 '  Normes FSEG (ECB)
-'  - Acteur : Administrateur
-'  - <<boundary>> : IHM_Administration
-'  - <<control>>  : Controleur_Administration
+'  - Acteurs : Expert en finance, Administrateur
+'  - <<boundary>> : IHM_Plateforme
+'  - <<control>>  : Controleur_Projet
 '  - <<entity>>   : Projet, Notification
 ' ============================
 
@@ -13,56 +13,53 @@ skinparam shadowing false
 skinparam defaultFontName "Times New Roman"
 skinparam defaultFontSize 12
 skinparam sequenceMessageAlign left
-skinparam ParticipantPadding 10
-skinparam BoxPadding 6
 skinparam maxMessageSize 45
 skinparam wrapWidth 150
 skinparam dpi 150
 scale 0.85
 
-title UC Valider ou rejeter un projet (Admin) — Décision de revue (ECB/FSEG)
+title UC Valider (Expert) et Publier (Admin) un projet — Cycle de revue (ECB/FSEG)
 
-actor "Administrateur" as A
-boundary "IHM_Administration" as IHM
-control "Controleur_Administration" as CA
+actor "Expert en finance" as Exp
+actor "Administrateur" as Adm
+boundary "IHM_Plateforme" as IHM
+control "Controleur_Projet" as CP
 entity "Projet" as P
 entity "Notification" as N
 
-== Consultation des projets en revue ==
-A -> IHM : consulterProjetsEnAttente()
-IHM -> CA : listerProjets(status=UNDER_REVIEW)
-CA -> P : rechercher(status=UNDER_REVIEW)
-CA --> IHM : afficherListe(projets)
+== Étape 1 : Validation de l'analyse IA par l'Expert ==
+Exp -> IHM : validerAnalyseProjet(projectId, decision, feedback)
+IHM -> CP : validerAnalyseProjet(expertId, projectId, decision, feedback)
 
-== Décision admin ==
-A -> IHM : validerOuRejeter(projectId, decision, feedback)
-IHM -> CA : validateProject(adminId, projectId, decision, feedback)
-
-CA -> P : charger(projectId)
-alt Projet introuvable
-  CA --> IHM : erreur("Projet introuvable")
-  IHM --> A : message d’erreur
-else État invalide (status != UNDER_REVIEW)
-  CA --> IHM : erreur("État invalide : UNDER_REVIEW requis")
-  IHM --> A : message d’erreur
-else Analyse IA manquante / non terminée
-  CA --> IHM : erreur("Analyse IA non terminée")
-  IHM --> A : message d’erreur
-else Analyse IA trop ancienne
-  CA --> IHM : erreur("Analyse IA trop ancienne")
-  IHM --> A : message d’erreur
-else Date limite dépassée
-  CA --> IHM : erreur("Date limite dépassée")
-  IHM --> A : message d’erreur
+CP -> P : charger(projectId)
+alt Projet introuvable ou état invalide (status != UNDER_REVIEW)
+  CP --> IHM : erreur("Action impossible dans cet état")
+  IHM --> Exp : message d’erreur
 else Décision autorisée
   alt decision = APPROVED
-    CA -> P : maj(status=APPROVED)
-    CA -> N : creer(type=PROJECT_APPROVED, destinataire=créateur)
-    CA --> IHM : afficherConfirmation("Projet approuvé")
+    CP -> P : maj(status=APPROVED, feedbackExpert=feedback)
+    CP -> N : creer(type=PROJECT_APPROVED, destinataire=créateur)
+    CP --> IHM : confirmation("Projet approuvé par l'expert")
   else decision = REJECTED
-    CA -> P : maj(status=REJECTED, rejectionReason=feedback)
-    CA -> N : creer(type=PROJECT_REJECTED, destinataire=créateur)
-    CA --> IHM : afficherConfirmation("Projet rejeté")
+    CP -> P : maj(status=REJECTED, rejectionReason=feedback)
+    CP -> N : creer(type=PROJECT_REJECTED, destinataire=créateur)
+    CP --> IHM : confirmation("Projet rejeté")
+  end
+end
+
+== Étape 2 : Publication finale par l'Administrateur ==
+opt Si le projet a été approuvé (status = APPROVED)
+  Adm -> IHM : publierProjet(projectId)
+  IHM -> CP : publierProjet(adminId, projectId)
+
+  CP -> P : charger(projectId)
+  alt État invalide (status != APPROVED)
+    CP --> IHM : erreur("Publication impossible : le projet doit être APPROVED")
+    IHM --> Adm : message d’erreur
+  else Publication autorisée
+    CP -> P : maj(status=ACTIVE, publishedAt)
+    CP -> N : creer(type=PROJECT_PUBLISHED, destinataire=créateur)
+    CP --> IHM : confirmation("Projet publié et actif")
   end
 end
 

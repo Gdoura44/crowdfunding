@@ -6,7 +6,6 @@
 '  - <<boundary>> : IHM_Administration
 '  - <<control>>  : Controleur_Administration
 '  - <<entity>>   : Projet, Notification, Retrait(Payout)
-'  - <<external>> : Orchestrateur_Analyse_Risque (n8n/BullMQ)
 ' ============================
 
 hide footbox
@@ -14,8 +13,6 @@ skinparam shadowing false
 skinparam defaultFontName "Times New Roman"
 skinparam defaultFontSize 12
 skinparam sequenceMessageAlign left
-skinparam ParticipantPadding 10
-skinparam BoxPadding 6
 skinparam maxMessageSize 45
 skinparam wrapWidth 150
 skinparam dpi 150
@@ -29,7 +26,6 @@ control "Controleur_Administration" as CA
 entity "Projet" as P
 entity "Retrait (Payout)" as R
 entity "Notification" as N
-participant "Orchestrateur_Analyse_Risque" as WF <<external>>
 
 == Changer l’état ==
 A -> IHM : changerEtatProjet(projectId, action, motif?)
@@ -72,7 +68,7 @@ else Continuer
       else Analyse IA trop ancienne
         CA -> P : maj(status=AWAITING_AI, aiStatus=PENDING)
         CA -> N : creer(type=PROJECT_REACTIVATED, destinataire=créateur)
-        CA -> WF : enqueueRiskAnalysisJob(projectId)
+        CA -> CA : analyserRisques(projectId)
         CA --> IHM : confirmation("Projet réactivé (analyse en cours)")
       end
     end

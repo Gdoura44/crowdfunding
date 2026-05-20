@@ -665,7 +665,7 @@ export default function ProjectDetail() {
                 {commentErr && <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md mb-4">{commentErr}</div>}
                 {commentOk && <div className="text-sm text-green-600 bg-green-50 p-3 rounded-md mb-4">{commentOk}</div>}
 
-                {isAuthenticated && user?.role !== "ADMIN" ? (
+                {isAuthenticated ? (
                   <form className="mb-8" onSubmit={async (e) => {
                     e.preventDefault();
                     setCommentBusy(true);
@@ -714,7 +714,7 @@ export default function ProjectDetail() {
                         </div>
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">{c.content}</p>
                         
-                        {isAuthenticated && user?.role !== "ADMIN" && (
+                        {isAuthenticated && (
                           <div className="flex justify-end mt-3">
                             {(String(c.userId) === String(user?.id || user?._id)) ? (
                               <Button variant="ghost" size="sm" className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10" disabled={commentBusy} onClick={() => {

@@ -15,13 +15,10 @@ skinparam defaultFontName "Times New Roman"
 skinparam defaultFontSize 11
 skinparam monochrome true
 skinparam shadowing false
-skinparam handwritten false
 
 skinparam packageStyle rectangle
 skinparam packageFontStyle bold
 skinparam packageFontSize 12
-skinparam PackagePadding 10
-skinparam Padding 4
 
 skinparam ArrowColor black
 skinparam packageBorderColor black
@@ -44,9 +41,9 @@ package "Couche applicative — serveur Node.js / Express" as COUCH_APP {
 
   rectangle "Paquetage Projets\n----\nREST : /api/projects · /api/recommendations\nPOST /api/projects/:id/chat · …/comments\nServices : projectService, recommendationService,\ngeminiChatService" as PKG_PROJ
 
-  rectangle "Paquetage Contributions & finance\n----\nREST : /api/investments · /api/payouts\nPOST /api/webhooks/mock-payments\nServices : investmentService, payoutService" as PKG_FIN
+  rectangle "Paquetage Contributions & finance\n----\nREST : /api/investments · /api/payouts · /api/invoices\nPOST /api/webhooks/mock-payments\nServices : investmentService, payoutService, invoiceService" as PKG_FIN
 
-  rectangle "Paquetage Échanges & modération\n----\nREST : /api/notifications · /api/reports\nServices : notificationService, reportService" as PKG_ECH
+  rectangle "Paquetage Échanges & modération\n----\nREST : /api/notifications · /api/reports · /api/expert\nServices : notificationService, reportService, expertService" as PKG_ECH
 
   rectangle "Paquetage Administration\n----\nREST : /api/admin/*\nServices : adminProjectService, adminUserService,\nadminOpsService" as PKG_ADM
 

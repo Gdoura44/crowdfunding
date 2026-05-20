@@ -13,8 +13,6 @@ skinparam shadowing false
 skinparam defaultFontName "Times New Roman"
 skinparam defaultFontSize 12
 skinparam sequenceMessageAlign left
-skinparam ParticipantPadding 10
-skinparam BoxPadding 6
 skinparam maxMessageSize 45
 skinparam wrapWidth 150
 skinparam dpi 150
@@ -30,7 +28,7 @@ entity "Notification" as N
 
 == Saisie des coordonnées ==
 U -> IHM : saisirCoordonneesBancaires(payoutId, coordonnees)
-IHM -> CR : provideBankDetails(creatorId, payoutId, coordonnees)
+IHM -> CR : fournirCoordonneesBancaires(creatorId, payoutId, coordonnees)
 
 CR -> R : charger(payoutId, creatorId)
 alt Retrait introuvable

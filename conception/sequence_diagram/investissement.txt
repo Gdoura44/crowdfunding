@@ -6,7 +6,7 @@
 '  - <<boundary>> : IHM_Contribution
 '  - <<control>>  : Controleur_Investissement
 '  - <<entity>>   : Projet, Investissement, Transaction, Notification
-'  - <<external>> : Passerelle_de_paiement_(demo)
+'  - Service externe : Passerelle de paiement
 ' ============================
 
 hide footbox
@@ -15,14 +15,12 @@ skinparam shadowing false
 skinparam defaultFontName "Times New Roman"
 skinparam defaultFontSize 12
 skinparam sequenceMessageAlign left
-skinparam ParticipantPadding 10
-skinparam BoxPadding 6
 skinparam maxMessageSize 45
 skinparam wrapWidth 170
 skinparam dpi 150
 scale 0.9
 
-title UC Investir — Paiement démo + webhook (ECB/FSEG)
+title UC Investir — Demande et confirmation d'investissement (ECB/FSEG)
 
 actor "Utilisateur\n(investisseur)" as U
 boundary "IHM_Contribution" as IHM
@@ -31,11 +29,13 @@ entity "Projet" as P
 entity "Investissement" as Inv
 entity "Transaction" as Tx
 entity "Notification" as N
-participant "Passerelle_de_paiement_(demo)" as Pay <<external>>
+entity "Facture (Invoice)" as Invoice
+entity "ExpertConsultation" as EC
+participant "Passerelle de paiement" as Pay
 
 == Démarrage de l’investissement ==
-U -> IHM : investir(montant, idProjet)
-IHM -> CI : creerInvestment(investorId, projectId, amount)
+U -> IHM : investir(montant, idProjet, wantsConsultation, tipAmount)
+IHM -> CI : initialiserInvestissement(investorId, projectId, amount, wantsConsultation, tipAmount)
 
 CI -> P : charger(projectId)
 CI -> P : verifierInvestissable(ACTIVE, !archive, dates OK, plafond OK)
@@ -48,53 +48,67 @@ else Investisseur = créateur
 else Montant invalide
   CI --> IHM : erreur("Montant minimum 100 TND")
   IHM --> U : message d’erreur
+else wantsConsultation = true et montant < 30% de l’objectif
+  CI --> IHM : erreur("Consultation réservée aux contributions >= 30%")
+  IHM --> U : message d’erreur
 else Tentative d’investissement valide
-  CI -> Pay : createPaymentLink(amount, referenceId=investmentId)
+  CI -> Pay : genererLienPaiement(amount, referenceId=investmentId)
   Pay --> CI : paymentUrl, providerPaymentId, provider
-  CI -> Inv : creer(_id, investorId, projectId, amount, status=INITIATED, paymentAttempts=1)
-  CI -> Tx : creer(investmentId, provider, providerPaymentId, amount, status=PENDING, attemptNumber=1)
+  CI -> Inv : creer(_id, investorId, projectId, amount, status=INITIATED, wantsConsultation, tipAmount)
+  CI -> Tx : creer(investmentId, provider, providerPaymentId, amount, status=PENDING)
   CI --> IHM : retourner(paymentUrl)
-  IHM --> U : redirigerVersPaiement(paymentUrl)
+  IHM --> U : redirectionPaiement(paymentUrl)
 end
 
-== Webhook (asynchrone) ==
-Pay -> CI : webhook(providerPaymentId, status, paymentMethod)
-CI -> CI : verifierSignatureWebhook(payload)
+== Confirmation de paiement (Notification asynchrone) ==
+Pay -> CI : notifierStatutPaiement(providerPaymentId, status, paymentMethod)
+CI -> CI : verifierProvenanceRequete()
 CI -> Tx : rechercher(providerPaymentId)
 CI -> Inv : charger(tx.investmentId)
 CI -> P : charger(inv.projectId)
 
-alt Webhook idempotent\n(Tx.status != PENDING)
-  CI --> Pay : 200 OK (idempotent)
-else Traitement du webhook
-  alt status = FAILED
+alt Requête déjà traitée\n(Tx.status != PENDING)
+  CI --> Pay : 200 OK (déjà traité)
+else Traitement du paiement
+  alt status = ECHEC
     CI -> Tx : maj(status=FAILED, paymentMethod)
     CI -> Inv : maj(status=FAILED)
     CI -> N : creer(userId=investorId, type=PAYMENT_FAILED, relatedEntity=INVESTMENT)
     CI --> Pay : 200 OK
-  else status = SUCCEEDED
-    group Détection sur-financement (atomique)
-      CI -> P : incrementer currentFunding si currentFunding+amount <= fundingGoal
-    end
-
-    alt Sur-financement détecté\n(incrément refusé)
-      CI -> Pay : refundPayment(providerPaymentId, amount, reason=OVERFUNDING)
-      Pay --> CI : ok / échec
-      alt refund OK
-        CI -> Tx : maj(status=REFUNDED, refundStatus=SUCCEEDED, refundedAt)
-        CI -> Inv : maj(status=REFUNDED)
-        CI -> N : creer(type=OVERFUND_REFUNDED, relatedEntity=PROJECT)
-      else refund KO
-        CI -> Tx : maj(status=SUCCEEDED, refundStatus=FAILED, succeededAt)
-        CI -> Inv : maj(status=SUCCESS)
-        CI -> N : creer(type=REFUND_FAILED, relatedEntity=PROJECT)
-      end
-      CI --> Pay : 200 OK
-    else Paiement confirmé et montant accepté
+  else status = SUCCES
+    alt requestConsultation = true
       CI -> Tx : maj(status=SUCCEEDED, succeededAt, paymentMethod)
-      CI -> Inv : maj(status=SUCCESS)
-      CI -> N : creer(type=PAYMENT_SUCCESS, relatedEntity=INVESTMENT)
+      CI -> Inv : maj(status=PENDING_CONSULTATION)
+      CI -> Invoice : creerFacture(type=INVESTMENT)
+      CI -> EC : creer(projectId, investorId, investmentId, status=OPEN)
+      CI -> N : creer(type=PAYMENT_HELD_CONSULTATION, destinataire=investisseur)
+      CI -> N : creer(type=NEW_ASSIGNMENT, destinataire=experts)
       CI --> Pay : 200 OK
+    else requestConsultation = false (nominal)
+      group Détection sur-financement (atomique)
+        CI -> P : incrementer currentFunding si currentFunding+amount <= fundingGoal
+      end
+
+      alt Sur-financement détecté\n(incrément refusé)
+        CI -> Pay : rembourserTransaction(providerPaymentId, amount)
+        Pay --> CI : ok / échec
+        alt remboursement OK
+          CI -> Tx : maj(status=REFUNDED, refundStatus=SUCCEEDED, refundedAt)
+          CI -> Inv : maj(status=REFUNDED)
+          CI -> N : creer(type=OVERFUND_REFUNDED, relatedEntity=PROJECT)
+        else remboursement KO
+          CI -> Tx : maj(status=SUCCEEDED, refundStatus=FAILED, succeededAt)
+          CI -> Inv : maj(status=SUCCESS)
+          CI -> N : creer(type=REFUND_FAILED, relatedEntity=PROJECT)
+        end
+        CI --> Pay : 200 OK
+      else Paiement confirmé et montant accepté
+        CI -> Tx : maj(status=SUCCEEDED, succeededAt, paymentMethod)
+        CI -> Inv : maj(status=SUCCESS)
+        CI -> Invoice : creerFacture(type=INVESTMENT, investmentId)
+        CI -> N : creer(type=PAYMENT_SUCCESS, relatedEntity=INVESTMENT)
+        CI --> Pay : 200 OK
+      end
     end
   end
 end

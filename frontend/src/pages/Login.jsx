@@ -28,8 +28,14 @@ export default function Login() {
     setError("");
     try {
       await authApi.login(form);
-      await refreshUser();
-      navigate(from, { replace: true });
+      const user = await refreshUser();
+      
+      let targetPath = from;
+      if (targetPath === "/dashboard" && user?.role === "EXPERT") {
+        targetPath = "/projects";
+      }
+      
+      navigate(targetPath, { replace: true });
     } catch (err) {
       setError(extractApiError(err, "Connexion impossible.").message);
     } finally {

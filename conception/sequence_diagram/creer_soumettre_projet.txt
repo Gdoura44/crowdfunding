@@ -6,7 +6,6 @@
 '  - <<boundary>> : IHM_Projet
 '  - <<control>>  : Controleur_Projet
 '  - <<entity>>   : Projet, Notification
-'  - <<external>> : Orchestrateur_Analyse_Risque (n8n/BullMQ)
 ' ============================
 
 hide footbox
@@ -14,8 +13,6 @@ skinparam shadowing false
 skinparam defaultFontName "Times New Roman"
 skinparam defaultFontSize 12
 skinparam sequenceMessageAlign left
-skinparam ParticipantPadding 10
-skinparam BoxPadding 6
 skinparam maxMessageSize 45
 skinparam wrapWidth 150
 skinparam dpi 150
@@ -28,11 +25,10 @@ boundary "IHM_Projet" as IHM
 control "Controleur_Projet" as CP
 entity "Projet" as P
 entity "Notification" as N
-participant "Orchestrateur_Analyse_Risque" as WF <<external>>
 
 == Création d’un brouillon ==
 U -> IHM : creerProjet(donnees)
-IHM -> CP : createDraftProject(creatorId, donnees)
+IHM -> CP : initialiserProjet(creatorId, donnees)
 
 CP -> P : verifierContraintesDates()
 alt Dates invalides
@@ -47,7 +43,7 @@ end
 == Modification (optionnelle) ==
 opt Le créateur met à jour le brouillon
   U -> IHM : modifierProjet(champs)
-  IHM -> CP : updateProject(creatorId, projectId, champs)
+  IHM -> CP : modifierProjet(creatorId, projectId, champs)
   CP -> P : verifierModifiable()
   CP -> P : majChamps() + reVerifierContraintesDates()
   CP -> N : creer(type=PROJECT_UPDATED, relatedEntity=PROJECT)
@@ -56,7 +52,7 @@ end
 
 == Soumission pour analyse ==
 U -> IHM : soumettreProjet(projectId)
-IHM -> CP : submitProjectForAi(creatorId, projectId)
+IHM -> CP : soumettreProjetPourAnalyse(creatorId, projectId)
 
 CP -> P : verifierEtat(DRAFT) et non archivé
 alt Soumission refusée (état invalide / archivé)
@@ -64,21 +60,24 @@ alt Soumission refusée (état invalide / archivé)
   IHM --> U : message d’erreur
 else Soumission acceptée
   CP -> P : maj(status=AWAITING_AI, aiStatus=PENDING)
-  CP -> WF : enqueueRiskAnalysisJob(projectId)
-  alt Orchestrateur indisponible
-    CP -> P : marquerAnalyseEchouee(aiStatus=FAILED)
+  
+  CP -> CP : analyserRisques(projectId)
+  
+  alt Analyse IA réussie
+    CP -> P : maj(aiAnalysis)
+    alt Auto-rejet (écart estimé vs objectif >= 30%)
+      CP -> P : transition(REJECTED, rejectionReason)
+      CP -> N : creer(type=PROJECT_REJECTED, destinataire=créateur)
+    else Accepté pour revue
+      CP -> P : transition(UNDER_REVIEW)
+      CP -> N : creer(type=PROJECT_AI_REPORT_READY, relatedEntity=PROJECT)
+    end
+  else Analyse IA échouée
+    CP -> P : maj(aiStatus=FAILED)
   end
+
   CP -> N : creer(type=PROJECT_SUBMITTED, relatedEntity=PROJECT)
   CP --> IHM : afficherSoumissionOK()
-end
-
-== Retour du workflow (asynchrone) ==
-WF -> CP : callbackAnalyse(projectId, resultat)
-alt Analyse IA réussie
-  CP -> P : maj(aiAnalysis) + transition(UNDER_REVIEW)
-  CP -> N : creer(type=PROJECT_AI_REPORT_READY, relatedEntity=PROJECT)
-else Analyse IA échouée
-  CP -> P : maj(aiStatus=FAILED)
 end
 
 @enduml

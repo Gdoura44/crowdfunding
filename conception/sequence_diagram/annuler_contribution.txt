@@ -6,7 +6,7 @@
 '  - <<boundary>> : IHM_Contribution
 '  - <<control>>  : Controleur_Investissement
 '  - <<entity>>   : Investissement, Transaction, Projet, Notification
-'  - <<external>> : Passerelle_de_paiement_(demo)
+'  - Service externe : Passerelle de paiement
 ' ============================
 
 hide footbox
@@ -14,8 +14,6 @@ skinparam shadowing false
 skinparam defaultFontName "Times New Roman"
 skinparam defaultFontSize 12
 skinparam sequenceMessageAlign left
-skinparam ParticipantPadding 10
-skinparam BoxPadding 6
 skinparam maxMessageSize 45
 skinparam wrapWidth 150
 skinparam dpi 150
@@ -30,11 +28,12 @@ entity "Investissement" as Inv
 entity "Transaction" as Tx
 entity "Projet" as P
 entity "Notification" as N
-participant "Passerelle_de_paiement_(demo)" as Pay <<external>>
+entity "Facture (Invoice)" as Invoice
+participant "Passerelle de paiement" as Pay
 
 == Demande d’annulation ==
 U -> IHM : demanderAnnulation(investmentId)
-IHM -> CI : cancelInvestment(investorId, investmentId)
+IHM -> CI : annulerInvestissement(investorId, investmentId)
 
 CI -> Inv : verifierEligibiliteAnnulation()
 alt Annulation refusée (délai dépassé / déjà traité)
@@ -42,14 +41,15 @@ alt Annulation refusée (délai dépassé / déjà traité)
   IHM --> U : message d’erreur
 else Annulation autorisée
   CI -> Inv : maj(status=CANCELLING)
-  CI -> Pay : cancelPayment(providerPaymentId)
-  alt Annulation provider KO
+  CI -> Invoice : maj(status=REFUNDED)
+  CI -> Pay : annulerPaiement(providerPaymentId)
+  alt Annulation partenaire KO
     CI -> N : creer(type=CANCELLATION_FAILED, relatedEntity=INVESTMENT)
     CI --> IHM : erreur("Annulation échouée")
     IHM --> U : message d’erreur
-  else Annulation provider OK
+else Annulation partenaire OK
     alt Paiement confirmé (fenêtre de grâce)
-      CI -> Pay : refundPayment(providerPaymentId, amount, reason=USER_REQUESTED)
+      CI -> Pay : rembourserPaiement(providerPaymentId, amount)
       alt Remboursement KO
         CI --> IHM : erreur("Remboursement échoué")
         IHM --> U : message d’erreur

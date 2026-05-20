@@ -121,30 +121,32 @@ async function analyzeProjectRisk(payload, { sources: _sources = [] } = {}) {
 
   const heuristicText = heuristic
     ? [
-        "Estimation heuristique (monde réel) calculée par la plateforme:",
+        "Estimation heuristique (basée sur la description) calculée par la plateforme:",
         `- successProbabilityHeuristic: ${Number(heuristic.successProbability ?? 0)} (0..100)`,
         `- durationDays: ${Number(heuristic?.breakdown?.durationDays ?? 0)}`,
         `- durationLabel: ${String(heuristic?.breakdown?.duration?.label || "")}`,
         `- goalJustification: ${String(heuristic?.breakdown?.goal?.label || "")}`,
-        `- budgetEstimateTnd: ${estimateTnd} TND`,
+        `- budgetEstimateTnd: ${estimateTnd} TND (somme des postes détectés dans la description)`,
         `- budgetGapTnd: ${netGapTnd} TND`,
         `- budgetGapPct: ${netGapPct}%`,
         `- budgetGapRule: ${String(heuristic?.breakdown?.gapAssessment?.label || "")}`,
         `- descLen: ${Number(heuristic?.breakdown?.description?.signals?.len ?? 0)}`,
         "",
-        "Règles d'évaluation et de Transparence :",
+        "Règles d'évaluation:",
         "1. Alignement : Aligne successProbability sur l'heuristique (±10 pts) sauf justification claire dans summary.",
-        "2. Transparence de l'écart : Si le Besoin Réel net du Projet (realBudget) diffère de la somme détaillée dans la description (budgetEstimateTnd) :",
-        `   - L'écart net réel non-expliqué est EXACTEMENT de ${netGapTnd} TND (soit ${netGapPct}%). Tu DOIS impérativement utiliser EXACTEMENT ce montant de ${netGapTnd} TND dans ton rapport.`,
-        "   - Tu ne dois JAMAIS y ajouter ou mélanger les frais de plateforme. Les frais de plateforme sont automatiques (5%) et n'ont pas à être justifiés par le créateur.",
-        `   - Avertissement obligatoire : Rappelle CLAIREMENT au créateur dans ton résumé ('summary') qu'il y a un écart net de EXACTEMENT ${netGapTnd} TND non-expliqué. Dis-lui explicitement que cet écart DOIT être formellement justifié dans la description (ex: logistique, plan B, imprévus) sous peine de rejet automatique du projet.`,
-        "   - Si l'objectif net est plus bas : signale le manque de budget et le risque important de sous-financement.",
-        "3. Règle bloquante (écart ≥ 25%) : Si 'budgetGapRule' indique un écart ≥ 25% (rejet automatique), alors :",
+        "2. Évalue la qualité et la cohérence de la description (plan, budget détaillé, risques, jalons).",
+        "3. Ne tente PAS d'estimer le montant de l'objectif par tes propres connaissances — utilise uniquement ce qui est écrit dans la description.",
+        "4. Transparence de l'écart budgétaire : L'écart (budgetGapTnd / budgetGapPct) est calculé entre le besoin réel déclaré et la somme des postes listés dans la description.",
+        `   - Si budgetGapPct indique un écart de ${netGapPct}% (${netGapTnd} TND), mentionne-le clairement dans le résumé.`,
+        "   - Si l'écart est dû à des imprévus, réserves ou logistique, le créateur doit l'avoir expliqué dans sa description.",
+        "5. Règle bloquante (écart ≥ 30%) : Si 'budgetGapRule' indique BLOCK ou si budgetGapPct >= 30 :",
         "   - La probabilité de succès (successProbability) DOIT être forcée à 0.",
-        "   - Le résumé ('summary') DOIT indiquer clairement que le projet est rejeté automatiquement pour incohérence budgétaire tant que ce point n'est pas corrigé.",
+        "   - Le résumé ('summary') DOIT indiquer clairement que le projet est rejeté automatiquement pour incohérence budgétaire.",
+        "   - Le créateur doit corriger l'écart ou le justifier formellement.",
         "",
       ].join("\n")
     : "";
+
 
   const prompt = [
     "Tu es un analyste risque pour une plateforme de crowdfunding.",

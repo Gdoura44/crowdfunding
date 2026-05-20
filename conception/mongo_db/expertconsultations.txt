@@ -1,0 +1,42 @@
+{
+  "_id": ObjectId,
+  "projectId": { "type": "ObjectId", "ref": "Project", "index": true, "required": true },
+  "investorId": { "type": "ObjectId", "ref": "User", "index": true, "required": true },
+  "expertId": { "type": "ObjectId", "ref": "User", "index": true, "default": null },
+  "investmentId": { "type": "ObjectId", "ref": "Investment", "required": true },
+  "investedAmount": { "type": "number", "required": true },
+  "status": { "type": "string", "enum": ["OPEN", "IN_PROGRESS", "CLOSED"], "default": "OPEN" },
+  "subject": { "type": "string", "default": "" },
+  "messages": [
+    {
+      "senderRole": { "type": "string", "enum": ["INVESTOR", "EXPERT"], "required": true },
+      "senderId": { "type": "ObjectId", "ref": "User", "required": true },
+      "content": { "type": "string", "required": true },
+      "createdAt": "Date"
+    }
+  ],
+  "closedAt": "Date",
+  "closedBy": { "type": "ObjectId", "ref": "User" },
+  "createdAt": { "type": "Date", "default": "Date.now" },
+  "updatedAt": { "type": "Date", "default": "Date.now" }
+}
+
+// Indexes
+db.expertconsultations.createIndex({ investorId: 1, status: 1 });
+db.expertconsultations.createIndex({ expertId: 1, status: 1 });
+db.expertconsultations.createIndex({ projectId: 1 });
+db.expertconsultations.createIndex({ status: 1, createdAt: -1 });
+
+// ============================================================================
+// RÈGLES MÉTIER (services / routes)
+// ============================================================================
+//
+// **1. Déclenchement automatique :**
+// - Créé à la suite d'une contribution majeure valant >= 30% de l'objectif de financement du projet,
+//   si l'investisseur a explicitement sélectionné l'option de consultation expert.
+//
+// **2. États et dialogue :**
+// - Nouvelle demande : OPEN (visible par tous les Experts en finance pour être pris en charge).
+// - Premier message ou réponse de l'expert : IN_PROGRESS.
+// - Clôture par l'investisseur ou l'expert : CLOSED.
+// ============================================================================

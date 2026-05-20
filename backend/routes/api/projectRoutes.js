@@ -209,7 +209,6 @@ router.get(
 router.post(
   "/:id/comments",
   requireAuth,
-  requireNotAdmin,
   commentsLimiter,
   asyncHandler(async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -258,7 +257,6 @@ router.post(
 router.delete(
   "/:projectId/comments/:commentId",
   requireAuth,
-  requireNotAdmin,
   asyncHandler(async (req, res) => {
     const { projectId, commentId } = req.params;
     if (!mongoose.isValidObjectId(projectId)) {

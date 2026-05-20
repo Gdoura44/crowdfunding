@@ -52,6 +52,8 @@ export default function Dashboard() {
   useEffect(() => {
     if (user?.role === "ADMIN") {
       navigate("/admin/projects", { replace: true });
+    } else if (user?.role === "EXPERT") {
+      navigate("/projects", { replace: true });
     }
   }, [user, navigate]);
 
