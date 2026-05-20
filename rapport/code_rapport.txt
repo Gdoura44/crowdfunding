@@ -46,6 +46,37 @@
 \usepackage{seqsplit}
 \newcommand{\mongoid}[1]{\texttt{\seqsplit{#1}}}
 
+% --- Modern Spacing & Section Styling ---
+\usepackage{enumitem}
+% Tighten lists to make them look professional and clean (less AI-like empty space)
+\setlist[itemize]{noitemsep, topsep=3pt, parsep=2pt, partopsep=0pt}
+\setlist[enumerate]{noitemsep, topsep=3pt, parsep=2pt, partopsep=0pt}
+
+\usepackage{titlesec}
+% Modernized Chapter titles: reduces the massive default LaTeX vertical whitespace
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{black}}
+  {\chaptertitlename\ \thechapter}
+  {10pt}
+  {\Huge}
+\titlespacing*{\chapter}{0pt}{-15pt}{20pt}
+
+% Tighten spacing for sections and subsections to look cohesive
+\titleformat{\section}
+  {\normalfont\large\bfseries\color{black}}
+  {\thesection}
+  {0.6em}
+  {#1}
+\titlespacing*{\section}{0pt}{14pt plus 4pt minus 2pt}{6pt plus 1pt}
+
+\titleformat{\subsection}
+  {\normalfont\normalsize\bfseries\color{black}}
+  {\thesubsection}
+  {0.6em}
+  {#1}
+\titlespacing*{\subsection}{0pt}{12pt plus 3pt minus 2pt}{4pt plus 1pt}
+
+
 % Marges strictes 2,5 cm ; en-tête/pied inclus dans la zone (évite un hack sur \topmargin).
 \geometry{a4paper,margin=2.5cm,includeheadfoot}
 \raggedbottom
@@ -67,6 +98,11 @@
 \AtBeginDocument{\justifying}
 
 \usepackage{hyperref}
+\hypersetup{
+    hidelinks,                  % removes ugly colored borders around links
+    pdfcreator={LaTeX with fancyhdr},
+    pdfproducer={pdfTeX}
+}
 
 % Images: all paths are resolved from folder \texttt{images/} (next to this file). Missing files show a framed placeholder so the PDF still builds (Overleaf / work in progress).
 % Sous-dossiers sous \texttt{rapport/images/} (compilation depuis \texttt{rapport/} ou racine du dépôt via \texttt{\RapportIfImgExists}).
@@ -130,13 +166,15 @@
 \AtBeginEnvironment{longtable}{\renewcommand{\arraystretch}{\RapportTabularStretch}}
 
 % Page style with logo
+\fancypagestyle{fancy}{%
+    \fancyhf{}%
+    \fancyhead[L]{\RapportLogoHead}%
+    \fancyhead[C]{\small \textit{Plateforme de Financement Collaboratif}}%
+    \fancyhead[R]{\thepage}%
+    \fancyfoot[C]{\thepage}%
+    \renewcommand{\headrulewidth}{0.4pt}%
+}
 \pagestyle{fancy}
-\fancyhf{}
-\fancyhead[L]{\RapportLogoHead}
-\fancyhead[C]{\small \textit{Plateforme de Financement Collaboratif}}
-\fancyhead[R]{\thepage}
-\fancyfoot[C]{\thepage}
-\renewcommand{\headrulewidth}{0.4pt}
 
 \newif\ifrapportshowpagenums
 \rapportshowpagenumsfalse
@@ -243,11 +281,11 @@
 % REMERCIEMENTS
 % ==============================
 \chapter*{Remerciements}
-\addcontentsline{toc}{chapter}{Remerciements}
+\addtocontents{toc}{\protect\contentsline{chapter}{Remerciements}{}{}}
 
 Je tiens à exprimer toute ma reconnaissance aux personnes qui ont contribué, directement ou indirectement, à la réalisation de ce travail.
 
-J'adresse mes remerciements tout particuliers à mon encadreur académique, \textbf{M. Iskandar Keskes}.
+J'adresse mes remerciements tout particuliers à mon encadreur académique, M. Iskandar Keskes.
 
 Je remercie également les membres du jury qui acceptent d'examiner ce mémoire et d'en apprécier la teneur, ainsi que l'attention qu'ils y porteront.
 
@@ -276,7 +314,7 @@ Enfin, j'associe à ce travail ma famille et mes proches : leur soutien a consti
 % Titre + tableau dans un seul \texttt{minipage} : évite une coupure de page entre le titre et le tableau.
 \begin{minipage}[t]{\textwidth}%
   \phantomsection
-  \addcontentsline{toc}{chapter}{Liste des abréviations}%
+  \addtocontents{toc}{\protect\contentsline{chapter}{Liste des abréviations}{}{}}%
   \markboth{Liste des abréviations}{Liste des abréviations}%
   \vspace*{2pt}%
   \noindent\raggedright
@@ -364,7 +402,7 @@ L'examen des plateformes de financement collaboratif existantes conduit à souli
     \item Processus de validation manuelle des projets chronophage pour les administrateurs
     \item Intégration paiement souvent complexe (webhooks, idempotence, sécurité) et difficile à tester sans sandbox
 \end{itemize}
-Face à ces constats, la question de recherche suivante se pose : \textbf{Comment concevoir une plateforme de financement collaboratif intégrant l'intelligence artificielle pour automatiser l'évaluation des risques et personnaliser les recommandations, tout en garantissant la conformité réglementaire et la sécurité des transactions ?}
+Face à ces constats, la question de recherche suivante se pose : Comment concevoir une plateforme de financement collaboratif intégrant l'intelligence artificielle pour automatiser l'évaluation des risques et personnaliser les recommandations, tout en garantissant la conformité réglementaire et la sécurité des transactions ?
 
 \section*{Objectifs du projet}
 Le présent travail a pour ambition de concevoir et de réaliser une plateforme web de financement participatif répondant aux objectifs ci-après énumérés :
@@ -390,7 +428,7 @@ Le présent travail a pour ambition de concevoir et de réaliser une plateforme 
 \end{enumerate}
 
 \section*{Organisation du mémoire}
-Le document est structuré en quatre chapitres, conformément au \textit{Plan du rapport PFE — version~2}. Le premier chapitre établit le cadre général : mission, contexte du sujet, analyse des solutions existantes, problématique et solution proposée. Le second chapitre formalise la capture des besoins (acteurs, contexte «\,boîte noire\,», identification des cas d'utilisation, inventaire exhaustif aligné sur le code \textbf{livré}, puis fiches détaillées au format annexe pour des cas transverses majeurs). Le troisième chapitre traite de l'analyse et de la conception (réalisation conceptuelle des cas d'utilisation, modèle du domaine, architecture du futur logiciel et \textbf{modèle de données MongoDB}). Le quatrième chapitre expose l'implémentation et les tests (environnement de réalisation, réalisation technique des cas d'utilisation, stratégie de validation et déploiement). La conclusion générale synthétise les résultats, identifie les apports, les limites et les perspectives d'évolution. Une annexe rappelle le modèle de fiche employé pour les descriptions textuelles de cas d'utilisation (chapitre~\ref{chap:besoins}).
+Le document est structuré en quatre chapitres, conformément au \textit{Plan du rapport PFE — version~2}. Le premier chapitre établit le cadre général : mission, contexte du sujet, analyse des solutions existantes, problématique et solution proposée. Le second chapitre formalise la capture des besoins (acteurs, contexte «\,boîte noire\,», identification des cas d'utilisation, inventaire exhaustif aligné sur le code livré, puis fiches détaillées au format annexe pour des cas transverses majeurs). Le troisième chapitre traite de l'analyse et de la conception (réalisation conceptuelle des cas d'utilisation, modèle du domaine, architecture du futur logiciel et modèle de données MongoDB). Le quatrième chapitre expose l'implémentation et les tests (environnement de réalisation, réalisation technique des cas d'utilisation, stratégie de validation et déploiement). La conclusion générale synthétise les résultats, identifie les apports, les limites et les perspectives d'évolution. Une annexe rappelle le modèle de fiche employé pour les descriptions textuelles de cas d'utilisation (chapitre~\ref{chap:besoins}).
 
 % ==============================
 % CHAPITRE 1 : CADRE GÉNÉRAL DU PROJET
@@ -406,7 +444,7 @@ Le présent chapitre dresse le cadre général du projet. Il expose la mission d
 Le présent projet de fin d'études relève d'un stage académique placé sous la responsabilité de M.~Iskandar~Keskes, enseignant à la Faculté des Sciences Économiques et de Gestion (FSEG) de Sfax, au sein du département d'Informatique Appliquée à la Gestion. L'ensemble du travail a été conduit en autonomie, tout en étant jalonné de réunions de suivi hebdomadaires destinées à valider les décisions de conception, à préciser les priorités et à trancher les arbitrages fonctionnels et techniques attendus dans un tel dispositif. Sur le plan méthodologique, l'exercice s'est inscrit explicitement dans une perspective d'\textit{ingénierie des systèmes d'information}, associant capture des besoins, modélisation UML, conception des données puis réalisation et validation au moyen de scénarios métier, en cohérence avec les objectifs du cursus de licence en Informatique Appliquée à la Gestion.
 
 \subsection{Présentation de l'application}
-L'application réalisée est une \textbf{plateforme web de financement collaboratif} (\textit{crowdfunding}) qui met en relation trois catégories d'acteurs métier :
+L'application réalisée est une plateforme web de financement collaboratif (\textit{crowdfunding}) qui met en relation trois catégories d'acteurs métier :
 \begin{itemize}
     \item les \textbf{porteurs de projet} qui souhaitent financer une campagne (titre, description, catégorie, objectif financier, échéance, médias) ;
     \item les \textbf{investisseurs} qui souhaitent contribuer à des campagnes correspondant à leur profil (catégories préférées, tolérance au risque) ;
@@ -418,7 +456,7 @@ Les concepts métier centraux portés par l'application sont les suivants :
     \item \textbf{Investissement} : engagement d'un investisseur pour un montant donné sur un projet, créé en \texttt{INITIATED} puis confirmé en \texttt{SUCCESS} (ou \texttt{REFUNDED} en cas de sur-financement) après réception du \textit{webhook} de paiement.
     \item \textbf{Analyse de risque} : rapport structuré (résumé, avantages, inconvénients, améliorations, éléments à retirer, questions, score/\texttt{riskLevel}) produit par un service LLM orchestré par n8n, et destiné à éclairer la revue administrative.
     \item \textbf{Recommandations personnalisées} : classement des projets accessibles à un investisseur en fonction de ses catégories préférées et de sa tolérance au risque.
-    \item \textbf{Notifications} : chaque message \textit{in-app} est stocké en base avec un destinataire explicite (\texttt{userId}) ; l'interface expose une boîte \textbf{personnelle} identique pour tous les rôles (y compris l'administrateur), avec liste paginée (30~entrées par page, ordre antéchronologique sur \texttt{createdAt}), marquage \texttt{lu/non lu} et compteur global de non-lus pour le badge. Les e-mails asynchrones ne concernent que les événements jugés critiques (politique métier), afin de limiter le bruit.
+    \item \textbf{Notifications} : chaque message \textit{in-app} est stocké en base avec un destinataire explicite (\texttt{userId}) ; l'interface expose une boîte personnelle identique pour tous les rôles (y compris l'administrateur), avec liste paginée (30~entrées par page, ordre antéchronologique sur \texttt{createdAt}), marquage \texttt{lu/non lu} et compteur global de non-lus pour le badge. Les e-mails asynchrones ne concernent que les événements jugés critiques (politique métier), afin de limiter le bruit.
     \item \textbf{Retrait (\textit{payout})} : flux de versement au porteur de projet une fois la campagne \texttt{FUNDED} ou \texttt{CLOSED}, après saisie chiffrée des coordonnées bancaires, génération d'une facture PDF automatisée et approbation administrative.
     \item \textbf{Chatbot IA} : assistant conversationnel interactif (alimenté par Gemini) intégré à chaque page de projet, capable de répondre aux questions des visiteurs en se basant sur la description du projet et sur ses connaissances générales.
     \item \textbf{Consultation Expert en Finance} : option offerte à l'investisseur lors de la contribution (si le montant est éligible) permettant de mettre le paiement en attente et de solliciter l'avis d'un expert financier humain (boîte de consultation) avant de confirmer son investissement.
@@ -432,7 +470,7 @@ La plateforme doit répondre aux objectifs suivants, formulés à la fois sur le
 \begin{itemize}
     \item Permettre aux porteurs de projets de créer, soumettre, publier et suivre leurs campagnes de financement.
     \item Offrir aux investisseurs une expérience claire de découverte, d'évaluation et de contribution aux projets.
-    \item Automatiser l'évaluation préliminaire du risque via l'IA, et permettre à un \textbf{expert en finance humain} de valider cette analyse avant la publication du projet.
+    \item Automatiser l'évaluation préliminaire du risque via l'IA, et permettre à un expert en finance humain de valider cette analyse avant la publication du projet.
     \item Proposer une assistance interactive via un chatbot IA pour répondre instantanément aux interrogations des investisseurs sur les projets.
     \item Offrir la possibilité aux investisseurs s'engageant sur des montants significatifs ($\geq 30\%$) de solliciter une boîte de consultation d'expert en finance avant de valider leur paiement.
     \item Personnaliser les recommandations selon le profil de l'investisseur (catégories, tolérance au risque).
@@ -452,9 +490,9 @@ La plateforme doit répondre aux objectifs suivants, formulés à la fois sur le
 \end{itemize}
 
 \section{Contexte du sujet}
-Le financement participatif (\textit{crowdfunding}) constitue une alternative innovante aux modes de financement bancaires traditionnels. En Tunisie, le secteur connaît un essor important depuis la promulgation de la \textbf{loi n°~2020-37 du 2~juillet~2020}, qui encadre les opérations de financement participatif et place leur supervision sous la tutelle de la Banque Centrale de Tunisie (BCT). Ce cadre réglementaire ouvre la voie à des plateformes qui mobilisent l'épargne publique au profit de projets entrepreneuriaux, tout en imposant des exigences fortes en matière d'identification des acteurs, de traçabilité des opérations et de conservation des journaux financiers.
+Le financement participatif (\textit{crowdfunding}) constitue une alternative innovante aux modes de financement bancaires traditionnels. En Tunisie, le secteur connaît un essor important depuis la promulgation de la loi n°~2020-37 du 2~juillet~2020, qui encadre les opérations de financement participatif et place leur supervision sous la tutelle de la Banque Centrale de Tunisie (BCT). Ce cadre réglementaire ouvre la voie à des plateformes qui mobilisent l'épargne publique au profit de projets entrepreneuriaux, tout en imposant des exigences fortes en matière d'identification des acteurs, de traçabilité des opérations et de conservation des journaux financiers.
 
-Sur le plan économique, ce mouvement répond à une difficulté concrète des start-ups et PME tunisiennes pour accéder aux financements bancaires classiques, en particulier pour les projets innovants ou portant un risque élevé. Sur le plan technologique, l'émergence des modèles de langage (LLM) et des outils d'orchestration de \textit{workflows} (par exemple n8n) permet d'automatiser une partie de la pré-évaluation des projets et de fiabiliser les flux asynchrones (paiements, notifications, reprises) sans alourdir la base de code applicative. Le sujet du présent projet s'inscrit donc à l'intersection de la \textbf{conformité réglementaire}, de l'\textbf{ingénierie des systèmes d'information} et de l'\textbf{IA appliquée} à la décision métier.
+Sur le plan économique, ce mouvement répond à une difficulté concrète des start-ups et PME tunisiennes pour accéder aux financements bancaires classiques, en particulier pour les projets innovants ou portant un risque élevé. Sur le plan technologique, l'émergence des modèles de langage (LLM) et des outils d'orchestration de \textit{workflows} (par exemple n8n) permet d'automatiser une partie de la pré-évaluation des projets et de fiabiliser les flux asynchrones (paiements, notifications, reprises) sans alourdir la base de code applicative. Le sujet du présent projet s'inscrit donc à l'intersection de la conformité réglementaire, de l'ingénierie des systèmes d'information et de l'IA appliquée à la décision métier.
 
 \section{Analyse d'applications existantes}
 Cette section présente une étude comparative des principales plateformes de financement participatif, en distinguant les acteurs internationaux qui ont structuré le marché et les acteurs locaux qui en illustrent la déclinaison tunisienne. L'objectif est d'identifier les fonctionnalités déjà offertes et, surtout, les manques que la solution proposée vise à combler.
@@ -573,13 +611,13 @@ Frais / Modèle & 8--10\% & 8--13\% & 5\% & 5\% & \textbf{5\% + Pourboire option
 
 \textbf{Solution proposée.} La plateforme développée combine sept choix structurants :
 \begin{itemize}
-    \item Une \textbf{analyse de risque automatisée} (LLM orchestré par n8n) qui produit un rapport structuré (résumé, avantages, inconvénients, améliorations, éléments à retirer, questions, score) lors de la soumission d'un projet, avec \textbf{auto-rejet} en cas d'incohérence budgétaire détectée par heuristique.
+    \item Une \textbf{analyse de risque automatisée} (LLM orchestré par n8n) qui produit un rapport structuré (résumé, avantages, inconvénients, améliorations, éléments à retirer, questions, score) lors de la soumission d'un projet, avec auto-rejet en cas d'incohérence budgétaire détectée par heuristique.
     \item Un \textbf{moteur de recommandations} déterministe (catégories préférées, adéquation au \texttt{riskLevel} issu de l'analyse IA du projet, progression et récence de la campagne), extensible ultérieurement par enrichissement LLM.
     \item Une \textbf{assistance interactive par Chatbot IA} (Gemini) sur chaque projet, permettant aux investisseurs de poser des questions en langage naturel et d'obtenir des réponses fondées sur la description du projet.
-    \item L'intervention d'un \textbf{Expert en finance} assumant un double rôle : il \textbf{valide les analyses IA} des projets pour sécuriser la chaîne de décision avant publication, et anime une boîte de consultation pour conseiller les investisseurs s'engageant sur de forts montants ($\geq 30\%$).
-    \item Un \textbf{parcours de paiement de démonstration} (\textit{mock}) résilient, supportant les remboursements automatiques en cas de sur-financement ou d'expiration de la campagne, accompagné d'une interface de \textbf{payouts} générant des factures PDF pour les porteurs de projet.
-    \item Un \textbf{modèle économique hybride} appliquant une commission fixe et maîtrisée de \textbf{5\%} sur le montant collecté, complétée par une fonctionnalité de \textbf{pourboire optionnel} (Tip) ajouté volontairement par l'investisseur.
-    \item Une \textbf{gestion résiliente des échecs} via files BullMQ/Redis et tâches planifiées (Cron). Une \textbf{mécanique d'auto-guérison} (Self-healing) et un bouton administrateur \textbf{Relancer IA} permettent de contourner les files d'attente hors ligne ou bloquées par les quotas (ex: dépassement des limites Gemini) en effectuant un audit d'urgence direct, garantissant l'absence de blocage définitif.
+    \item L'intervention d'un Expert en finance assumant un double rôle : il valide les analyses IA des projets pour sécuriser la chaîne de décision avant publication, et anime une boîte de consultation pour conseiller les investisseurs s'engageant sur de forts montants ($\geq 30\%$).
+    \item Un \textbf{parcours de paiement de démonstration} (\textit{mock}) résilient, supportant les remboursements automatiques en cas de sur-financement ou d'expiration de la campagne, accompagné d'une interface de payouts générant des factures PDF pour les porteurs de projet.
+    \item Un \textbf{modèle économique hybride} appliquant une commission fixe et maîtrisée de 5\% sur le montant collecté, complétée par une fonctionnalité de pourboire optionnel (Tip) ajouté volontairement par l'investisseur.
+    \item Une \textbf{gestion résiliente des échecs} via files BullMQ/Redis et tâches planifiées (Cron). Une mécanique d'auto-guérison (Self-healing) et un bouton administrateur Relancer IA permettent de contourner les files d'attente hors ligne ou bloquées par les quotas (ex: dépassement des limites Gemini) en effectuant un audit d'urgence direct, garantissant l'absence de blocage définitif.
 \end{itemize}
 
 \section{Conclusion}
@@ -592,22 +630,22 @@ Ce chapitre a permis de préciser la mission (organisme d'accueil, application v
 \label{chap:besoins}
 
 \section{Introduction}
-Ce chapitre formalise les besoins métier associés à la plateforme, du point de vue des acteurs qui en sont les utilisateurs ou les partenaires techniques. Il explicite le périmètre du système (représentation en «\,boîte noire\,»), recense les acteurs et leurs responsabilités respectives, structure les cas d'utilisation en paquetages métier cohérents, établit un \textbf{inventaire exhaustif} de ces cas (tableaux~\ref{tab:uc_inventory} à~\ref{tab:uc_inv_admin}), puis illustre, pour un sous-ensemble \textbf{structurant}, des \textbf{descriptions détaillées au format annexe} (scénario nominal, variantes, exceptions) mises en correspondance avec les modules \texttt{/api/*} et \texttt{/internal/*} du backend livré.
+Ce chapitre formalise les besoins métier associés à la plateforme, du point de vue des acteurs qui en sont les utilisateurs ou les partenaires techniques. Il explicite le périmètre du système (représentation en «\,boîte noire\,»), recense les acteurs et leurs responsabilités respectives, structure les cas d'utilisation en paquetages métier cohérents, établit un inventaire exhaustif de ces cas (tableaux~\ref{tab:uc_inventory} à~\ref{tab:uc_inv_admin}), puis illustre, pour un sous-ensemble structurant, des descriptions détaillées au format annexe (scénario nominal, variantes, exceptions) mises en correspondance avec les modules \texttt{/api/*} et \texttt{/internal/*} du backend livré.
 
 \section{Identification des acteurs du système informatisé}
 La plateforme distingue des acteurs humains et des acteurs systèmes externes. Un même utilisateur peut cumuler les rôles d'\textit{investisseur} et de \textit{porteur de projet} ; la distinction de ces deux rôles est portée dans la description des cas d'utilisation.
 \begin{itemize}
     \item \textbf{Visiteur} : utilisateur non authentifié ; consulte et recherche les projets publics, peut créer un compte et lancer une procédure de récupération de mot de passe.
     \item \textbf{Utilisateur authentifié} (porteur de projet et / ou investisseur) : gère son compte, crée et soumet des projets, contribue à des campagnes, commente et signale des contenus, suit ses investissements, ses paiements et ses retraits.
-    \item \textbf{Expert en finance} : acteur spécialisé assumant un double rôle : il \textbf{valide les rapports d'analyse IA} des projets avant leur publication, et il est sollicité par les investisseurs (lorsque le montant investi atteint un seuil de \textbf{30\%}) pour émettre un avis consultatif avant la validation finale du paiement.
+    \item \textbf{Expert en finance} : acteur spécialisé assumant un double rôle : il valide les rapports d'analyse IA des projets avant leur publication, et il est sollicité par les investisseurs (lorsque le montant investi atteint un seuil de 30\%) pour émettre un avis consultatif avant la validation finale du paiement.
     \item \textbf{Administrateur} : valide, publie, suspend ou rejette les projets, modère les commentaires, traite les signalements, supervise les retraits, désactive ou réactive les comptes, et relance les traitements échoués (notifications, retraits, remboursements).
     \item \textbf{Passerelle de paiement (démo)} : partenaire externe simulé qui confirme ou infirme les paiements via un \textit{webhook} signé. Les messages de ce tiers déclenchent des transitions métier (statut de transaction, statut d'investissement, mise à jour du montant collecté, remboursements en cas de sur-financement).
-    \item \textbf{Service d'analyse de risque (orchestrateur)} : service externe qui exécute les workflows d'analyse (sollicitation, reprises, mise à jour du rapport) et retourne un rapport structuré via les routes internes du backend (\texttt{/internal/*}) ; l'assistance conversationnelle sur un projet (\texttt{POST /api/projects/:id/chat}) est, quant à elle, implémentée \textbf{dans l'API Express} avec appel direct à un service LLM côté serveur (sans passage par n8n).
+    \item \textbf{Service d'analyse de risque (orchestrateur)} : service externe qui exécute les workflows d'analyse (sollicitation, reprises, mise à jour du rapport) et retourne un rapport structuré via les routes internes du backend (\texttt{/internal/*}) ; l'assistance conversationnelle sur un projet (\texttt{POST /api/projects/:id/chat}) est, quant à elle, implémentée dans l'API Express avec appel direct à un service LLM côté serveur (sans passage par n8n).
     \item \textbf{Service de messagerie (SMTP)} : partenaire externe utilisé pour les e-mails critiques (vérification, réinitialisation, décisions admin, événements de paiement / retrait).
 \end{itemize}
 
 \section{Contexte du système informatisé (boîte noire)}
-Du point de vue externe, la plateforme échange des messages avec \textbf{quatre grandes familles d'interlocuteurs} (les canaux web humains, la passerelle de paiement, le service d'analyse de risque, la messagerie). La figure~\ref{fig:collaboration} en restitue la lecture : le système apparaît comme une «\,boîte noire\,» centrale, les acteurs périphériques étant reliés par des associations libellées qui matérialisent les échanges fonctionnels attendus.
+Du point de vue externe, la plateforme échange des messages avec quatre grandes familles d'interlocuteurs (les canaux web humains, la passerelle de paiement, le service d'analyse de risque, la messagerie). La figure~\ref{fig:collaboration} en restitue la lecture : le système apparaît comme une «\,boîte noire\,» centrale, les acteurs périphériques étant reliés par des associations libellées qui matérialisent les échanges fonctionnels attendus.
 
 \begin{itemize}
     \item Les \textbf{acteurs humains web} (visiteur, utilisateur authentifié, expert, administrateur) interagissent avec le système via l'application front-end (HTTPS, REST, cookies HttpOnly).
@@ -618,7 +656,7 @@ Du point de vue externe, la plateforme échange des messages avec \textbf{quatre
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.96\textwidth,height=0.82\textheight,keepaspectratio]{collaboration_diagram/collaboration.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.45\textheight,keepaspectratio]{collaboration_diagram/collaboration.png}
     \caption{Vue de contexte du système (boîte noire) --- diagramme de collaboration UML entre acteurs externes et le SI}
     \label{fig:collaboration}
 \end{figure}
@@ -639,7 +677,7 @@ La représentation graphique synthétique de ces cas d'utilisation est donnée p
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.88\textheight,keepaspectratio]{usecase_diagram/Cas_d_utilisation.png}
+    \safeincludegraphics[width=0.90\textwidth,height=0.48\textheight,keepaspectratio]{usecase_diagram/Cas_d_utilisation.png}
     \caption{Diagramme de cas d'utilisation}
     \label{fig:usecase}
 \end{figure}
@@ -654,14 +692,14 @@ La représentation graphique synthétique de ces cas d'utilisation est donnée p
 \section{Description textuelle des cas d'utilisation}
 \label{sec:uc_textuel}
 
-Conformément au plan du rapport (version~2), la capture des besoins exige à la fois \textbf{(i)} un inventaire exhaustif des cas d'utilisation aligné sur le diagramme de la section~\ref{sec:uc_identification} et sur le code livré, et \textbf{(ii)} des fiches détaillées (acteur, préconditions, postconditions, nominal, variantes, exceptions) pour les cas transverses les plus structurants. Le modèle de fiche est rappelé en \textbf{Annexe} (tableau~\ref{tab:uc_template}).
+Conformément au plan du rapport (version~2), la capture des besoins exige à la fois (i) un inventaire exhaustif des cas d'utilisation aligné sur le diagramme de la section~\ref{sec:uc_identification} et sur le code livré, et (ii) des fiches détaillées (acteur, préconditions, postconditions, nominal, variantes, exceptions) pour les cas transverses les plus structurants. Le modèle de fiche est rappelé en Annexe (tableau~\ref{tab:uc_template}).
 
 \medskip\noindent
-\textbf{Complétude et contraintes de volume.} Le plan version~2 appelle une description textuelle très détaillée pour chaque cas d'utilisation. Pour rester lisible tout en garantissant une \textbf{traçabilité complète du périmètre fonctionnel}, ce mémoire retient une \textbf{double entrée} : des tableaux d'inventaire couvrant l'ensemble des capacités métier (\S\ref{sec:uc_inventory}), et des fiches détaillées sur un sous-ensemble représentatif au format annexe ; les autres cas suivent explicitement le même canevas (tableau~\ref{tab:uc_template}) et sont couverts fonctionnellement par le code et l'inventaire.
+\textbf{Complétude et contraintes de volume.} Le plan version~2 appelle une description textuelle très détaillée pour chaque cas d'utilisation. Pour rester lisible tout en garantissant une traçabilité complète du périmètre fonctionnel, ce mémoire retient une double entrée : des tableaux d'inventaire couvrant l'ensemble des capacités métier (\S\ref{sec:uc_inventory}), et des fiches détaillées sur un sous-ensemble représentatif au format annexe ; les autres cas suivent explicitement le même canevas (tableau~\ref{tab:uc_template}) et sont couverts fonctionnellement par le code et l'inventaire.
 
 \subsection{Inventaire exhaustif des cas d'utilisation}
 \label{sec:uc_inventory}
-Les tableaux~\ref{tab:uc_inventory} à~\ref{tab:uc_inv_admin} recensent, par paquetage métier, les capacités exposées par l'application (front-end React, API REST \texttt{/api/*}, webhooks \texttt{/api/webhooks}, orchestration \texttt{/internal/*} protégée, files BullMQ/Redis). Ils constituent la trace «\,exhaustive\,» attendue par le plan (version~2) au sens \textbf{fonctionnel} ; le \S\ref{sec:uc_fiches_detail} approfondit \textbf{cinq} cas transverses au format annexe (tableaux~\ref{tab:create_project}--\ref{tab:report}), tandis que le chapitre~\ref{chap:conception} illustre \textbf{sept} enchaînements critiques par couples diagramme de séquence / classes participantes, alignés sur le code.
+Les tableaux~\ref{tab:uc_inventory} à~\ref{tab:uc_inv_admin} recensent, par paquetage métier, les capacités exposées par l'application (front-end React, API REST \texttt{/api/*}, webhooks \texttt{/api/webhooks}, orchestration \texttt{/internal/*} protégée, files BullMQ/Redis). Ils constituent la trace «\,exhaustive\,» attendue par le plan (version~2) au sens fonctionnel ; le \S\ref{sec:uc_fiches_detail} approfondit cinq cas transverses au format annexe (tableaux~\ref{tab:create_project}--\ref{tab:report}), tandis que le chapitre~\ref{chap:conception} illustre sept enchaînements critiques par couples diagramme de séquence / classes participantes, alignés sur le code.
 
 {\small
 \setlength{\tabcolsep}{4pt}%
@@ -979,13 +1017,13 @@ Ce chapitre a précisé la délimitation du système en tant que «\,boîte noir
 \label{chap:conception}
 
 \section{Introduction}
-Ce chapitre transpose les besoins recueillis au chapitre~\ref{chap:besoins} en une conception UML alignée sur le plan (version~2). Il expose d'abord la \textbf{réalisation conceptuelle} des cas d'utilisation les plus structurants au travers de diagrammes de séquence construits selon la notation retenue (acteurs, \textbf{IHM}, \textbf{contrôleur} et classes métier effectivement sollicitées). Chaque séquence est complétée par un diagramme de \textbf{classes participantes} qui en fixe la contrepartie statique. Sont ensuite présentés le \textbf{modèle du domaine} (diagramme de classes global), l'\textbf{architecture du futur logiciel} puis le \textbf{modèle de données MongoDB}. Une conclusion récapitule les choix de conception et annonce l'implémentation.
+Ce chapitre transpose les besoins recueillis au chapitre~\ref{chap:besoins} en une conception UML alignée sur le plan (version~2). Il expose d'abord la réalisation conceptuelle des cas d'utilisation les plus structurants au travers de diagrammes de séquence construits selon la notation retenue (acteurs, IHM, contrôleur et classes métier effectivement sollicitées). Chaque séquence est complétée par un diagramme de classes participantes qui en fixe la contrepartie statique. Sont ensuite présentés le modèle du domaine (diagramme de classes global), l'architecture du futur logiciel puis le modèle de données MongoDB. Une conclusion récapitule les choix de conception et annonce l'implémentation.
 
 \section{Réalisation conceptuelle des cas d'utilisation}
 Les diagrammes de séquence suivants décrivent le flux d'interactions entre les acteurs et les objets du système pour un ensemble de cas d'utilisation représentatifs identifiés au chapitre~\ref{chap:besoins}. Chaque séquence est complétée par un diagramme de classes participantes afin d'assurer la cohérence entre la vue dynamique (interactions) et la vue statique (classes mobilisées). Ces diagrammes sont alignés sur les règles métier et sur l'implémentation livrée.
 
 \medskip\noindent
-\textbf{Choix des scénarisations UML.} Le référentiel académique peut exiger une interaction par cas d'utilisation ; compte tenu du nombre de cas listés aux tableaux~\ref{tab:uc_inventory}--\ref{tab:uc_inv_admin}, cette section présente en priorité les \textbf{enchaînements les plus structurants} (contributions et financement, cycle de projet, conformité administrative, retrait). Elle illustre la démarche de conception et garantit la \textbf{mise en cohérence} avec le modèle du domaine (figure~\ref{fig:class}); les autres comportements reposent sur les mêmes classes et contrats d'API documentés au chapitre~\ref{chap:besoins}.
+\textbf{Choix des scénarisations UML.} Le référentiel académique peut exiger une interaction par cas d'utilisation ; compte tenu du nombre de cas listés aux tableaux~\ref{tab:uc_inventory}--\ref{tab:uc_inv_admin}, cette section présente en priorité les enchaînements les plus structurants (contributions et financement, cycle de projet, conformité administrative, retrait). Elle illustre la démarche de conception et garantit la mise en cohérence avec le modèle du domaine (figure~\ref{fig:class}); les autres comportements reposent sur les mêmes classes et contrats d'API documentés au chapitre~\ref{chap:besoins}.
 
 \medskip
 \noindent
@@ -1006,7 +1044,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Annuler une contribution}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.76\textheight,keepaspectratio]{sequence_diagram/annuler_contribution.png}
+    \safeincludegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{sequence_diagram/annuler_contribution.png}
     \caption{Diagramme de séquence – Annuler une contribution}
     \label{fig:cancel_contribution}
 \end{figure}
@@ -1015,7 +1053,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Annuler_Contribution.png}
+    \safeincludegraphics[width=\textwidth,height=0.75\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Annuler_Contribution.png}
     \caption{Diagramme de classes participantes – Annuler une contribution}
     \label{fig:class_cancel_contribution}
 \end{figure}
@@ -1025,7 +1063,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Créer et soumettre un projet}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.76\textheight,keepaspectratio]{sequence_diagram/creer_projet.png}
+    \safeincludegraphics[width=\textwidth,height=0.92\textheight,keepaspectratio]{sequence_diagram/creer_projet.png}
     \caption{Diagramme de séquence – Créer et soumettre un projet}
     \label{fig:create}
 \end{figure}
@@ -1034,7 +1072,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Creer_Soumettre_Projet.png}
+    \safeincludegraphics[width=\textwidth,height=0.75\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Creer_Soumettre_Projet.png}
     \caption{Diagramme de classes participantes – Créer et soumettre un projet}
     \label{fig:class_create_project}
 \end{figure}
@@ -1044,16 +1082,16 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Investir dans un projet (paiement démo + \textit{webhook})}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.76\textheight,keepaspectratio]{sequence_diagram/investissement.png}
+    \safeincludegraphics[width=\textwidth,height=0.94\textheight,keepaspectratio]{sequence_diagram/investissement.png}
     \caption{Diagramme de séquence – Investir (paiement démo + \textit{webhook})}
     \label{fig:invest}
 \end{figure}
 \noindent
-\textbf{Diagramme de séquence (figure~\ref{fig:invest}) :} il met en évidence le caractère \textbf{asynchrone} du paiement démo : l'investisseur initie le flux côté application en incluant éventuellement un \textbf{pourboire}, la passerelle confirme ou refuse le paiement, puis le \textit{webhook} rappelle le backend pour finaliser la transaction, promouvoir l'investissement au statut réussi et déclencher les notifications associées.
+\textbf{Diagramme de séquence (figure~\ref{fig:invest}) :} il met en évidence le caractère asynchrone du paiement démo : l'investisseur initie le flux côté application en incluant éventuellement un pourboire, la passerelle confirme ou refuse le paiement, puis le \textit{webhook} rappelle le backend pour finaliser la transaction, promouvoir l'investissement au statut réussi et déclencher les notifications associées.
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Investir_Webhook.png}
+    \safeincludegraphics[width=\textwidth,height=0.75\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Investir_Webhook.png}
     \caption{Diagramme de classes participantes – Investir dans un projet (paiement démo + \textit{webhook})}
     \label{fig:class_invest}
 \end{figure}
@@ -1063,16 +1101,16 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Valider un projet (Expert \& Admin)}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.76\textheight,keepaspectratio]{sequence_diagram/valider_rejeter_projet.png}
+    \safeincludegraphics[width=\textwidth,height=0.88\textheight,keepaspectratio]{sequence_diagram/valider_rejeter_projet.png}
     \caption{Diagramme de séquence – Valider un projet}
     \label{fig:validate}
 \end{figure}
 \noindent
-\textbf{Diagramme de séquence (figure~\ref{fig:validate}) :} il décrit le parcours de validation : chargement d'un projet en revue, contrôle par un \textbf{Expert en finance} de la synthèse d'analyse IA, enregistrement du verdict de l'expert (approbation ou rejet avec motif) via \texttt{EXPERT\_VALIDATE\_PROJECT}, mise à jour du cycle de vie du projet vers l'état \texttt{APPROVED}, puis publication finale par l'Administrateur avec envoi de notifications au créateur.
+\textbf{Diagramme de séquence (figure~\ref{fig:validate}) :} il décrit le parcours de validation : chargement d'un projet en revue, contrôle par un Expert en finance de la synthèse d'analyse IA, enregistrement du verdict de l'expert (approbation ou rejet avec motif) via \texttt{EXPERT\_VALIDATE\_PROJECT}, mise à jour du cycle de vie du projet vers l'état \texttt{APPROVED}, puis publication finale par l'Administrateur avec envoi de notifications au créateur.
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Valider_Rejeter_Projet.png}
+    \safeincludegraphics[width=\textwidth,height=0.75\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Valider_Rejeter_Projet.png}
     \caption{Diagramme de classes participantes – Valider ou rejeter un projet (Admin)}
     \label{fig:class_validate}
 \end{figure}
@@ -1082,7 +1120,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Fournir les coordonnées bancaires}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.76\textheight,keepaspectratio]{sequence_diagram/fournir_cordonnees_banc.png}
+    \safeincludegraphics[width=\textwidth,height=0.78\textheight,keepaspectratio]{sequence_diagram/fournir_cordonnees_banc.png}
     \caption{Diagramme de séquence – Fournir les coordonnées bancaires}
     \label{fig:uc_sequence_bank_details}
 \end{figure}
@@ -1091,7 +1129,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Fournir_Coordonnees_Bancaires.png}
+    \safeincludegraphics[width=\textwidth,height=0.75\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Fournir_Coordonnees_Bancaires.png}
     \caption{Diagramme de classes participantes – Fournir les coordonnées bancaires}
     \label{fig:class_bank_details}
 \end{figure}
@@ -1101,16 +1139,16 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Approuver un retrait (Admin)}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.76\textheight,keepaspectratio]{sequence_diagram/approuver_retrait.png}
+    \safeincludegraphics[width=\textwidth,height=0.88\textheight,keepaspectratio]{sequence_diagram/approuver_retrait.png}
     \caption{Diagramme de séquence – Approuver un retrait (Admin)}
     \label{fig:approve_payout}
 \end{figure}
 \noindent
-\textbf{Diagramme de séquence (figure~\ref{fig:approve_payout}) :} il ordonne les actions d'approbation : contrôle des préconditions (retrait \texttt{READY}, coordonnées présentes), appel au prestataire de virement de démonstration, mise à jour des statuts temporels du \texttt{Payout} (\texttt{PROCESSING}, \texttt{COMPLETED} ou échec), \textbf{génération automatique de la facture PDF} (\texttt{Invoice}) et notification au créateur.
+\textbf{Diagramme de séquence (figure~\ref{fig:approve_payout}) :} il ordonne les actions d'approbation : contrôle des préconditions (retrait \texttt{READY}, coordonnées présentes), appel au prestataire de virement de démonstration, mise à jour des statuts temporels du \texttt{Payout} (\texttt{PROCESSING}, \texttt{COMPLETED} ou échec), génération automatique de la facture PDF (\texttt{Invoice}) et notification au créateur.
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Approuver_Retrait.png}
+    \safeincludegraphics[width=\textwidth,height=0.75\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Approuver_Retrait.png}
     \caption{Diagramme de classes participantes – Approuver un retrait (Admin)}
     \label{fig:class_approve_payout}
 \end{figure}
@@ -1120,7 +1158,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \subsection{Mise à jour de l'état d'un projet (Admin)}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.76\textheight,keepaspectratio]{sequence_diagram/suspendre_reactiver_projet.png}
+    \safeincludegraphics[width=\textwidth,height=0.90\textheight,keepaspectratio]{sequence_diagram/suspendre_reactiver_projet.png}
     \caption{Diagramme de séquence – Mise à jour de l'état d'un projet (suspension / réactivation)}
     \label{fig:update_project_state}
 \end{figure}
@@ -1129,7 +1167,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Suspendre_Reactiver_Projet.png}
+    \safeincludegraphics[width=\textwidth,height=0.75\textheight,keepaspectratio]{class_per_usecase_diagram/Classes_Participantes_UC_Suspendre_Reactiver_Projet.png}
     \caption{Diagramme de classes participantes – Suspendre ou réactiver un projet (Admin)}
     \label{fig:class_update_project_state}
 \end{figure}
@@ -1145,7 +1183,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \thispagestyle{fancy}
 \begingroup
     \centering
-    \safeincludegraphics[width=\dimexpr\textheight-8mm\relax,height=\dimexpr\textwidth-6mm\relax,keepaspectratio]{class_diagram/Modele_Domaine_FSEG_ClassesOnly.png}
+    \safeincludegraphics[width=0.95\textheight,height=0.92\textwidth,keepaspectratio]{class_diagram/Modele_Domaine_FSEG_ClassesOnly.png}
     \captionsetup{skip=8pt,font=small}
     \caption{Diagramme de classes du domaine (modèle du domaine)}
     \label{fig:class}
@@ -1153,7 +1191,7 @@ Les diagrammes de séquence suivants décrivent le flux d'interactions entre les
 \end{sidewaysfigure}
 
 \noindent
-\textbf{Lecture du diagramme.} Le diagramme de classes qui précède matérialise le \textbf{modèle du domaine} de la plateforme : il explicite les entités métier centrales (\textbf{Utilisateur}, \textbf{Projet}, \textbf{Investissement}, \textbf{Transaction}, \textbf{Retrait}, \textbf{Facture}, \textbf{Consultation Expert}, \textbf{Notification}, \textbf{Commentaire}, \textbf{Signalement}) avec leurs attributs, leurs opérations et leurs relations assorties de multiplicités. Les énumérations portant sur le rôle, les statuts ou les types de notification rendent lisibles les cycles de vie et les règles de gestion correspondantes. Trois invariants y sont rappelés de manière synthétique : (i) unicité de l'adresse électronique ; (ii) plafonnement de la collecte par l'objectif de financement ; (iii) limitation à un retrait par projet. Ce modèle fait office de référence pour les développements ultérieurs relatifs à l'architecture et au \textbf{modèle de données MongoDB}.
+\textbf{Lecture du diagramme.} Le diagramme de classes qui précède matérialise le modèle du domaine de la plateforme : il explicite les entités métier centrales (Utilisateur, Projet, Investissement, Transaction, Retrait, Facture, Consultation Expert, Notification, Commentaire, Signalement) avec leurs attributs, leurs opérations et leurs relations assorties de multiplicités. Les énumérations portant sur le rôle, les statuts ou les types de notification rendent lisibles les cycles de vie et les règles de gestion correspondantes. Trois invariants y sont rappelés de manière synthétique : (i) unicité de l'adresse électronique ; (ii) plafonnement de la collecte par l'objectif de financement ; (iii) limitation à un retrait par projet. Ce modèle fait office de référence pour les développements ultérieurs relatifs à l'architecture et au modèle de données MongoDB.
 
 \section{Architecture du futur logiciel}
 \subsection{Vue d'ensemble en couches}
@@ -1169,9 +1207,9 @@ Les services internes (\texttt{projectService}, \texttt{investmentService}, \tex
 n8n est un outil d'orchestration visuelle de workflows utilisé pour découpler la logique métier des services externes. Dans le projet :
 \begin{itemize}
     \item \textbf{Analyse de risque} : à la soumission d'un projet, le backend déclenche un workflow n8n qui interroge le service LLM, reçoit un rapport structuré, applique le seuil d'auto-rejet (gap $\geq$ 30~\%), puis met à jour le projet et notifie les acteurs concernés.
-    \item \textbf{Chatbot d'aide sur projet} : les questions contextualisées sont traitées par la route \texttt{POST /api/projects/:id/chat} (middleware d'authentification, \textit{rate limiting} dédié), via le service serveur \texttt{geminiChatService} qui appelle directement le LLM ; \textbf{n8n n'intervient pas} sur ce flux dans la version livrée.
+    \item \textbf{Chatbot d'aide sur projet} : les questions contextualisées sont traitées par la route \texttt{POST /api/projects/:id/chat} (middleware d'authentification, \textit{rate limiting} dédié), via le service serveur \texttt{geminiChatService} qui appelle directement le LLM ; n8n n'intervient pas sur ce flux dans la version livrée.
 \end{itemize}
-Les apports principaux sont les suivants : \textbf{découplage} (le backend n'expose, pour ce volet, qu'un point d'entrée de type \textit{webhook} assorti d'une signature), \textbf{résilience} (politique de \textit{retries} exponentiels 1/2/4 minutes, plafonnée à trois tentatives, avec bascule ultérieure vers \texttt{FailedWorkflowEvents}) et \textbf{évolutivité} (ajout de nouveaux workflows sans modification du noyau applicatif).
+Les apports principaux sont les suivants : découplage (le backend n'expose, pour ce volet, qu'un point d'entrée de type \textit{webhook} assorti d'une signature), résilience (politique de \textit{retries} exponentiels 1/2/4 minutes, plafonnée à trois tentatives, avec bascule ultérieure vers \texttt{FailedWorkflowEvents}) et évolutivité (ajout de nouveaux workflows sans modification du noyau applicatif).
 
 \subsection{Composants asynchrones (BullMQ / Redis)}
 Les e-mails critiques (validation, contribution, paiement, retrait, désactivation) et les opérations de reprise sont gérés par des files BullMQ persistées dans Redis. Cette architecture absorbe les pics de charge et fournit un mécanisme uniforme de relance et de DLQ (\texttt{FailedRefund}, \texttt{FailedPayoutEvents}, \texttt{FailedCancellationEvents}). Les jobs récurrents (cron) sont gérés par le service interne \texttt{cronService} : expiration des projets et investissements, reprise des analyses bloquées, nettoyage des sessions et des jetons de rafraîchissement.
@@ -1181,7 +1219,7 @@ Le diagramme de paquetages de la figure~\ref{fig:packages} décompose l'applicat
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=0.97\textwidth,height=0.82\textheight,keepaspectratio]{diagramme_de_paquetage/diagramme_paquetage.png}
+    \safeincludegraphics[width=\textwidth,height=0.35\textheight,keepaspectratio]{diagramme_de_paquetage/diagramme_paquetage.png}
     \caption{Diagramme de paquetages de l'application (\texttt{diagramme\_de\_paquetage/diagramme\_paquetage.png})}
     \label{fig:packages}
 \end{figure}
@@ -1201,7 +1239,7 @@ Les décisions suivantes ont été prises pour satisfaire les exigences non fonc
 
 \section{Modèle de données MongoDB}
 \subsection{Collections et structure des documents}
-Le modèle de données est dérivé du modèle du domaine et des schémas Mongoose. Comme la solution repose sur une base \textbf{NoSQL} (MongoDB), la structure est décrite sous forme de \textbf{collections} et de \textbf{références} (\textit{ObjectId}) plutôt que sous forme de tables relationnelles. Dans ce rapport, la présentation est fournie \textbf{sans figures} afin d'éviter toute dépendance à des exports/outils externes.
+Le modèle de données est dérivé du modèle du domaine et des schémas Mongoose. Comme la solution repose sur une base NoSQL (MongoDB), la structure est décrite sous forme de collections et de références (\textit{ObjectId}) plutôt que sous forme de tables relationnelles. Dans ce rapport, la présentation est fournie sans figures afin d'éviter toute dépendance à des exports/outils externes.
 \begin{itemize}
     \item \texttt{users} : stocke les identifiants, le rôle, le statut actif, les jetons de réinitialisation, et le profil (préférences de risque, catégories).
     \item \texttt{projects} : contient les détails du projet ainsi que l'analyse IA embarquée (\texttt{aiAnalysis}).
@@ -1392,7 +1430,7 @@ Le tableau~\ref{tab:dictionary} détaille les principaux champs retenus au sein 
 }
 
 \section{Conclusion}
-Ce chapitre a opéré la transposition des besoins métier dans une conception UML homogène : les diagrammes de séquence en explicient les enchaînements pour les cas critiques, le diagramme de classes en restitue la structure conceptuelle, et l'architecture en couches en situe les composants asynchrones (n8n, BullMQ/Redis) ainsi que les arbitrages structurants (JWT dans des cookies HttpOnly, idempotence des \textit{webhooks}, atomicité des mises à jour de financement, chiffrement AES-256-GCM des RIB, recours à des files DLQ pour la reprise des échecs). Le \textbf{modèle de données MongoDB} et le dictionnaire des données constituent le référentiel directement mobilisable par l'implémentation exposée au chapitre suivant.
+Ce chapitre a opéré la transposition des besoins métier dans une conception UML homogène : les diagrammes de séquence en explicient les enchaînements pour les cas critiques, le diagramme de classes en restitue la structure conceptuelle, et l'architecture en couches en situe les composants asynchrones (n8n, BullMQ/Redis) ainsi que les arbitrages structurants (JWT dans des cookies HttpOnly, idempotence des \textit{webhooks}, atomicité des mises à jour de financement, chiffrement AES-256-GCM des RIB, recours à des files DLQ pour la reprise des échecs). Le modèle de données MongoDB et le dictionnaire des données constituent le référentiel directement mobilisable par l'implémentation exposée au chapitre suivant.
 
 % ==============================
 % CHAPITRE 4 : IMPLÉMENTATION ET TESTS
@@ -1406,7 +1444,7 @@ Ce chapitre documente la réalisation technique de la plateforme. Il expose en p
 \section{Environnement de réalisation}
 
 \subsection{Environnement logiciel}
-Les principaux outils et bibliothèques utilisés sont présentés ci-dessous selon le canevas suivant : \textbf{rôle général}, \textbf{usage dans l'application} livrée, puis \textbf{atouts} retenus pour le développement. Les icônes reproduites proviennent des chartes graphiques des éditeurs concernés.
+Les principaux outils et bibliothèques utilisés sont présentés ci-dessous selon le canevas suivant : rôle général, usage dans l'application livrée, puis atouts retenus pour le développement. Les icônes reproduites proviennent des chartes graphiques des éditeurs concernés.
 
 \vspace{0.35em}
 \begin{itemize}%
@@ -1418,7 +1456,7 @@ Les principaux outils et bibliothèques utilisés sont présentés ci-dessous se
         \setlength{\itemsep}{1.2em}%
         \setlength{\parsep}{0.35em}%
         \setlength{\topsep}{0.5em}%
-        \item \textbf{Node.js (runtime) et pile serveur} : Node.js est le moteur d'exécution JavaScript côté serveur. \textbf{Express~5} structure l'API REST (\texttt{/api/*}, routes internes \texttt{/internal/*}, webhooks). \textbf{Mongoose~9} matérialise les collections et la validation au plus près des documents ; \textbf{Zod~4} renforce le contrôle des entrées HTTP ; \textbf{BullMQ~5} pilote les jobs asynchrones ; \textbf{Nodemailer}, \textbf{jsonwebtoken} et \textbf{bcrypt} couvrent respectivement l'e-mail transactionnel, les jetons d'authentification et le hachage des mots de passe (versions principales indiquées dans \texttt{backend/package.json}).
+        \item \textbf{Node.js (runtime) et pile serveur} : Node.js est le moteur d'exécution JavaScript côté serveur. Express~5 structure l'API REST (\texttt{/api/*}, routes internes \texttt{/internal/*}, webhooks). Mongoose~9 matérialise les collections et la validation au plus près des documents ; Zod~4 renforce le contrôle des entrées HTTP ; BullMQ~5 pilote les jobs asynchrones ; Nodemailer, jsonwebtoken et bcrypt couvrent respectivement l'e-mail transactionnel, les jetons d'authentification et le hachage des mots de passe (versions principales indiquées dans \texttt{backend/package.json}).
 
         \textbf{Dans l'application :} la logique métier est découpée en services (\texttt{*Service.js}) raccordés aux routeurs Express ; les opérations sensibles au temps (envois SMTP, relances) sont confiées aux workers plutôt qu'exécutées de manière bloquante dans le cycle requête-réponse.
 
@@ -1426,17 +1464,17 @@ Les principaux outils et bibliothèques utilisés sont présentés ci-dessous se
 
         \par\vspace{1.15em}\noindent
         \begin{minipage}{\linewidth}\centering
-            \safeincludegraphics[height=2.15cm]{icon_outils/nodejs.png}%
+            \safeincludegraphics[height=1.5cm]{icon_outils/nodejs.png}%
         \end{minipage}\par\vspace{0.55em}
         \item \textbf{Redis (files et état des jobs)} : Redis est une base clé-valeur en mémoire utilisée ici comme magasin de données pour les files d'attente.
 
-        \textbf{Dans l'application :} BullMQ s'appuie sur Redis (via \textbf{ioredis}) pour persister l'état des jobs (retardements, tentatives, verrous légers) avant toute remontée métier vers les collections d'échecs définitifs lorsque les reprises automatiques sont épuisées.
+        \textbf{Dans l'application :} BullMQ s'appuie sur Redis (via ioredis) pour persister l'état des jobs (retardements, tentatives, verrous légers) avant toute remontée métier vers les collections d'échecs définitifs lorsque les reprises automatiques sont épuisées.
 
         \textbf{Avantages :} latence très faible, primitives adaptées aux files et au scheduling, bonne tenue en charge lors des pics (notifications, relances administrateur).
 
         \par\vspace{1.15em}\noindent
         \begin{minipage}{\linewidth}\centering
-            \safeincludegraphics[height=2.15cm]{icon_outils/redis.png}%
+            \safeincludegraphics[height=1.5cm]{icon_outils/redis.png}%
         \end{minipage}\par\vspace{0.45em}
     \end{itemize}
     \item \textbf{Frontend}
@@ -1444,15 +1482,15 @@ Les principaux outils et bibliothèques utilisés sont présentés ci-dessous se
         \setlength{\itemsep}{1.2em}%
         \setlength{\parsep}{0.35em}%
         \setlength{\topsep}{0.5em}%
-        \item \textbf{React.js} : librairie JavaScript pour construire une interface utilisateur à base de \textbf{composants} réutilisables et d'un rendu réactif sur l'état.
+        \item \textbf{React.js} : librairie JavaScript pour construire une interface utilisateur à base de composants réutilisables et d'un rendu réactif sur l'état.
 
-        \textbf{Dans l'application :} les vues plein écran et pages métier sont regroupées dans \texttt{frontend/src/pages} (parcours investisseur, porteur de projet, administration, paiement démo, etc.) ; les éléments réutilisables (cartes projet, en-têtes, garde-fous d'accès) sont placés dans \texttt{frontend/src/components} et \texttt{frontend/src/components/ui}. La navigation repose sur \textbf{React Router} : enveloppe \texttt{BrowserRouter} dans \texttt{App.jsx}, déclaration des routes dans \texttt{routes/AppRoutes.jsx}. Les appels au backend passent par \textbf{Axios}, centralisé dans \texttt{frontend/src/api/client.js} (\texttt{withCredentials} pour les cookies d'authentification, intercepteur qui tente un rafraîchissement de session sur réponse 401 puis rejoue la requête initiale).
+        \textbf{Dans l'application :} les vues plein écran et pages métier sont regroupées dans \texttt{frontend/src/pages} (parcours investisseur, porteur de projet, administration, paiement démo, etc.) ; les éléments réutilisables (cartes projet, en-têtes, garde-fous d'accès) sont placés dans \texttt{frontend/src/components} et \texttt{frontend/src/components/ui}. La navigation repose sur React Router : enveloppe \texttt{BrowserRouter} dans \texttt{App.jsx}, déclaration des routes dans \texttt{routes/AppRoutes.jsx}. Les appels au backend passent par Axios, centralisé dans \texttt{frontend/src/api/client.js} (\texttt{withCredentials} pour les cookies d'authentification, intercepteur qui tente un rafraîchissement de session sur réponse 401 puis rejoue la requête initiale).
 
         \textbf{Avantages :} forte modularité par composants, mise à jour efficace du DOM via le DOM virtuel, écosystème mature (hooks, outils de débogage, bibliothèques complémentaires).
 
         \par\vspace{1.15em}\noindent
         \begin{minipage}{\linewidth}\centering
-            \safeincludegraphics[height=2.15cm]{icon_outils/react.png}%
+            \safeincludegraphics[height=1.5cm]{icon_outils/react.png}%
         \end{minipage}\par\vspace{0.55em}
         \item \textbf{Vite} : outil de build et serveur de développement orienté modules ES, chargé d'assembler le frontend pour le navigateur.
 
@@ -1462,20 +1500,20 @@ Les principaux outils et bibliothèques utilisés sont présentés ci-dessous se
 
         \par\vspace{1.15em}\noindent
         \begin{minipage}{\linewidth}\centering
-            \safeincludegraphics[height=2.15cm]{icon_outils/vite.png}%
+            \safeincludegraphics[height=2.0cm]{icon_outils/vite.png}%
         \end{minipage}\par\vspace{0.55em}
         \item \textbf{Tailwind CSS v4 et Shadcn UI} : framework utilitaire CSS moderne de nouvelle génération combiné à une bibliothèque de composants d'interface utilisateur haut de gamme, accessibles et personnalisables (Radix UI sous le capot).
 
-        \textbf{Dans l'application :} le style global est géré via la directive \texttt{@import "tailwindcss";} configurée via le compilateur natif ultra-rapide de Vite (\texttt{@tailwindcss/vite}). Les composants haut de gamme de la plateforme (boutons, modales, dialogues, toasts) sont issus de \textbf{Shadcn UI} et configurés dans \texttt{frontend/src/components/ui/}, permettant une expérience utilisateur (UX) fluide avec des micro-animations interactives (\texttt{tw-animate-css}, \texttt{clsx}).
+        \textbf{Dans l'application :} le style global est géré via la directive \texttt{@import "tailwindcss";} configurée via le compilateur natif ultra-rapide de Vite (\texttt{@tailwindcss/vite}). Les composants haut de gamme de la plateforme (boutons, modales, dialogues, toasts) sont issus de Shadcn UI et configurés dans \texttt{frontend/src/components/ui/}, permettant une expérience utilisateur (UX) fluide avec des micro-animations interactives (\texttt{tw-animate-css}, \texttt{clsx}).
 
         \textbf{Avantages :} absence de fichiers CSS superflus grâce au compilateur JIT natif de Tailwind v4, personnalisation illimitée du design system sans dépendre d'un thème rigide préexistant, intégration parfaite avec React 19 et conformité stricte aux normes d'accessibilité (WAI-ARIA).
 
         \par\vspace{1.15em}\noindent
         \begin{minipage}{\linewidth}\centering
-            \safeincludegraphics[height=2.15cm]{icon_outils/tailwind.png}%
+            \safeincludegraphics[height=3.0cm]{icon_outils/tailwind-css.png}%
         \end{minipage}\par\vspace{0.45em}
     \end{itemize}
-    \item \textbf{MongoDB} : base de données \textbf{NoSQL} orientée documents, adaptée aux schémas évolutifs et aux regroupements logiques (sous-documents, tableaux embarqués).
+    \item \textbf{MongoDB} : base de données NoSQL orientée documents, adaptée aux schémas évolutifs et aux regroupements logiques (sous-documents, tableaux embarqués).
 
     \textbf{Dans l'application :} les collections \texttt{users}, \texttt{projects}, \texttt{investments}, \texttt{transactions}, \texttt{payouts}, \texttt{notifications}, etc., sont décrites avec Mongoose ; le document \texttt{Project} embarque notamment \texttt{aiAnalysis}. Les transactions multi-documents (replica set requis en production pour cette fonctionnalité) sécurisent les opérations qui exigent une atomicité (ex.\ mise à jour du financement avec contrainte de plafond).
 
@@ -1483,7 +1521,7 @@ Les principaux outils et bibliothèques utilisés sont présentés ci-dessous se
 
     \par\vspace{1.15em}\noindent
     \begin{minipage}{\linewidth}\centering
-        \safeincludegraphics[height=2.15cm]{icon_outils/mongodb.png}%
+        \safeincludegraphics[height=3.0cm]{icon_outils/mongodb.png}%
     \end{minipage}\par\vspace{0.65em}
     \item \textbf{Orchestration et exécution conteneurisée}
     \begin{itemize}%
@@ -1498,7 +1536,7 @@ Les principaux outils et bibliothèques utilisés sont présentés ci-dessous se
 
         \par\vspace{1.15em}\noindent
         \begin{minipage}{\linewidth}\centering
-            \safeincludegraphics[height=2.15cm]{icon_outils/n8n.png}%
+            \safeincludegraphics[width=3.6cm,height=1.1cm,keepaspectratio]{icon_outils/n8n.png}%
         \end{minipage}\par\vspace{0.55em}
         \item \textbf{Docker} : technologie de conteneurisation qui encapsule une application et ses dépendances dans une image reproductible.
 
@@ -1508,7 +1546,7 @@ Les principaux outils et bibliothèques utilisés sont présentés ci-dessous se
 
         \par\vspace{1.15em}\noindent
         \begin{minipage}{\linewidth}\centering
-            \safeincludegraphics[height=2.15cm]{icon_outils/docker.png}%
+            \safeincludegraphics[height=1.5cm]{icon_outils/docker.png}%
         \end{minipage}\par\vspace{0.45em}
     \end{itemize}
     \item \textbf{Outillage}
@@ -1524,7 +1562,7 @@ Les principaux outils et bibliothèques utilisés sont présentés ci-dessous se
 
         \par\vspace{1.15em}\noindent
         \begin{minipage}{\linewidth}\centering
-            \safeincludegraphics[height=2.15cm]{icon_outils/vscode.png}%
+            \safeincludegraphics[height=2.4cm]{icon_outils/vscode.png}%
         \end{minipage}\par\vspace{0.55em}
         \item \textbf{Git / GitHub} : Git assure le suivi de version ; GitHub héberge le dépôt distant partagé avec l'encadrant et l'architecte d'entreprise (voir \S~\ref{sec:github_collab}).
 
@@ -1534,7 +1572,7 @@ Les principaux outils et bibliothèques utilisés sont présentés ci-dessous se
 
         \par\vspace{1.15em}\noindent
         \begin{minipage}{\linewidth}\centering
-            \safeincludegraphics[height=2.15cm]{icon_outils/github_PNG20.png}%
+            \safeincludegraphics[height=1.9cm]{icon_outils/github_PNG20.png}%
         \end{minipage}\par\vspace{0.55em}
         \item \textbf{Enterprise Architect~15} : outil de modélisation UML et d'ingénierie dirigée par les modèles.
 
@@ -1544,7 +1582,7 @@ Les principaux outils et bibliothèques utilisés sont présentés ci-dessous se
 
         \par\vspace{1.15em}\noindent
         \begin{minipage}{\linewidth}\centering
-            \safeincludegraphics[height=2.15cm]{icon_outils/Enterprise-Architect.png}%
+            \safeincludegraphics[width=4.0cm,height=1.0cm,keepaspectratio]{icon_outils/Enterprise-Architect.png}%
         \end{minipage}\par\vspace{0.55em}
         \item \textbf{Postman} : client HTTP pour composer, rejouer et documenter des requêtes vers l'API.
 
@@ -1554,27 +1592,22 @@ Les principaux outils et bibliothèques utilisés sont présentés ci-dessous se
 
         \par\vspace{1.15em}\noindent
         \begin{minipage}{\linewidth}\centering
-            \safeincludegraphics[height=2.15cm]{icon_outils/postman.png}%
+            \safeincludegraphics[height=2.3cm]{icon_outils/postman.png}%
         \end{minipage}\par\vspace{0.45em}
     \end{itemize}
-    \item \textbf{Tests automatisés et validation manuelle} : les scénarios de bout en bout s'appuient sur le \textbf{même runtime Node.js} que le backend.
+    \item \textbf{Tests automatisés et validation manuelle} : les scénarios de bout en bout s'appuient sur le même runtime Node.js que le backend.
 
     \textbf{Dans l'application :} les scripts \texttt{e2e-lifecycle-payout-api.js}, \texttt{e2e-lifecycle-scenarios.js}, \texttt{e2e-edgecases-api.js} et \texttt{e2e-interactions.js} enchaînent création de données, transitions de statut, paiements simulés et cas d'erreur ; ils complètent les tests manuels sur l'interface React.
 
     \textbf{Avantages :} détection précoce des régressions sur les parcours critiques, exécution sans navigateur pour la couche API, automatisation rejouable avant chaque livraison.
-
-    \par\vspace{1.15em}\noindent
-    \begin{minipage}{\linewidth}\centering
-        \safeincludegraphics[height=2.15cm]{icon_outils/nodejs.png}%
-    \end{minipage}\par\vspace{0.5em}
 \end{itemize}
 
 \subsection{Conteneurisation (Docker) et expérimentation n8n}
-Les workflows d'analyse de risque (réception d'un déclencheur, appel au service LLM, normalisation de la réponse, rappel des routes internes du backend) ont été mis au point et testés dans un \textbf{environnement Docker}. L'instance \textbf{n8n} y est exécutée dans un conteneur dédié, ce qui permet : (i) d'\textbf{isoler} l'orchestrateur du reste de la machine de développement ; (ii) d'obtenir un déploiement \textbf{reproductible} (même image, mêmes ports, même version) entre séances de travail ; (iii) de se rapprocher d'une \textbf{cible d'hébergement} où les services sont souvent packagés de la même manière. En pratique, cette base a servi à valider les nœuds du graphe (HTTP, Webhooks, gestion des erreurs, retries) avant de documenter le flux dans le rapport et de le corréler avec les appels \texttt{/internal/*} côté API.
+Les workflows d'analyse de risque (réception d'un déclencheur, appel au service LLM, normalisation de la réponse, rappel des routes internes du backend) ont été mis au point et testés dans un environnement Docker. L'instance n8n y est exécutée dans un conteneur dédié, ce qui permet : (i) d'isoler l'orchestrateur du reste de la machine de développement ; (ii) d'obtenir un déploiement reproductible (même image, mêmes ports, même version) entre séances de travail ; (iii) de se rapprocher d'une cible d'hébergement où les services sont souvent packagés de la même manière. En pratique, cette base a servi à valider les nœuds du graphe (HTTP, Webhooks, gestion des erreurs, retries) avant de documenter le flux dans le rapport et de le corréler avec les appels \texttt{/internal/*} côté API.
 
 \subsection{Gestion de version et collaboration (GitHub)}
 \label{sec:github_collab}
-Le dépôt de code de la plateforme (backend Node.js/Express, frontend React, scripts E2E, éventuelles configurations) est \textbf{poussé sur GitHub}. Le dépôt assure la \textbf{traçabilité} des évolutions (\textit{commits}, branches, éventuelles \textit{pull requests}) et constitue la référence unique pour les livrables du PFE. L'accès au dépôt a été \textbf{partagé} avec l'\textbf{encadrant académique} afin de permettre le suivi et la relecture du travail, ainsi qu'avec l'\textbf{architecte d'entreprise} de l'organisme d'accueil pour aligner les choix d'implémentation sur la vision d'architecture et faciliter les échanges techniques (revue de structure, conventions, points d'intégration).
+Le dépôt de code de la plateforme (backend Node.js/Express, frontend React, scripts E2E, éventuelles configurations) est poussé sur GitHub. Le dépôt assure la traçabilité des évolutions (\textit{commits}, branches, éventuelles \textit{pull requests}) et constitue la référence unique pour les livrables du PFE. L'accès au dépôt a été partagé avec l'encadrant académique afin de permettre le suivi et la relecture du travail, ainsi qu'avec l'architecte d'entreprise de l'organisme d'accueil pour aligner les choix d'implémentation sur la vision d'architecture et faciliter les échanges techniques (revue de structure, conventions, points d'intégration).
 
 \subsection{Synthèse des choix technologiques}
 Les tableaux~\ref{tab:tech} et~\ref{tab:techsuite} synthétisent les technologies retenues et la justification de chaque choix (socle applicatif d'une part, IA/orchestration et exploitation d'autre part).
@@ -1638,9 +1671,9 @@ La présente section décrit l'implémentation des principales fonctionnalités 
 
 \subsection{Authentification et gestion des utilisateurs}
 \subsubsection*{Description fonctionnelle}
-L'authentification repose sur des \textbf{JWT stockés dans des cookies HttpOnly} : un jeton d'accès (\textit{access token}) et un jeton de rafraîchissement (\textit{refresh token}). À la connexion, le serveur vérifie les identifiants et dépose ces deux jetons dans des cookies (HttpOnly, \texttt{SameSite=Lax}, \texttt{Secure} en production). Le jeton de rafraîchissement permet de prolonger la session sans ressaisir le mot de passe, via l’endpoint de rafraîchissement.
+L'authentification repose sur des JWT stockés dans des cookies HttpOnly : un jeton d'accès (\textit{access token}) et un jeton de rafraîchissement (\textit{refresh token}). À la connexion, le serveur vérifie les identifiants et dépose ces deux jetons dans des cookies (HttpOnly, \texttt{SameSite=Lax}, \texttt{Secure} en production). Le jeton de rafraîchissement permet de prolonger la session sans ressaisir le mot de passe, via l’endpoint de rafraîchissement.
 
-Les mots de passe sont hachés avec bcrypt. Le schéma utilisateur inclut un champ \texttt{isActive} (booléen) qui est initialement \texttt{false} à l'inscription. Un e-mail de vérification est envoyé avec un \textbf{code OTP} (et un lien en secours). Le compte est activé après saisie du code (ou clic du lien). L'administrateur peut également désactiver ou réactiver un compte. Les routes protégées utilisent des middlewares d’authentification basés sur des cookies HttpOnly (access/refresh) et un contrôle de rôle pour l’administration. Sur le frontend, un intercepteur Axios surveille les réponses 401 (jeton expiré) ; il appelle alors \texttt{/api/auth/refresh} et rejoue la requête originale.
+Les mots de passe sont hachés avec bcrypt. Le schéma utilisateur inclut un champ \texttt{isActive} (booléen) qui est initialement \texttt{false} à l'inscription. Un e-mail de vérification est envoyé avec un code OTP (et un lien en secours). Le compte est activé après saisie du code (ou clic du lien). L'administrateur peut également désactiver ou réactiver un compte. Les routes protégées utilisent des middlewares d’authentification basés sur des cookies HttpOnly (access/refresh) et un contrôle de rôle pour l’administration. Sur le frontend, un intercepteur Axios surveille les réponses 401 (jeton expiré) ; il appelle alors \texttt{/api/auth/refresh} et rejoue la requête originale.
 
 \subsubsection*{Bibliothèques utilisées}
 \begin{itemize}
@@ -1659,28 +1692,28 @@ Les mots de passe sont hachés avec bcrypt. Le schéma utilisateur inclut un cha
 \subsubsection*{Captures d'écran}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/login.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/login.png}
     \caption{Page de connexion (\texttt{screens/login.png})}
     \label{fig:login_screen}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/inscription.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/inscription.png}
     \caption{Formulaire d'inscription (\texttt{screens/inscription.png})}
     \label{fig:register_screen}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/codeverifemail.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/codeverifemail.png}
     \caption{Vérification d'e-mail : saisie du code (\texttt{screens/codeverifemail.png})}
     \label{fig:codeverifemail}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/pageverif.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/pageverif.png}
     \caption{Page de vérification / confirmation après validation (\texttt{screens/pageverif.png})}
     \label{fig:pageverif}
 \end{figure}
@@ -1699,14 +1732,14 @@ La création et la mise en ligne d'un projet suivent un cycle métier explicite 
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/n8nriskanalysis.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/n8nriskanalysis.png}
     \caption{Workflow n8n --- analyse de risque (interface d'édition) ; fichier \texttt{screens/n8nriskanalysis.png}}
     \label{fig:n8n_workflow}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/n8ncrons.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/n8ncrons.png}
     \caption{Orchestration n8n complémentaire / scénarios planifiés ; fichier \texttt{screens/n8ncrons.png}}
     \label{fig:n8n_crons}
 \end{figure}
@@ -1732,23 +1765,44 @@ En cas d'indisponibilité temporaire du service IA (quota/timeout/503), le proje
 \subsubsection*{Captures d'écran}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/creationprojet1.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/creationprojet1.png}
     \caption{Formulaire de création de projet --- étape 1 (\texttt{screens/creationdeprojet1.png})}
     \label{fig:create_project_form}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/creationprojet2.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/creationprojet2.png}
     \caption{Création de projet --- étape complémentaire (\texttt{screens/creationdeprojet2.png})}
     \label{fig:create_project_form2}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/validerrejeter.png}
-    \caption{Console d'administration : validation/rejet (\texttt{screens/validerrejeter.png})}
-    \label{fig:admin_validate_project}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/validerrejeter1.png}
+    \caption{Interface de l'Expert en finance --- Visualisation de la liste des projets soumis à la revue (\texttt{screens/validerrejeter1.png})}
+    \label{fig:expert_review_list}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/validerrejeter2.png}
+    \caption{Interface de l'Expert en finance --- Revue du projet et analyse de risque par l'IA (Partie 1 --- Détails et Analyse) (\texttt{screens/validerrejeter2.png})}
+    \label{fig:expert_review_details}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/validerrejeter3.png}
+    \caption{Interface de l'Expert en finance --- Revue du projet et analyse de risque par l'IA (Partie 2 --- Décision et Validation) (\texttt{screens/validerrejeter3.png})}
+    \label{fig:expert_review_validate}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/validerrejeter4Paradmin.png}
+    \caption{Console d'Administration --- Publication et mise en ligne finale du projet par l'Administrateur (\texttt{screens/validerrejeter4Paradmin.png})}
+    \label{fig:admin_publish_project}
 \end{figure}
 
 \subsubsection*{Composants techniques associés}
@@ -1758,8 +1812,8 @@ En cas d'indisponibilité temporaire du service IA (quota/timeout/503), le proje
 \subsubsection*{Description fonctionnelle}
 Le parcours de paiement est simulé (mock) afin de valider la logique métier (statuts, webhooks signés, idempotence) sans dépendre d’un prestataire externe.
 \begin{itemize}
-    \item \textbf{Création du lien de paiement} : lorsqu'un utilisateur initie un soutien (incluant un \textbf{pourboire} optionnel), le backend retourne une URL de paiement simulé. Si le montant atteint ou dépasse \textbf{30\%} de l'objectif, l'investissement est mis en \texttt{ON\_HOLD} pour imposer une consultation avec l'Expert en finance. Sinon, l'investissement et la transaction sont créés en \texttt{INITIATED} / \texttt{PENDING}.
-    \item \textbf{Webhook mock signé} : une confirmation HTTP signée met à jour transaction/investissement et ajoute le montant au \texttt{currentFunding} du projet (sous une condition atomique qui empêche de dépasser l'objectif de financement). Une \textbf{facture} (Invoice) numérotée est générée simultanément pour assurer la traçabilité financière.
+    \item \textbf{Création du lien de paiement} : lorsqu'un utilisateur initie un soutien (incluant un pourboire optionnel), le backend retourne une URL de paiement simulé. Si le montant atteint ou dépasse 30\% de l'objectif, l'investissement est mis en \texttt{ON\_HOLD} pour imposer une consultation avec l'Expert en finance. Sinon, l'investissement et la transaction sont créés en \texttt{INITIATED} / \texttt{PENDING}.
+    \item \textbf{Webhook mock signé} : une confirmation HTTP signée met à jour transaction/investissement et ajoute le montant au \texttt{currentFunding} du projet (sous une condition atomique qui empêche de dépasser l'objectif de financement). Une facture (Invoice) numérotée est générée simultanément pour assurer la traçabilité financière.
     \item \textbf{Coordonnées bancaires et retraits} : les RIB des porteurs de projet sont chiffrés en AES-256-GCM (IV unique par enregistrement). Lors de l'approbation d'un \textit{payout}, une facture de retrait est générée en parallèle.
 \end{itemize}
 
@@ -1779,23 +1833,30 @@ Cette approche garantit l'intégrité des données même en cas de \textit{webho
 \subsubsection*{Captures d'écran}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/investir.png}
-    \caption{Formulaire de soutien : investir (\texttt{screens/investir.png})}
-    \label{fig:invest_interface}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/investir1.png}
+    \caption{Formulaire de soutien --- Étape 1 : Saisie du montant et du pourboire (\texttt{screens/investir1.png})}
+    \label{fig:invest_interface_1}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/codeOTPinvestir.png}
-    \caption{Étape de confirmation (code OTP / sécurisation du paiement démo) (\texttt{screens/codeOTPinvestir.png})}
-    \label{fig:code_otp_invest}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/investir2.png}
+    \caption{Formulaire de soutien --- Étape 2 : Mode de paiement et confirmation (\texttt{screens/investir2.png})}
+    \label{fig:invest_interface_2}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/cordonnebancaire.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/cordonnebancaire.png}
     \caption{Coordonnées bancaires (\texttt{screens/cordonnebancaire.png}) ; chiffrement AES-256-GCM en amont stockage}
     \label{fig:bank_details}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/codeOTPinvestir.png}
+    \caption{Étape de confirmation (code OTP / sécurisation du paiement démo) (\texttt{screens/codeOTPinvestir.png})}
+    \label{fig:code_otp_invest}
 \end{figure}
 
 \subsubsection*{Composants techniques associés}
@@ -1819,7 +1880,7 @@ Un job planifié (cron interne) exécute régulièrement un nettoyage des invest
 \subsubsection*{Capture d'écran}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/mescontributions.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/mescontributions.png}
     \caption{Contributions / investissements (\texttt{screens/mescontributions.png}) ; statuts \texttt{INITIATED}, \texttt{SUCCESS}, \texttt{FAILED}}
     \label{fig:my_investments}
 \end{figure}
@@ -1829,7 +1890,7 @@ Service interne \texttt{cronService}, file BullMQ pour la production des notific
 
 \subsection{Moteur de recommandation}
 \subsubsection*{Description fonctionnelle}
-Le moteur est implémenté dans \texttt{recommendationService.js} (\texttt{getRecommendationsForUser}). Il est \textbf{entièrement déterministe} dans la version livrée : sélection des projets \texttt{ACTIVE} non archivés, calcul d'un score par projet à partir de quatre composantes (pondérations codées en dur) --- adéquation aux catégories préférées du profil, adéquation au \texttt{riskLevel} issu de \texttt{project.aiAnalysis}, popularité (progression vers l'objectif) et récence de création --- puis tri décroissant et découpe selon la limite demandée (défaut 8, plafonnée à 20). Aucun appel LLM n'est effectué dans ce service : l'IA intervient en amont lors de l'analyse de projet, dont le résultat est réutilisé ici.
+Le moteur est implémenté dans \texttt{recommendationService.js} (\texttt{getRecommendationsForUser}). Il est entièrement déterministe dans la version livrée : sélection des projets \texttt{ACTIVE} non archivés, calcul d'un score par projet à partir de quatre composantes (pondérations codées en dur) --- adéquation aux catégories préférées du profil, adéquation au \texttt{riskLevel} issu de \texttt{project.aiAnalysis}, popularité (progression vers l'objectif) et récence de création --- puis tri décroissant et découpe selon la limite demandée (défaut 8, plafonnée à 20). Aucun appel LLM n'est effectué dans ce service : l'IA intervient en amont lors de l'analyse de projet, dont le résultat est réutilisé ici.
 
 \subsubsection*{Bibliothèques utilisées}
 \begin{itemize}
@@ -1843,7 +1904,7 @@ Le moteur est implémenté dans \texttt{recommendationService.js} (\texttt{getRe
 \subsubsection*{Capture d'écran}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/recommendation.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/recommendation.png}
     \caption{Recommandations de projets (\texttt{screens/recommendation.png})}
     \label{fig:recommendations}
 \end{figure}
@@ -1853,7 +1914,7 @@ Cache mémoire de courte durée pour les recommandations par utilisateur ; le cl
 
 \subsection{Service de notifications}
 \subsubsection*{Description fonctionnelle}
-Les notifications \textit{in-app} reposent sur la collection MongoDB \texttt{notifications} : chaque document est adressé à \textbf{un} utilisateur (\texttt{userId}), avec un booléen \texttt{read}, un type énuméré, titre, message et références optionnelles à une entité métier (\texttt{relatedEntityType} / \texttt{relatedEntityId}). L'API REST unique \texttt{/api/notifications} retourne \textbf{uniquement} les messages du compte authentifié ; elle accepte les paramètres de requête \texttt{page} et \texttt{limit} (plafonné à 30~éléments par page côté serveur), trie par \texttt{createdAt} décroissant (plus récent en premier), et fournit dans la réponse JSON le tableau \texttt{notifications}, le total \texttt{unreadCount} (pour le badge de la barre de navigation) et le booléen \texttt{hasMore} (obtenu en demandant une ligne supplémentaire côté base puis en tronquant à la taille de page). L'action \texttt{PUT /api/notifications/:id/read} marque comme lu si la notification appartient au demandeur. \textbf{Tous les rôles, y compris l'administrateur, utilisent ce même canevas} : il n'existe pas d'écran séparé listant les messages «\,de toute la plateforme\,» dans la version livrée. À côté de ce flux, les \textbf{échecs d'envoi SMTP} (jobs e-mail non délivrés) sont diagnostiqués via \texttt{/api/admin/failed-notifications} et une page d'administration dédiée (\texttt{/admin/email-failures}) permettant une relance ciblée --- ce mécanisme est distinct des notifications in-app. Pour les événements critiques (sécurité, paiement, retrait, décision sur projet, etc.), un e-mail est produit selon la politique \texttt{emailNotificationPolicy}, via files BullMQ/Redis et workers ; les indisponibilités SMTP sont journalisées et peuvent donner lieu à reprises.
+Les notifications \textit{in-app} reposent sur la collection MongoDB \texttt{notifications} : chaque document est adressé à un utilisateur (\texttt{userId}), avec un booléen \texttt{read}, un type énuméré, titre, message et références optionnelles à une entité métier (\texttt{relatedEntityType} / \texttt{relatedEntityId}). L'API REST unique \texttt{/api/notifications} retourne uniquement les messages du compte authentifié ; elle accepte les paramètres de requête \texttt{page} et \texttt{limit} (plafonné à 30~éléments par page côté serveur), trie par \texttt{createdAt} décroissant (plus récent en premier), et fournit dans la réponse JSON le tableau \texttt{notifications}, le total \texttt{unreadCount} (pour le badge de la barre de navigation) et le booléen \texttt{hasMore} (obtenu en demandant une ligne supplémentaire côté base puis en tronquant à la taille de page). L'action \texttt{PUT /api/notifications/:id/read} marque comme lu si la notification appartient au demandeur. Tous les rôles, y compris l'administrateur, utilisent ce même canevas : il n'existe pas d'écran séparé listant les messages «\,de toute la plateforme\,» dans la version livrée. À côté de ce flux, les échecs d'envoi SMTP (jobs e-mail non délivrés) sont diagnostiqués via \texttt{/api/admin/failed-notifications} et une page d'administration dédiée (\texttt{/admin/email-failures}) permettant une relance ciblée --- ce mécanisme est distinct des notifications in-app. Pour les événements critiques (sécurité, paiement, retrait, décision sur projet, etc.), un e-mail est produit selon la politique \texttt{emailNotificationPolicy}, via files BullMQ/Redis et workers ; les indisponibilités SMTP sont journalisées et peuvent donner lieu à reprises.
 
 \subsubsection*{Bibliothèques utilisées}
 \begin{itemize}
@@ -1870,7 +1931,7 @@ Les notifications \textit{in-app} reposent sur la collection MongoDB \texttt{not
 \subsubsection*{Capture d'écran}
 \begin{figure}[H]
     \centering
-    \safeincludegraphics[width=\textwidth,height=0.98\textheight,keepaspectratio]{screens/notification.png}
+    \safeincludegraphics[width=0.88\textwidth,height=0.42\textheight,keepaspectratio]{screens/notification.png}
     \caption{Notifications (\texttt{screens/notification.png}) : liste personnelle paginée}
     \label{fig:notification}
 \end{figure}
@@ -1879,7 +1940,7 @@ Les notifications \textit{in-app} reposent sur la collection MongoDB \texttt{not
 DLQ \texttt{failedWorkflowEvents} pour les événements n8n irrécupérables, collections d'événements d'échec côté e-mail et \textit{payouts} exposées à l'administration pour reprise, politique de filtrage «\,critique ON / bruit OFF\,» pour les e-mails transactionnels.
 
 \subsection{Stratégie de test}
-La validation a été effectuée au moyen de \textbf{scripts E2E Node.js} qui simulent des parcours métier complets via l'API, en l'absence de \textit{frameworks} de tests unitaires (le projet n'utilise ni Jest, ni Mocha, ni Cypress). Les fichiers concernés résident sous \texttt{backend/scripts/} :
+La validation a été effectuée au moyen de scripts E2E Node.js qui simulent des parcours métier complets via l'API, en l'absence de \textit{frameworks} de tests unitaires (le projet n'utilise ni Jest, ni Mocha, ni Cypress). Les fichiers concernés résident sous \texttt{backend/scripts/} :
 \begin{itemize}
     \item \texttt{e2e-lifecycle-payout-api.js} : inscription avec vérification OTP, création projet (\texttt{DRAFT}), soumission à l'analyse IA, validation et publication par l'administrateur, contribution + \textit{webhook} signé, création du \textit{payout}, saisie des coordonnées bancaires chiffrées, approbation administrateur.
     \item \texttt{e2e-lifecycle-scenarios.js} et \texttt{e2e-edgecases-api.js} : scénarios limites (annulation d'investissement, relance de paiement, sur-financement et remboursement, transitions de statut invalides, erreurs de validation).
@@ -1887,7 +1948,7 @@ La validation a été effectuée au moyen de \textbf{scripts E2E Node.js} qui si
 \end{itemize}
 Le script PowerShell \texttt{scripts/smoke.ps1} (racine du dépôt) enchaîne des requêtes \texttt{GET} anonymes (\texttt{/api/health}, \texttt{/api/projects/public}) pour une vérification rapide après déploiement ; le backend doit être démarré (URL par défaut \texttt{http://localhost:5000}, surchargée par \texttt{-BaseUrl} si besoin pour suivre la variable \texttt{PORT}).
 
-En complément, des \textbf{tests manuels guidés} ont été réalisés sur l'interface web (parcours porteur de projet, investisseur, administrateur) afin de vérifier l'ergonomie, la cohérence des messages et la fidélité de l'affichage des statuts.
+En complément, des tests manuels guidés ont été réalisés sur l'interface web (parcours porteur de projet, investisseur, administrateur) afin de vérifier l'ergonomie, la cohérence des messages et la fidélité de l'affichage des statuts.
 
 \subsection{Déploiement}
 La plateforme est conçue pour être déployée sur un environnement cloud managé (ou sur un serveur institutionnel) avec séparation des composants :
@@ -1918,9 +1979,9 @@ Le travail réalisé converge vers une plateforme web de financement participati
     \item Une \textbf{gouvernance et conformité} renforcées : rôles, modération, signalements, journalisation des actions, notifications personnelles de suivi et relances contrôlées des files d'échec (e-mails, \textit{payouts}).
 \end{itemize}
 
-Sur le plan technique, plusieurs solutions structurantes ont été conçues pour traiter les difficultés rencontrées : un \textit{webhook} de paiement \textbf{signé en HMAC et idempotent} grâce à un index unique \texttt{(provider, providerPaymentId)} ; une \textbf{mise à jour conditionnelle atomique} de la collection \texttt{projects} (\texttt{currentFunding} + montant $\leq$ \texttt{fundingGoal}) qui préserve l'intégrité du financement sous charge concurrente ; un \textbf{repli déterministe} pour le moteur de recommandation et un cron \texttt{retryStuckAiAnalyses} pour les projets bloqués en \texttt{AWAITING\_AI} en cas d'indisponibilité du LLM ; quatre files \textit{dead-letter} côté collections \texttt{failedWorkflowEvents}, \texttt{failedRefundEvents}, \texttt{failedPayoutEvents} et \texttt{failedCancellationEvents}, qui rendent visible toute erreur définitive dans les chaînes asynchrones n8n / BullMQ et permettent une reprise manuelle ; enfin, le \textbf{chiffrement AES-256-GCM} des RIB avec un IV unique par enregistrement assure la confidentialité des coordonnées bancaires.
+Sur le plan technique, plusieurs solutions structurantes ont été conçues pour traiter les difficultés rencontrées : un \textit{webhook} de paiement signé en HMAC et idempotent grâce à un index unique \texttt{(provider, providerPaymentId)} ; une mise à jour conditionnelle atomique de la collection \texttt{projects} (\texttt{currentFunding} + montant $\leq$ \texttt{fundingGoal}) qui préserve l'intégrité du financement sous charge concurrente ; un repli déterministe pour le moteur de recommandation et un cron \texttt{retryStuckAiAnalyses} pour les projets bloqués en \texttt{AWAITING\_AI} en cas d'indisponibilité du LLM ; quatre files \textit{dead-letter} côté collections \texttt{failedWorkflowEvents}, \texttt{failedRefundEvents}, \texttt{failedPayoutEvents} et \texttt{failedCancellationEvents}, qui rendent visible toute erreur définitive dans les chaînes asynchrones n8n / BullMQ et permettent une reprise manuelle ; enfin, le chiffrement AES-256-GCM des RIB avec un IV unique par enregistrement assure la confidentialité des coordonnées bancaires.
 
-Indépendamment de la dimension strictement logicielle, le dispositif adopté illustre une démarche articulée d'\textbf{ingénierie des systèmes d'information}, associant capture des besoins, modélisation UML, conception des données et validation par scénarios métier.
+Indépendamment de la dimension strictement logicielle, le dispositif adopté illustre une démarche articulée d'ingénierie des systèmes d'information, associant capture des besoins, modélisation UML, conception des données et validation par scénarios métier.
 
 \section*{Apports personnels et compétences acquises}
 Ce projet de fin d'études a constitué une expérience formatrice à plusieurs niveaux :
@@ -1954,7 +2015,7 @@ Plusieurs améliorations peuvent être envisagées pour enrichir le système :
     \item \textbf{Qualité} : automatiser des tests UI et renforcer les tests de non-régression sur le cycle de vie projet/paiement/\textit{payout}.
 \end{itemize}
 
-Ce travail illustre par ailleurs l’intérêt d’intégrer l’IA dans un système d’information métier afin d’améliorer la transparence (rapport lisible) et l’aide à la décision (recommandations), tout en conservant une gouvernance humaine (validation et modération) ; l’approche proposée peut être transposée à d’autres SI où la décision doit être \textbf{expliquée} et \textbf{traçable}.
+Ce travail illustre par ailleurs l’intérêt d’intégrer l’IA dans un système d’information métier afin d’améliorer la transparence (rapport lisible) et l’aide à la décision (recommandations), tout en conservant une gouvernance humaine (validation et modération) ; l’approche proposée peut être transposée à d’autres SI où la décision doit être expliquée et traçable.
 
 % ==============================
 % WEBOGRAPHIE
