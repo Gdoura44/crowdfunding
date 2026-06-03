@@ -36,6 +36,7 @@
       <packagedElement xmi:type="uml:Enumeration" xmi:id="ucc_en_RoleUtilisateur" name="RoleUtilisateur">
         <ownedLiteral xmi:id="ucc_lit_role_user" name="USER"/>
         <ownedLiteral xmi:id="ucc_lit_role_admin" name="ADMIN"/>
+        <ownedLiteral xmi:id="ucc_lit_role_expert" name="EXPERT"/>
       </packagedElement>
 
       <packagedElement xmi:type="uml:Enumeration" xmi:id="ucc_en_PreferenceRisque" name="PreferenceRisque">
@@ -60,6 +61,7 @@
       </packagedElement>
       <packagedElement xmi:type="uml:Enumeration" xmi:id="ucc_en_StatutInvestissement" name="StatutInvestissement">
         <ownedLiteral xmi:id="ucc_lit_si_initiated" name="INITIATED"/>
+        <ownedLiteral xmi:id="ucc_lit_si_pending_consultation" name="PENDING_CONSULTATION"/>
         <ownedLiteral xmi:id="ucc_lit_si_cancelling" name="CANCELLING"/>
         <ownedLiteral xmi:id="ucc_lit_si_cancelled" name="CANCELLED"/>
         <ownedLiteral xmi:id="ucc_lit_si_success" name="SUCCESS"/>
@@ -117,6 +119,7 @@
       <packagedElement xmi:type="uml:Class" xmi:id="ucc_cls_UserProfile" name="UserProfile">
         <ownedAttribute xmi:id="ucc_attr_up_firstName" name="firstName" visibility="private" type="ucc_pt_String"/>
         <ownedAttribute xmi:id="ucc_attr_up_lastName" name="lastName" visibility="private" type="ucc_pt_String"/>
+        <ownedAttribute xmi:id="ucc_attr_up_cabinetName" name="cabinetName" visibility="private" type="ucc_pt_String"/>
         <ownedAttribute xmi:id="ucc_attr_up_phone" name="phone" visibility="private" type="ucc_pt_String"/>
         <ownedAttribute xmi:id="ucc_attr_up_riskPref" name="riskPreference" visibility="private" type="ucc_en_PreferenceRisque"/>
         <ownedAttribute xmi:id="ucc_attr_up_prefCats" name="preferredCategories" visibility="private" type="ucc_pt_String" isMultivalued="true"/>
@@ -151,6 +154,14 @@
         <ownedAttribute xmi:id="ucc_attr_p_isCreatorDeleted" name="isCreatorDeleted" visibility="private" type="ucc_pt_Boolean"/>
         <ownedAttribute xmi:id="ucc_attr_p_publishedAt" name="publishedAt" visibility="private" type="ucc_pt_Date"/>
         <ownedAttribute xmi:id="ucc_attr_p_fundedAt" name="fundedAt" visibility="private" type="ucc_pt_Date"/>
+        
+        <ownedAttribute xmi:id="ucc_attr_p_realBudget" name="realBudget" visibility="private" type="ucc_pt_Number"/>
+        <ownedAttribute xmi:id="ucc_attr_p_isCompany" name="isCompany" visibility="private" type="ucc_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucc_attr_p_companyName" name="companyName" visibility="private" type="ucc_pt_String"/>
+        <ownedAttribute xmi:id="ucc_attr_p_companyMatricule" name="companyMatricule" visibility="private" type="ucc_pt_String"/>
+        <ownedAttribute xmi:id="ucc_attr_p_companyRNE" name="companyRNE" visibility="private" type="ucc_pt_String"/>
+        <ownedAttribute xmi:id="ucc_attr_p_images" name="images" visibility="private" type="ucc_pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="ucc_attr_p_documents" name="documents" visibility="private" type="ucc_pt_String" isMultivalued="true"/>
         <ownedAttribute xmi:id="ucc_attr_p_aiAnalysis" name="aiAnalysis" visibility="private" type="ucc_cls_AiAnalysis"/>
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="ucc_cls_Investissement" name="Investissement">
@@ -165,6 +176,8 @@
         <ownedAttribute xmi:id="ucc_attr_i_cancellingStartedAt" name="cancellingStartedAt" visibility="private" type="ucc_pt_Date"/>
         <ownedAttribute xmi:id="ucc_attr_i_scheduledForDeactivation" name="scheduledForDeactivation" visibility="private" type="ucc_pt_Boolean"/>
         <ownedAttribute xmi:id="ucc_attr_i_graceMinutes" name="cancellationGracePeriodMinutes" visibility="private" type="ucc_pt_Number"/>
+        <ownedAttribute xmi:id="ucc_attr_i_wantsConsultation" name="wantsConsultation" visibility="private" type="ucc_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucc_attr_i_tipAmount" name="tipAmount" visibility="private" type="ucc_pt_Number"/>
         <ownedOperation xmi:id="ucc_op_i_annuler" name="annuler"/>
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="ucc_cls_Transaction" name="Transaction">
@@ -193,8 +206,10 @@
         <ownedAttribute xmi:id="ucc_attr_n_title" name="title" visibility="private" type="ucc_pt_String"/>
         <ownedAttribute xmi:id="ucc_attr_n_message" name="message" visibility="private" type="ucc_pt_String"/>
         <ownedAttribute xmi:id="ucc_attr_n_read" name="read" visibility="private" type="ucc_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucc_attr_n_readByAdmin" name="readByAdmin" visibility="private" type="ucc_pt_Boolean"/>
         <ownedAttribute xmi:id="ucc_attr_n_relatedEntityId" name="relatedEntityId" visibility="private" type="ucc_pt_ObjectId"/>
         <ownedAttribute xmi:id="ucc_attr_n_relatedEntityType" name="relatedEntityType" visibility="private" type="ucc_en_RelatedEntityType"/>
+        <ownedAttribute xmi:id="ucc_attr_n_createdAt" name="createdAt" visibility="private" type="ucc_pt_Date"/>
         <ownedOperation xmi:id="ucc_op_n_lue" name="marquerCommeLue"/>
       </packagedElement>
     </packagedElement>

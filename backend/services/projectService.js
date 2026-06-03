@@ -11,7 +11,6 @@ const { enqueueRiskAnalysisJob } = require("../integrations/riskAnalysisQueue");
 const { writeAudit } = require("./auditService");
 const notificationService = require("./notificationService");
 const { enqueueEmailForNotification } = require("../integrations/emailQueue");
-const FailedWorkflowEvent = require("../models/FailedWorkflowEvent");
 const {
   ProjectStatus,
   AIStatus,
@@ -46,19 +45,22 @@ async function createDraftProject(creatorId, payload) {
   if (startAt < minStartAt) {
     throw new HttpError(
       400,
-      `Date de démarrage trop proche. Choisissez une date au moins à J+${MIN_PROJECT_START_DELAY_DAYS}.`
+      `Date de démarrage trop proche. Choisissez une date au moins à J+${MIN_PROJECT_START_DELAY_DAYS}.`,
     );
   }
 
   if (deadline <= startAt) {
-    throw new HttpError(400, "La date limite doit être postérieure à la date de démarrage.");
+    throw new HttpError(
+      400,
+      "La date limite doit être postérieure à la date de démarrage.",
+    );
   }
   const minDurationDeadline = addDaysFrom(startAt, MIN_PROJECT_DURATION_DAYS);
   minDurationDeadline.setHours(0, 0, 0, 0);
   if (deadline < minDurationDeadline) {
     throw new HttpError(
       400,
-      `Durée trop courte. La campagne doit durer au moins ${MIN_PROJECT_DURATION_DAYS} jours (≈ 1 mois) après le démarrage.`
+      `Durée trop courte. La campagne doit durer au moins ${MIN_PROJECT_DURATION_DAYS} jours (≈ 1 mois) après le démarrage.`,
     );
   }
 
@@ -86,8 +88,7 @@ async function createDraftProject(creatorId, payload) {
       userId: creatorId,
       type: "PROJECT_CREATED",
       title: `Projet créé — ${project.title}`,
-      message:
-        `Votre projet “${project.title}” est enregistré en brouillon. Vous pouvez le modifier puis le soumettre quand vous êtes prêt(e).`,
+      message: `Votre projet “${project.title}” est enregistré en brouillon. Vous pouvez le modifier puis le soumettre quand vous êtes prêt(e).`,
       relatedEntityId: project._id,
       relatedEntityType: "PROJECT",
     });
@@ -104,7 +105,10 @@ async function getProjectForEdit(creatorId, projectId) {
   if (!project) throw new HttpError(404, "Projet introuvable.");
 
   if (!isEditableByCreator(project.status)) {
-    throw new HttpError(403, "Modification impossible dans l’état actuel du projet.");
+    throw new HttpError(
+      403,
+      "Modification impossible dans l’état actuel du projet.",
+    );
   }
   return project;
 }
@@ -114,7 +118,10 @@ async function updateProject(creatorId, projectId, changes) {
   if (!project) throw new HttpError(404, "Projet introuvable.");
 
   if (!isEditableByCreator(project.status)) {
-    throw new HttpError(403, "Modification impossible dans l’état actuel du projet.");
+    throw new HttpError(
+      403,
+      "Modification impossible dans l’état actuel du projet.",
+    );
   }
 
   // Appliquer les changements
@@ -126,9 +133,14 @@ async function updateProject(creatorId, projectId, changes) {
   if (changes.startAt != null) project.startAt = changes.startAt;
   if (changes.deadline != null) project.deadline = changes.deadline;
   if (changes.isCompany != null) project.isCompany = changes.isCompany;
-  if (changes.companyName != null) project.companyName = changes.isCompany ? changes.companyName : "";
-  if (changes.companyMatricule != null) project.companyMatricule = changes.isCompany ? changes.companyMatricule : "";
-  if (changes.companyRNE != null) project.companyRNE = changes.isCompany ? changes.companyRNE : "";
+  if (changes.companyName != null)
+    project.companyName = changes.isCompany ? changes.companyName : "";
+  if (changes.companyMatricule != null)
+    project.companyMatricule = changes.isCompany
+      ? changes.companyMatricule
+      : "";
+  if (changes.companyRNE != null)
+    project.companyRNE = changes.isCompany ? changes.companyRNE : "";
 
   // Re-appliquer les règles de dates (comme la création)
   // Règles métier dates (PFE):
@@ -143,18 +155,21 @@ async function updateProject(creatorId, projectId, changes) {
   if (startAt < minStartAt) {
     throw new HttpError(
       400,
-      `Date de démarrage trop proche. Choisissez une date au moins à J+${MIN_PROJECT_START_DELAY_DAYS}.`
+      `Date de démarrage trop proche. Choisissez une date au moins à J+${MIN_PROJECT_START_DELAY_DAYS}.`,
     );
   }
   if (deadline <= startAt) {
-    throw new HttpError(400, "La date limite doit être postérieure à la date de démarrage.");
+    throw new HttpError(
+      400,
+      "La date limite doit être postérieure à la date de démarrage.",
+    );
   }
   const minDurationDeadline = addDaysFrom(startAt, MIN_PROJECT_DURATION_DAYS);
   minDurationDeadline.setHours(0, 0, 0, 0);
   if (deadline < minDurationDeadline) {
     throw new HttpError(
       400,
-      `Durée trop courte. La campagne doit durer au moins ${MIN_PROJECT_DURATION_DAYS} jours (≈ 1 mois) après le démarrage.`
+      `Durée trop courte. La campagne doit durer au moins ${MIN_PROJECT_DURATION_DAYS} jours (≈ 1 mois) après le démarrage.`,
     );
   }
 
@@ -163,7 +178,9 @@ async function updateProject(creatorId, projectId, changes) {
 
   // Conception: si REJECTED → repasser en DRAFT et effacer les champs de rejet.
   if (project.status === ProjectStatus.REJECTED) {
-    transitionProjectStatus(project, ProjectStatus.DRAFT, { action: "EDIT_REJECTED_PROJECT" });
+    transitionProjectStatus(project, ProjectStatus.DRAFT, {
+      action: "EDIT_REJECTED_PROJECT",
+    });
     project.rejectionReason = "";
     project.rejectedBy = undefined;
     project.rejectedAt = undefined;
@@ -171,7 +188,14 @@ async function updateProject(creatorId, projectId, changes) {
 
   const editedFields = Object.keys(changes || {});
   const affectsAnalysis = editedFields.some((k) =>
-    ["title", "description", "category", "fundingGoal", "startAt", "deadline"].includes(String(k))
+    [
+      "title",
+      "description",
+      "category",
+      "fundingGoal",
+      "startAt",
+      "deadline",
+    ].includes(String(k)),
   );
 
   // Si le créateur modifie son projet pendant la revue admin, on relance l’analyse IA et on
@@ -179,7 +203,9 @@ async function updateProject(creatorId, projectId, changes) {
   if (project.status === ProjectStatus.UNDER_REVIEW && affectsAnalysis) {
     // Intention: dès que le créateur modifie un champ impactant, l’ancienne analyse n’est plus fiable.
     // On relance donc automatiquement l’analyse IA (au mieux, sans bloquer l’utilisateur).
-    transitionProjectStatus(project, ProjectStatus.AWAITING_AI, { action: "EDIT_PROJECT_RERUN_AI" });
+    transitionProjectStatus(project, ProjectStatus.AWAITING_AI, {
+      action: "EDIT_PROJECT_RERUN_AI",
+    });
     project.aiStatus = AIStatus.PENDING;
     project.aiAnalysisRetries = 0;
     project.aiLastError = "";
@@ -226,14 +252,24 @@ async function getProjectById(projectId, userOrId) {
   }
 
   // Rétablir automatiquement en DRAFT si le projet est bloqué en AWAITING_AI sans job ou en échec (ex. Docker hors-ligne)
-  if (project.status === "AWAITING_AI" && (!project.aiJobId || project.aiStatus === "FAILED")) {
-    await Project.updateOne({ _id: project._id }, { status: "DRAFT", aiStatus: "FAILED" });
+  if (
+    project.status === "AWAITING_AI" &&
+    (!project.aiJobId || project.aiStatus === "FAILED")
+  ) {
+    await Project.updateOne(
+      { _id: project._id },
+      { status: "DRAFT", aiStatus: "FAILED" },
+    );
     project.status = "DRAFT";
     project.aiStatus = "FAILED";
   }
-  
-  const userId = typeof userOrId === "object" && userOrId ? (userOrId.id || userOrId._id) : userOrId;
-  const userRole = typeof userOrId === "object" && userOrId ? userOrId.role : "USER";
+
+  const userId =
+    typeof userOrId === "object" && userOrId
+      ? userOrId.id || userOrId._id
+      : userOrId;
+  const userRole =
+    typeof userOrId === "object" && userOrId ? userOrId.role : "USER";
 
   const isOwner = userId && String(project.creatorId) === String(userId);
   const isPublic = isPubliclyVisible(project);
@@ -246,13 +282,26 @@ async function getProjectById(projectId, userOrId) {
   return { project, isOwner: Boolean(isOwner) };
 }
 
-function buildPublicProjectQuery({ status, category, riskLevel, minFunding, maxFunding, q, includeUpcoming }) {
-  const safeStatus = ["ACTIVE", "FUNDED", "CLOSED"].includes(String(status || "").toUpperCase())
+function buildPublicProjectQuery({
+  status,
+  category,
+  riskLevel,
+  minFunding,
+  maxFunding,
+  q,
+  includeUpcoming,
+}) {
+  const safeStatus = ["ACTIVE", "FUNDED", "CLOSED"].includes(
+    String(status || "").toUpperCase(),
+  )
     ? String(status).toUpperCase()
     : "ACTIVE";
   const query = { isArchived: false };
   // La navigation "ACTIVE" inclut aussi les campagnes FUNDED (toujours visibles publiquement).
-  query.status = safeStatus === "ACTIVE" ? { $in: [ProjectStatus.ACTIVE, ProjectStatus.FUNDED] } : safeStatus;
+  query.status =
+    safeStatus === "ACTIVE"
+      ? { $in: [ProjectStatus.ACTIVE, ProjectStatus.FUNDED] }
+      : safeStatus;
   if (!includeUpcoming) {
     query.startAt = { $lte: new Date() };
   }
@@ -302,15 +351,21 @@ async function listPublicProjects({ limit = 20, page = 1 } = {}) {
 
 async function searchPublicProjects(params = {}) {
   const { q, category, riskLevel, status } = params;
-  const minFunding = params.minFunding != null ? Number(params.minFunding) : null;
-  const maxFunding = params.maxFunding != null ? Number(params.maxFunding) : null;
+  const minFunding =
+    params.minFunding != null ? Number(params.minFunding) : null;
+  const maxFunding =
+    params.maxFunding != null ? Number(params.maxFunding) : null;
   const limit = Number(params.limit ?? 20);
-  const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 50) : 20;
+  const safeLimit = Number.isFinite(limit)
+    ? Math.min(Math.max(limit, 1), 50)
+    : 20;
   const p = Number(params.page ?? 1);
   const safePage = Number.isFinite(p) ? Math.max(Math.floor(p), 1) : 1;
   const skip = (safePage - 1) * safeLimit;
   const includeUpcoming =
-    String(params.includeUpcoming || "").trim().toLowerCase() === "true";
+    String(params.includeUpcoming || "")
+      .trim()
+      .toLowerCase() === "true";
 
   const mongoQuery = buildPublicProjectQuery({
     status,
@@ -327,12 +382,19 @@ async function searchPublicProjects(params = {}) {
     : { publishedAt: -1, createdAt: -1 };
 
   const [projects, total] = await Promise.all([
-    Project.find(mongoQuery, mongoQuery.$text ? { score: { $meta: "textScore" } } : undefined)
+    Project.find(
+      mongoQuery,
+      mongoQuery.$text ? { score: { $meta: "textScore" } } : undefined,
+    )
       .sort(sort)
       .skip(skip)
       .limit(safeLimit)
       .lean(),
-    Project.countDocuments(mongoQuery.$text ? { ...mongoQuery, $text: mongoQuery.$text } : mongoQuery),
+    Project.countDocuments(
+      mongoQuery.$text
+        ? { ...mongoQuery, $text: mongoQuery.$text }
+        : mongoQuery,
+    ),
   ]);
 
   const totalPages = Math.max(Math.ceil(total / safeLimit), 1);
@@ -355,13 +417,12 @@ async function submitProjectForAi(creatorId, projectId) {
       409,
       "Soumission impossible : seul un projet en brouillon (DRAFT) peut être soumis.",
       { expected: ProjectStatus.DRAFT, actual: project.status },
-      "INVALID_PROJECT_STATE"
+      "INVALID_PROJECT_STATE",
     );
   }
   if (project.isArchived) {
     throw new HttpError(400, "Soumission impossible : le projet est archivé.");
   }
-
   const deadline = new Date(project.deadline);
   deadline.setHours(0, 0, 0, 0);
   const today = new Date();
@@ -369,13 +430,13 @@ async function submitProjectForAi(creatorId, projectId) {
   if (deadline < today) {
     throw new HttpError(400, "La date limite doit être dans le futur.");
   }
-
   try {
     // Tenter d'enfiler le travail d'analyse d'abord (sans modifier le statut DRAFT en BD)
     const enq = await enqueueRiskAnalysisJob(project);
-    
     // Si l'enfilement réussit, on met à jour le statut en AWAITING_AI
-    transitionProjectStatus(project, ProjectStatus.AWAITING_AI, { action: "SUBMIT_FOR_AI" });
+    transitionProjectStatus(project, ProjectStatus.AWAITING_AI, {
+      action: "SUBMIT_FOR_AI",
+    });
     project.aiStatus = AIStatus.PENDING;
     project.aiQueuedAt = new Date();
     project.aiLastError = "";
@@ -395,7 +456,7 @@ async function submitProjectForAi(creatorId, projectId) {
       503,
       "Le service d'analyse IA est temporairement indisponible. Veuillez réessayer la soumission plus tard.",
       null,
-      "SERVICE_UNAVAILABLE"
+      "SERVICE_UNAVAILABLE",
     );
   }
 
@@ -404,8 +465,7 @@ async function submitProjectForAi(creatorId, projectId) {
       userId: creatorId,
       type: "PROJECT_SUBMITTED",
       title: `Projet soumis — ${project.title}`,
-      message:
-        `Votre projet “${project.title}” a été soumis pour analyse. Vous recevrez une notification quand l’étape suivante commencera.`,
+      message: `Votre projet “${project.title}” a été soumis pour analyse. Vous recevrez une notification quand l’étape suivante commencera.`,
       relatedEntityId: project._id,
       relatedEntityType: "PROJECT",
     });
@@ -423,7 +483,10 @@ async function archiveProject(creatorId, projectId) {
   if (project.isArchived) throw new HttpError(400, "Projet déjà archivé.");
 
   if (!isArchivableByCreator(project.status)) {
-    throw new HttpError(403, "Archivage impossible dans l’état actuel du projet.");
+    throw new HttpError(
+      403,
+      "Archivage impossible dans l’état actuel du projet.",
+    );
   }
 
   project.isArchived = true;
@@ -443,8 +506,7 @@ async function archiveProject(creatorId, projectId) {
       userId: creatorId,
       type: "PROJECT_ARCHIVED",
       title: `Projet archivé — ${project.title}`,
-      message:
-        `Votre projet “${project.title}” est archivé. Il n’apparaît plus dans les listes publiques.`,
+      message: `Votre projet “${project.title}” est archivé. Il n’apparaît plus dans les listes publiques.`,
       relatedEntityId: project._id,
       relatedEntityType: "PROJECT",
     });
@@ -459,19 +521,23 @@ async function archiveProject(creatorId, projectId) {
 async function deleteProject(creatorId, projectId) {
   const project = await Project.findOne({ _id: projectId, creatorId });
   if (!project) throw new HttpError(404, "Projet introuvable.");
-  const snapshot = { _id: project._id, status: project.status, title: project.title };
+  const snapshot = {
+    _id: project._id,
+    status: project.status,
+    title: project.title,
+  };
 
   if (PROJECT_NON_DELETABLE_STATUSES.includes(project.status)) {
     throw new HttpError(
       403,
-      "Suppression impossible : la campagne est déjà active ou clôturée."
+      "Suppression impossible : la campagne est déjà active ou clôturée.",
     );
   }
 
   if (Number(project.currentFunding || 0) > 0) {
     throw new HttpError(
       400,
-      "Suppression impossible : un financement a déjà été enregistré sur ce projet."
+      "Suppression impossible : un financement a déjà été enregistré sur ce projet.",
     );
   }
 
@@ -482,13 +548,15 @@ async function deleteProject(creatorId, projectId) {
   if (successCount > 0) {
     throw new HttpError(
       400,
-      "Suppression impossible : des investissements confirmés existent encore."
+      "Suppression impossible : des investissements confirmés existent encore.",
     );
   }
 
   // Pas de transaction multi-doc: MongoDB standalone (dev local) ne supporte pas les transactions
   // sauf configuration en replica set.
-  const investments = await Investment.find({ projectId: project._id }).select("_id").lean();
+  const investments = await Investment.find({ projectId: project._id })
+    .select("_id")
+    .lean();
   const invIds = investments.map((i) => i._id);
   if (invIds.length) {
     await Transaction.deleteMany({ investmentId: { $in: invIds } });
@@ -510,8 +578,7 @@ async function deleteProject(creatorId, projectId) {
       userId: creatorId,
       type: "PROJECT_DELETED",
       title: "Projet supprimé",
-      message:
-        `Le projet “${snapshot.title}” a été supprimé. Cette action est définitive.`,
+      message: `Le projet “${snapshot.title}” a été supprimé. Cette action est définitive.`,
       relatedEntityId: null,
       relatedEntityType: null,
     });
@@ -531,7 +598,7 @@ async function resubmitRejectedProject(creatorId, projectId, changes) {
       409,
       "Renvoi impossible : le projet n’est pas en état REJECTED.",
       { expected: ProjectStatus.REJECTED, actual: project.status },
-      "INVALID_PROJECT_STATE"
+      "INVALID_PROJECT_STATE",
     );
   }
   if (project.isArchived) {
@@ -542,7 +609,9 @@ async function resubmitRejectedProject(creatorId, projectId, changes) {
   await updateProject(creatorId, projectId, changes);
 
   const updated = await Project.findOne({ _id: projectId, creatorId });
-  transitionProjectStatus(updated, ProjectStatus.AWAITING_AI, { action: "RESUBMIT_REJECTED_PROJECT" });
+  transitionProjectStatus(updated, ProjectStatus.AWAITING_AI, {
+    action: "RESUBMIT_REJECTED_PROJECT",
+  });
   updated.aiStatus = AIStatus.PENDING;
   updated.aiAnalysisRetries = 0;
   updated.rejectionReason = "";

@@ -5,7 +5,7 @@ import { FolderOpen } from "lucide-react";
  * Accepts an optional `icon` component (Lucide) or falls back to FolderOpen.
  */
 export default function EmptyState({
-  icon: Icon = FolderOpen,
+  icon: Icon = FolderOpen, // eslint-disable-line no-unused-vars
   title,
   description,
   children,

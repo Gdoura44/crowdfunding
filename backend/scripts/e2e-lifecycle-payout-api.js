@@ -225,7 +225,7 @@ async function main() {
   console.log("[TRACER] Submitting Creator bank details...");
   const bankJson = JSON.stringify({
     accountHolderName: "FINCOLLAB ENTERPRISE SA",
-    iban: "TN590000000000000000000000",
+    iban: "TN5900000000000000000000",
     bankName: "BIAT Tunisie",
     swiftCode: "BIATTNTT",
   });

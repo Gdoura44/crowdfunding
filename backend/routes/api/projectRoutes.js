@@ -187,7 +187,6 @@ router.get(
     if (!mongoose.isValidObjectId(req.params.id)) {
       throw new HttpError(400, "Identifiant de projet invalide.");
     }
-    const userId = req.user?.id || null;
     const { project, isOwner } = await projectService.getProjectById(req.params.id, req.user || null);
     const isPublicStatus = ["ACTIVE", "FUNDED"].includes(String(project.status));
     if (!isOwner && (!isPublicStatus || project.isArchived)) {

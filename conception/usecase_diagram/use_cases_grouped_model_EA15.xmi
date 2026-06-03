@@ -8,28 +8,32 @@
       <packagedElement xmi:type="uml:Package" xmi:id="pkg_uc_grouped_actors_ea15" name="Acteurs">
         <packagedElement xmi:type="uml:Actor" xmi:id="act_visiteur_g2" name="Visiteur"/>
         <packagedElement xmi:type="uml:Actor" xmi:id="act_utilisateur_g2" name="Utilisateur"/>
+        <packagedElement xmi:type="uml:Actor" xmi:id="act_expert_g2" name="Expert en finance"/>
         <packagedElement xmi:type="uml:Actor" xmi:id="act_admin_g2" name="Administrateur"/>
-        <packagedElement xmi:type="uml:Actor" xmi:id="act_pay_g2" name="Passerelle_de_paiement_(mock)"/>
+        <packagedElement xmi:type="uml:Actor" xmi:id="act_pay_g2" name="Système de paiement"/>
+        <packagedElement xmi:type="uml:Actor" xmi:id="act_bank_g2" name="Système bancaire"/>
       </packagedElement>
 
       <packagedElement xmi:type="uml:Package" xmi:id="pkg_uc_grouped_usecases_ea15" name="Use_Cases">
         <packagedElement xmi:type="uml:UseCase" xmi:id="uc_auth_g2" name="S'authentifier"/>
-
-        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_account_g2" name="Gérer mon compte"/>
-        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_discover_g2" name="Découvrir les projets"/>
-        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_manage_projects_g2" name="Gérer mes projets"/>
-        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_manage_contrib_g2" name="Gérer mes contributions"/>
-        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_manage_payouts_g2" name="Gérer mes retraits"/>
+        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_account_g2" name="Gérer son compte"/>
+        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_discover_g2" name="Consulter les projets"/>
+        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_manage_projects_g2" name="Gérer ses projets"/>
+        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_manage_contrib_g2" name="Gérer ses contributions"/>
+        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_manage_payouts_g2" name="Gérer ses retraits"/>
         <packagedElement xmi:type="uml:UseCase" xmi:id="uc_interact_g2" name="Interagir avec un projet"/>
-
+        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_consultations_g2" name="Gérer les consultations"/>
+        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_expert_validate_g2" name="Évaluer les risques d'un projet"/>
+	<packagedElement xmi:type="uml:UseCase" xmi:id="uc_register_g2" name="S'inscrire"/>
+        
         <!-- Admin minimal set -->
-        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_admin_projects_g2" name="Gérer les projets (admin)"/>
-        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_admin_users_g2" name="Gérer les utilisateurs (admin)"/>
-        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_admin_payouts_g2" name="Approuver les retraits (admin)"/>
+        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_admin_projects_g2" name="Gérer les projets"/>
+        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_admin_users_g2" name="Gérer les utilisateurs"/>
+        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_admin_payouts_g2" name="Approuver les demandes de retrait"/>
+        <packagedElement xmi:type="uml:UseCase" xmi:id="uc_admin_moderation_g2" name="Modérer les contenus"/>
       </packagedElement>
 
     </packagedElement>
 
   </uml:Model>
 </xmi:XMI>
-

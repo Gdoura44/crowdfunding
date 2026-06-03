@@ -49,8 +49,25 @@ function validateBankDetailsJsonString(bankDetails) {
   if (!hasIban && !hasRib) {
     throw new HttpError(400, "Coordonnées bancaires invalides : renseignez un RIB ou un IBAN.");
   }
-  if (hasIban && !/^[A-Z]{2}[0-9A-Z]{13,32}$/.test(rawIban)) {
-    throw new HttpError(400, "Coordonnées bancaires invalides : format IBAN incorrect.");
+  if (hasIban) {
+    if (!/^[A-Z]{2}[0-9A-Z]{13,32}$/.test(rawIban)) {
+      throw new HttpError(400, "Coordonnées bancaires invalides : format IBAN incorrect.");
+    }
+    if (rawIban.startsWith("TN")) {
+      const body = rawIban.slice(2);
+      if (!/^\d+$/.test(body)) {
+        throw new HttpError(
+          400,
+          "Coordonnées bancaires invalides : un IBAN tunisien (TN) doit contenir uniquement des chiffres après le préfixe 'TN'."
+        );
+      }
+      if (rawIban.length !== 24) {
+        throw new HttpError(
+          400,
+          "Coordonnées bancaires invalides : un IBAN tunisien (TN) doit contenir exactement 24 caractères."
+        );
+      }
+    }
   }
   if (hasRib && !/^[0-9]{20}$/.test(rawRib)) {
     throw new HttpError(400, "Coordonnées bancaires invalides : le RIB doit contenir 20 chiffres.");
@@ -118,7 +135,7 @@ async function listMyPayouts(creatorId, { limit = 30 } = {}) {
       completedAt: 1,
       createdAt: 1,
     })
-    .populate({ path: "projectId", select: { title: 1, status: 1 }, options: { lean: true } })
+    .populate({ path: "projectId", select: { title: 1, status: 1, realBudget: 1, fundingGoal: 1 }, options: { lean: true } })
     .sort({ createdAt: -1 })
     .limit(safeLimit)
     .lean();
@@ -141,7 +158,7 @@ async function getMyPayout(creatorId, payoutId) {
       completedAt: 1,
       createdAt: 1,
     })
-    .populate({ path: "projectId", select: { title: 1, status: 1 }, options: { lean: true } })
+    .populate({ path: "projectId", select: { title: 1, status: 1, realBudget: 1, fundingGoal: 1 }, options: { lean: true } })
     .lean();
   if (!payout) throw new HttpError(404, "Retrait introuvable.");
   // Ne pas renvoyer les coordonnées bancaires déchiffrées via l’API (minimiser l’exposition).
@@ -228,7 +245,7 @@ async function listAdminPayouts({ status, limit = 50 } = {}) {
       cancelledAt: 1,
       createdAt: 1,
     })
-    .populate({ path: "projectId", select: { title: 1, status: 1 }, options: { lean: true } })
+    .populate({ path: "projectId", select: { title: 1, status: 1, realBudget: 1, fundingGoal: 1 }, options: { lean: true } })
     .populate({
       path: "creatorId",
       select: { email: 1, role: 1, isActive: 1, profile: 1 },
@@ -261,9 +278,17 @@ async function approvePayout({ adminId, payoutId, notes = "" }) {
     throw new HttpError(500, "Erreur interne : impossible de déchiffrer les coordonnées bancaires.");
   }
 
+  const project = await Project.findById(payout.projectId).lean();
+  if (!project) throw new HttpError(404, "Projet associé introuvable.");
+
+  const raised = Number(payout.amount);
+  const { PLATFORM_FEE_RATE } = require("../config/businessRules");
+  const realBudget = project.realBudget ? Number(project.realBudget) : Math.round(raised * (1 - PLATFORM_FEE_RATE));
+
   // Initier un transfert (simulation provider) → PROCESSING.
+  // On ne vire au créateur que la part nette (le budget réel). La commission de 5% reste à la plateforme.
   const transfer = mockPayoutProvider.createTransfer({
-    amount: payout.amount,
+    amount: realBudget,
     currency: "TND",
     referenceId: String(payout._id),
   });

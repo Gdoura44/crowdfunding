@@ -14,6 +14,7 @@ function useHomeMode(loading, isAuthenticated, user) {
   return "member";
 }
 
+// eslint-disable-next-line no-unused-vars
 const BadgeItem = ({ icon: Icon, text }) => (
   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-primary/20 bg-primary/8 text-primary shadow-sm">
     <Icon className="h-3.5 w-3.5" />
@@ -21,6 +22,7 @@ const BadgeItem = ({ icon: Icon, text }) => (
   </span>
 );
 
+// eslint-disable-next-line no-unused-vars
 const InfoCard = ({ icon: Icon, title, children }) => (
   <div className="p-5 rounded-xl border border-border/50 bg-card h-full transition-all hover:shadow-md hover:border-primary/20 group">
     <div className="font-semibold text-foreground mb-2 flex items-center gap-2">
@@ -33,6 +35,7 @@ const InfoCard = ({ icon: Icon, title, children }) => (
   </div>
 );
 
+// eslint-disable-next-line no-unused-vars
 const ActionCard = ({ icon: Icon, title, link, linkText, text }) => (
   <div className="p-5 rounded-xl border border-border/50 bg-card h-full transition-all hover:shadow-md hover:border-primary/20 group">
     <div className="font-semibold text-foreground mb-2 flex items-center gap-2">
@@ -47,6 +50,7 @@ const ActionCard = ({ icon: Icon, title, link, linkText, text }) => (
   </div>
 );
 
+// eslint-disable-next-line no-unused-vars
 const FeatureCard = ({ icon: Icon, title, text }) => (
   <Card className="h-full border-border/50 bg-card group hover:border-primary/25 transition-all duration-300">
     <CardContent className="p-6">
@@ -71,6 +75,7 @@ const StepItem = ({ num, title, text }) => (
   </div>
 );
 
+// eslint-disable-next-line no-unused-vars
 const PolicyItem = ({ icon: Icon, title, text }) => (
   <div className="flex gap-4 group">
     <div className="flex-shrink-0 mt-0.5">

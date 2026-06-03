@@ -1,82 +1,95 @@
 @startuml diagramme_paquetages_pfe
 ' =============================================================================
-' Diagramme de paquetages — vue logique (rapport PFE)
-' - Lecture « FSEG » : découpage en couches (présentation, applicatif, externes)
-'   et paquetages métier cohérents avec le chapitre besoins / conception.
-' - Alignement code : backend/routes/api/index.js, routes/internal/*, app.js
-' - Rendu fiable : direction verticale (top → bottom), pas de colonne droite
-'   (Graphviz/PlantUML y place souvent les nœuds sous le serveur).
-' Export : plantuml -tpng diagramme_paqueage.txt
+' Diagramme de paquetages (lisible dans le rapport)
 ' =============================================================================
 
 top to bottom direction
-skinparam dpi 150
-skinparam defaultFontName "Times New Roman"
-skinparam defaultFontSize 11
 skinparam monochrome true
 skinparam shadowing false
-
-skinparam packageStyle rectangle
-skinparam packageFontStyle bold
-skinparam packageFontSize 12
-
-skinparam ArrowColor black
-skinparam packageBorderColor black
+skinparam backgroundColor white
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+skinparam packageStyle folder
 skinparam packageBackgroundColor white
+skinparam packageBorderColor black
+skinparam packageFontStyle bold
+skinparam ArrowColor black
+skinparam ArrowThickness 1.5
 skinparam linetype ortho
-skinparam ranksep 28
-skinparam nodesep 18
+skinparam roundcorner 0
+skinparam handwritten false
+skinparam nodesep 50
+skinparam ranksep 42
+skinparam dpi 240
 
-title Diagramme de paquetages — vue logique\n(plateforme de financement collaboratif)
+title Architecture de logiciel — Plateforme de financement collaboratif
 
-' --- Couche présentation (IHM / boundary) ---
-package "Couche présentation" as COUCH_PRES {
-  rectangle "Interface utilisateur\n• React (SPA, Vite)\n• Appels REST /api/*\n• Authentification : cookies HttpOnly" as UI
+' ─────────── Présentation ───────────
+package "client" as PKG_CLIENT {
+  rectangle "React · Vite\npages/ · components/ · api/" as N_CLIENT
 }
 
-' --- Couche applicative (logique métier + exposition API) ---
-package "Couche applicative — serveur Node.js / Express" as COUCH_APP {
-
-  rectangle "Paquetage Comptes\n----\nREST : /api/auth · /api/users\nServices : authService, accountService" as PKG_COMPTES
-
-  rectangle "Paquetage Projets\n----\nREST : /api/projects · /api/recommendations\nPOST /api/projects/:id/chat · …/comments\nServices : projectService, recommendationService,\ngeminiChatService" as PKG_PROJ
-
-  rectangle "Paquetage Contributions & finance\n----\nREST : /api/investments · /api/payouts · /api/invoices\nPOST /api/webhooks/mock-payments\nServices : investmentService, payoutService, invoiceService" as PKG_FIN
-
-  rectangle "Paquetage Échanges & modération\n----\nREST : /api/notifications · /api/reports · /api/expert\nServices : notificationService, reportService, expertService" as PKG_ECH
-
-  rectangle "Paquetage Administration\n----\nREST : /api/admin/*\nServices : adminProjectService, adminUserService,\nadminOpsService" as PKG_ADM
-
-  rectangle "Paquetage API interne\n----\nREST : /internal/* (Bearer token)\nworkflowRoutes · cronRoutes\nServices : workflowInternalService,\ncronService, investmentCronService,\nsessionCronService, geminiRiskService,\nriskHeuristicService" as PKG_INT
-
-  PKG_COMPTES -[hidden]right- PKG_PROJ
-  PKG_PROJ -[hidden]right- PKG_FIN
-  PKG_ECH -[hidden]right- PKG_ADM
-  PKG_ADM -[hidden]right- PKG_INT
-  PKG_COMPTES -[hidden]down- PKG_ECH
-  PKG_PROJ -[hidden]down- PKG_ADM
-  PKG_FIN -[hidden]down- PKG_INT
+' ─────────── Entrée API ───────────
+package "middleware" as PKG_MW {
+  rectangle "auth · rôles · rate limit\nerrorHandler · upload" as N_MW
 }
 
-' --- Systèmes externes & persistance (une rangée sous le serveur) ---
+package "routes" as PKG_ROUTES {
+  rectangle "/api/* · /internal/*\nwebhooks" as N_ROUTES
+}
+
+' ─────────── Métier ───────────
 together {
-  database "MongoDB\n(persistance document)" as EXT_DB
-  queue "BullMQ / Redis\n(files asynchrones)" as EXT_Q
-  cloud "n8n\n(orchestration des workflows)" as EXT_N8N
+  package "services" as PKG_SVC {
+    rectangle "*Service.js\nrègles métier" as N_SVC
+  }
+  package "validators" as PKG_VAL {
+    rectangle "validators/\nschémas Zod" as N_VAL
+  }
 }
 
-EXT_DB -[hidden]right- EXT_Q
-EXT_Q -[hidden]right- EXT_N8N
+package "utils" as PKG_UTIL {
+  rectangle "HttpError · email\ncrypto · transactions" as N_UTIL
+}
 
-COUCH_APP -[hidden]down- EXT_Q
+package "config" as PKG_CFG {
+  rectangle "businessRules\nprojectLifecycle · categories" as N_CFG
+}
 
-' --- Dépendances (entre frontières de paquetages / systèmes externes) ---
-COUCH_PRES -down-> COUCH_APP : HTTPS (JSON)
+' ─────────── Persistance ───────────
+together {
+  package "models" as PKG_MODELS {
+    rectangle "Mongoose\nUser · Project · Investment · …" as N_MODELS
+  }
+  package "integrations" as PKG_INT {
+    rectangle "paiement démo · BullMQ/Redis\nworkers · files" as N_INT
+  }
+}
 
-COUCH_APP -down-> EXT_DB : persistance (Mongoose)
+database "MongoDB" as PKG_DB
 
-COUCH_APP -down-> EXT_Q : files asynchrones (BullMQ)
+' ─────────── Disposition (colonne centrale) ───────────
+PKG_CLIENT -[hidden]down- PKG_MW
+PKG_MW -[hidden]down- PKG_ROUTES
+PKG_ROUTES -[hidden]down- PKG_SVC
+PKG_SVC -[hidden]right- PKG_VAL
+PKG_SVC -[hidden]down- PKG_CFG
+PKG_CFG -[hidden]down- PKG_UTIL
+PKG_UTIL -[hidden]down- PKG_MODELS
+PKG_MODELS -[hidden]right- PKG_INT
+PKG_MODELS -[hidden]down- PKG_DB
+PKG_INT -[hidden]down- PKG_DB
 
-EXT_N8N -up-> COUCH_APP : callbacks HTTP\nPOST /internal/*
+' ─────────── Dépendances ───────────
+PKG_CLIENT -down-> PKG_ROUTES : HTTPS
+PKG_ROUTES -down-> PKG_MW
+PKG_ROUTES -down-> PKG_SVC
+PKG_ROUTES -down-> PKG_VAL
+PKG_VAL -down-> PKG_CFG
+PKG_SVC -down-> PKG_CFG
+PKG_SVC -down-> PKG_UTIL
+PKG_SVC -down-> PKG_MODELS
+PKG_SVC -down-> PKG_INT
+PKG_MODELS -down-> PKG_DB
 
 @enduml

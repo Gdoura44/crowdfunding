@@ -45,20 +45,58 @@ export default function Register() {
   const [fieldErrors, setFieldErrors] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const getFieldError = (fieldName) => fieldErrors.find(e => e.field === fieldName)?.message;
+  const hasError = (fieldName) => fieldErrors.some(e => e.field === fieldName);
+
   async function onSubmit(e) {
     e.preventDefault();
-    setLoading(true);
     setError("");
     setMessage("");
     setFieldErrors([]);
+
+    const errs = [];
+    const emailVal = String(form.email || "").trim();
+    const pw = form.password;
+    const confirmPw = form.confirmPassword;
+
+    // Validate email format
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emailVal)) {
+      errs.push({ field: "email", message: "Veuillez saisir une adresse e-mail valide (ex: vous@exemple.com)." });
+    }
+
+    // Validate password strength
+    const hasLetter = /[A-Za-zÀ-ÿ]/.test(pw);
+    const hasDigit = /\d/.test(pw);
+    if (pw.length < 8 || !hasLetter || !hasDigit) {
+      errs.push({ field: "password", message: "Le mot de passe doit contenir au moins 8 caractères, avec au moins 1 lettre et 1 chiffre." });
+    }
+
+    // Validate password confirmation
+    if (pw !== confirmPw) {
+      errs.push({ field: "confirmPassword", message: "Les mots de passe ne correspondent pas." });
+    }
+
+    // Validate phone number format (only numbers allowed if entered)
+    const rawPhoneDigits = normalizeDigits(form.phoneNational);
+    if (form.phoneNational && !/^\d+$/.test(rawPhoneDigits)) {
+      errs.push({ field: "phone", message: "Le numéro de téléphone doit contenir uniquement des chiffres." });
+    }
+
+    if (errs.length > 0) {
+      setError("Certains champs contiennent des erreurs de saisie.");
+      setFieldErrors(errs);
+      return;
+    }
+
+    setLoading(true);
     setMessage(
       "Après l’inscription, vous recevrez un code de vérification par e‑mail pour activer votre compte."
     );
     try {
       const calling = callingCodeFor(form.phoneCountry);
       const phone =
-        form.phoneNational && normalizeDigits(form.phoneNational)
-          ? `${calling}${normalizeDigits(form.phoneNational)}`
+        form.phoneNational && rawPhoneDigits
+          ? `${calling}${rawPhoneDigits}`
           : "";
       const payload = {
         email: form.email,
@@ -155,27 +193,35 @@ export default function Register() {
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none">E-mail <span className="text-destructive font-bold">*</span></label>
               <input
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
+                className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors ${hasError("email") ? "border-destructive focus-visible:ring-destructive" : ""}`}
                 type="email"
                 required
                 autoComplete="email"
                 value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, email: e.target.value });
+                  if (hasError("email")) setFieldErrors(prev => prev.filter(x => x.field !== "email"));
+                }}
               />
+              {getFieldError("email") && <p className="text-xs text-destructive font-medium mt-1">{getFieldError("email")}</p>}
               {emailHint && <p className="text-xs text-muted-foreground">{emailHint}</p>}
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none">Mot de passe <span className="text-destructive font-bold">*</span></label>
               <input
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
+                className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors ${hasError("password") ? "border-destructive focus-visible:ring-destructive" : ""}`}
                 type="password"
                 required
                 minLength={8}
                 autoComplete="new-password"
                 value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, password: e.target.value });
+                  if (hasError("password")) setFieldErrors(prev => prev.filter(x => x.field !== "password"));
+                }}
               />
+              {getFieldError("password") && <p className="text-xs text-destructive font-medium mt-1">{getFieldError("password")}</p>}
               <p className="text-xs text-muted-foreground">
                 Doit contenir au moins 8 caractères, avec au moins 1 lettre et 1 chiffre.
               </p>
@@ -184,14 +230,18 @@ export default function Register() {
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none">Confirmer le mot de passe <span className="text-destructive font-bold">*</span></label>
               <input
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
+                className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors ${hasError("confirmPassword") ? "border-destructive focus-visible:ring-destructive" : ""}`}
                 type="password"
                 required
                 minLength={8}
                 autoComplete="new-password"
                 value={form.confirmPassword}
-                onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, confirmPassword: e.target.value });
+                  if (hasError("confirmPassword")) setFieldErrors(prev => prev.filter(x => x.field !== "confirmPassword"));
+                }}
               />
+              {getFieldError("confirmPassword") && <p className="text-xs text-destructive font-medium mt-1">{getFieldError("confirmPassword")}</p>}
             </div>
 
             <div className="space-y-2">
@@ -208,18 +258,22 @@ export default function Register() {
                     </option>
                   ))}
                 </select>
-                <div className="flex h-10 w-full sm:w-2/3 rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 overflow-hidden transition-colors">
+                <div className={`flex h-10 w-full sm:w-2/3 rounded-md border bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 overflow-hidden transition-colors ${hasError("phone") ? "border-destructive" : "border-input"}`}>
                   <span className="flex items-center px-3 bg-muted border-r border-input text-muted-foreground text-sm shrink-0">
                     {callingCodeFor(form.phoneCountry)}
                   </span>
                   <input
                     className="w-full bg-transparent px-3 py-2 text-sm focus:outline-none"
                     value={form.phoneNational}
-                    onChange={(e) => setForm({ ...form, phoneNational: e.target.value })}
+                    onChange={(e) => {
+                      setForm({ ...form, phoneNational: e.target.value });
+                      if (hasError("phone")) setFieldErrors(prev => prev.filter(x => x.field !== "phone"));
+                    }}
                     placeholder="Numéro"
                   />
                 </div>
               </div>
+              {getFieldError("phone") && <p className="text-xs text-destructive font-medium mt-1">{getFieldError("phone")}</p>}
             </div>
 
             <Button className="w-full" type="submit" disabled={loading}>

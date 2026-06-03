@@ -41,7 +41,9 @@ export default function MockPayoutTransfer() {
   const [error, setError] = useState("");
   const [showOutcome, setShowOutcome] = useState(false);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleErrorDismiss = useCallback(() => { setError(""); }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (status === "COMPLETED" || status === "FAILED") setShowOutcome(true); }, [status]);
 
   const disabled = !payoutId || !transferId || status === "TRAITEMENT";

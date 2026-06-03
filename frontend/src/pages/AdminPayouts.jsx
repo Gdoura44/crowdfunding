@@ -234,9 +234,20 @@ export default function AdminPayouts() {
                       )}
                     </td>
                     <td className="px-5 py-4">
-                      <div className="font-bold text-base flex items-center gap-1.5">
-                        <ArrowRightLeft className="w-4 h-4 text-muted-foreground" /> {p.amount} <span className="text-xs text-muted-foreground">TND</span>
-                      </div>
+                      {p.projectId && typeof p.projectId === "object" && p.projectId.realBudget && p.projectId.realBudget !== p.amount ? (
+                        <div className="space-y-0.5">
+                          <div className="font-bold text-base flex items-center gap-1.5">
+                            <ArrowRightLeft className="w-4 h-4 text-muted-foreground" /> {Number(p.projectId.realBudget).toLocaleString("fr-FR")} <span className="text-xs text-muted-foreground">TND (Net)</span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground ml-5">
+                            Brut collecté : {Number(p.amount).toLocaleString("fr-FR")} TND
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="font-bold text-base flex items-center gap-1.5">
+                          <ArrowRightLeft className="w-4 h-4 text-muted-foreground" /> {Number(p.amount).toLocaleString("fr-FR")} <span className="text-xs text-muted-foreground">TND</span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-4">
                       <StatusBadge status={p.status} />

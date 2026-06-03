@@ -19,7 +19,7 @@ skinparam wrapWidth 150
 skinparam dpi 150
 scale 0.85
 
-title UC Approuver un retrait (Admin) — Initiation et confirmation (ECB/FSEG)
+title UC Approuver un retrait (Admin) — Initiation et confirmation
 
 actor "Administrateur" as A
 boundary "IHM_Administration" as IHM

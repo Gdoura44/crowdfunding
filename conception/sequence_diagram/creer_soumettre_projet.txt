@@ -18,7 +18,7 @@ skinparam wrapWidth 150
 skinparam dpi 150
 scale 0.85
 
-title UC Créer et soumettre un projet — Brouillon + analyse IA (ECB/FSEG)
+title UC Créer et soumettre un projet — Brouillon + analyse IA
 
 actor "Utilisateur (créateur)" as U
 boundary "IHM_Projet" as IHM

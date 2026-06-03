@@ -19,6 +19,7 @@
       <packagedElement xmi:type="uml:Enumeration" xmi:id="ucap_en_RoleUtilisateur" name="RoleUtilisateur">
         <ownedLiteral xmi:id="ucap_lit_role_user" name="USER"/>
         <ownedLiteral xmi:id="ucap_lit_role_admin" name="ADMIN"/>
+        <ownedLiteral xmi:id="ucap_lit_role_expert" name="EXPERT"/>
       </packagedElement>
 
       <packagedElement xmi:type="uml:Enumeration" xmi:id="ucap_en_PreferenceRisque" name="PreferenceRisque">
@@ -82,6 +83,7 @@
       <packagedElement xmi:type="uml:Class" xmi:id="ucap_cls_UserProfile" name="UserProfile">
         <ownedAttribute xmi:id="ucap_attr_up_firstName" name="firstName" visibility="private" type="ucap_pt_String"/>
         <ownedAttribute xmi:id="ucap_attr_up_lastName" name="lastName" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_up_cabinetName" name="cabinetName" visibility="private" type="ucap_pt_String"/>
         <ownedAttribute xmi:id="ucap_attr_up_phone" name="phone" visibility="private" type="ucap_pt_String"/>
         <ownedAttribute xmi:id="ucap_attr_up_riskPref" name="riskPreference" visibility="private" type="ucap_en_PreferenceRisque"/>
         <ownedAttribute xmi:id="ucap_attr_up_prefCats" name="preferredCategories" visibility="private" type="ucap_pt_String" isMultivalued="true"/>
@@ -116,6 +118,14 @@
         <ownedAttribute xmi:id="ucap_attr_p_isCreatorDeleted" name="isCreatorDeleted" visibility="private" type="ucap_pt_Boolean"/>
         <ownedAttribute xmi:id="ucap_attr_p_publishedAt" name="publishedAt" visibility="private" type="ucap_pt_Date"/>
         <ownedAttribute xmi:id="ucap_attr_p_fundedAt" name="fundedAt" visibility="private" type="ucap_pt_Date"/>
+        
+        <ownedAttribute xmi:id="ucap_attr_p_realBudget" name="realBudget" visibility="private" type="ucap_pt_Number"/>
+        <ownedAttribute xmi:id="ucap_attr_p_isCompany" name="isCompany" visibility="private" type="ucap_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucap_attr_p_companyName" name="companyName" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_p_companyMatricule" name="companyMatricule" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_p_companyRNE" name="companyRNE" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_p_images" name="images" visibility="private" type="ucap_pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="ucap_attr_p_documents" name="documents" visibility="private" type="ucap_pt_String" isMultivalued="true"/>
         <ownedAttribute xmi:id="ucap_attr_p_aiAnalysis" name="aiAnalysis" visibility="private" type="ucap_cls_AiAnalysis"/>
       </packagedElement>
 
@@ -128,6 +138,8 @@
         <ownedAttribute xmi:id="ucap_attr_po_provider" name="provider" visibility="private" type="ucap_pt_String"/>
         <ownedAttribute xmi:id="ucap_attr_po_providerTransferId" name="providerTransferId" visibility="private" type="ucap_pt_String"/>
         <ownedAttribute xmi:id="ucap_attr_po_bankDetails" name="bankDetails" visibility="private" type="ucap_pt_String"/>
+        <ownedAttribute xmi:id="ucap_attr_po_bankDetailsProvidedAt" name="bankDetailsProvidedAt" visibility="private" type="ucap_pt_Date"/>
+        <ownedAttribute xmi:id="ucap_attr_po_notes" name="notes" visibility="private" type="ucap_pt_String"/>
         <ownedAttribute xmi:id="ucap_attr_po_failureReason" name="failureReason" visibility="private" type="ucap_pt_String"/>
         <ownedAttribute xmi:id="ucap_attr_po_transferInitiatedAt" name="transferInitiatedAt" visibility="private" type="ucap_pt_Date"/>
         <ownedAttribute xmi:id="ucap_attr_po_completedAt" name="completedAt" visibility="private" type="ucap_pt_Date"/>
@@ -142,8 +154,10 @@
         <ownedAttribute xmi:id="ucap_attr_n_title" name="title" visibility="private" type="ucap_pt_String"/>
         <ownedAttribute xmi:id="ucap_attr_n_message" name="message" visibility="private" type="ucap_pt_String"/>
         <ownedAttribute xmi:id="ucap_attr_n_read" name="read" visibility="private" type="ucap_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucap_attr_n_readByAdmin" name="readByAdmin" visibility="private" type="ucap_pt_Boolean"/>
         <ownedAttribute xmi:id="ucap_attr_n_relatedEntityId" name="relatedEntityId" visibility="private" type="ucap_pt_ObjectId"/>
         <ownedAttribute xmi:id="ucap_attr_n_relatedEntityType" name="relatedEntityType" visibility="private" type="ucap_en_RelatedEntityType"/>
+        <ownedAttribute xmi:id="ucap_attr_n_createdAt" name="createdAt" visibility="private" type="ucap_pt_Date"/>
       </packagedElement>
     </packagedElement>
 

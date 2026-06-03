@@ -5,17 +5,24 @@
   <uml:Model xmi:id="m_ctx_ea15" name="Contexte_systeme_informatise">
     <packagedElement xmi:type="uml:Package" xmi:id="pkg_ctx_root" name="Contexte_boite_noire">
 
+      <!-- Système central -->
       <packagedElement xmi:type="uml:Package" xmi:id="pkg_ctx_systeme" name="Perimetre_logiciel">
-        <packagedElement xmi:type="uml:Class" xmi:id="cls_systeme_ctx" name="Plateforme_de_financement_collaboratif"/>
+        <packagedElement xmi:type="uml:Class" xmi:id="cls_systeme_ctx" name="Plateforme de financement collaboratif"/>
       </packagedElement>
 
+      <!-- Acteurs externes -->
       <packagedElement xmi:type="uml:Package" xmi:id="pkg_ctx_acteurs" name="Acteurs_externes">
+
+        <!-- Acteurs humains (primaires) -->
         <packagedElement xmi:type="uml:Actor" xmi:id="act_ctx_visiteur" name="Visiteur"/>
-        <packagedElement xmi:type="uml:Actor" xmi:id="act_ctx_utilisateur" name="Utilisateur_authentifie"/>
+        <packagedElement xmi:type="uml:Actor" xmi:id="act_ctx_utilisateur" name="Utilisateur"/>
+        <packagedElement xmi:type="uml:Actor" xmi:id="act_ctx_expert" name="Expert en finance"/>
         <packagedElement xmi:type="uml:Actor" xmi:id="act_ctx_admin" name="Administrateur"/>
-        <packagedElement xmi:type="uml:Actor" xmi:id="act_ctx_passerelle" name="Passerelle_de_paiement_(mock)"/>
-        <packagedElement xmi:type="uml:Actor" xmi:id="act_ctx_n8n" name="Service_d_analyse_risque_(orchestrateur)"/>
-        <packagedElement xmi:type="uml:Actor" xmi:id="act_ctx_smtp" name="Service_SMTP"/>
+
+        <!-- Acteurs systèmes (secondaires) -->
+        <packagedElement xmi:type="uml:Actor" xmi:id="act_ctx_paiement" name="Système de paiement"/>
+        <packagedElement xmi:type="uml:Actor" xmi:id="act_ctx_banque" name="Système bancaire"/>
+
       </packagedElement>
 
     </packagedElement>

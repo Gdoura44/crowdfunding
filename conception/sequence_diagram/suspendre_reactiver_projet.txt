@@ -18,7 +18,7 @@ skinparam wrapWidth 150
 skinparam dpi 150
 scale 0.85
 
-title UC Changer l’état d’un projet (Admin) — Actif / non actif (ECB/FSEG)
+title UC Changer l’état d’un projet (Admin) — Actif / non actif
 
 actor "Administrateur" as A
 boundary "IHM_Administration" as IHM
@@ -27,7 +27,6 @@ entity "Projet" as P
 entity "Retrait (Payout)" as R
 entity "Notification" as N
 
-== Changer l’état ==
 A -> IHM : changerEtatProjet(projectId, action, motif?)
 IHM -> CA : changerEtatProjet(adminId, projectId, action, motif?)
 

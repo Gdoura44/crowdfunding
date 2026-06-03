@@ -31,12 +31,6 @@ function addDays(n) {
   return d.toISOString().slice(0, 10);
 }
 
-function toDateInput(value) {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
-}
 
 function addDaysToDateInput(dateStr, days) {
   const base = dateStr ? new Date(dateStr) : new Date();
@@ -148,8 +142,8 @@ export default function ProjectEdit() {
         setError("Le nom de l'entreprise est obligatoire.");
         return;
       }
-      if (!/^\d{7}\/[A-Z]\/[A-Z]\/\d{3}$/.test(form.companyMatricule)) {
-        setError("Format du matricule fiscal invalide (Ex. 1675849/A/M/000).");
+      if (!/^\d{7}\/[A-HJ-NP-TV-Z]\/[A-Z]\/[A-Z]\/\d{3}$/.test(form.companyMatricule)) {
+        setError("Format du matricule fiscal invalide (Ex. 1675849/A/A/M/000).");
         return;
       }
       if (!/^\d{7}[A-Z]$/.test(form.companyRNE)) {
@@ -337,14 +331,14 @@ export default function ProjectEdit() {
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground">Matricule Fiscal <span className="text-destructive font-bold">*</span></label>
                   <Input
-                    placeholder="Ex. 1675849/A/M/000"
+                    placeholder="Ex. 1675849/A/A/M/000"
                     value={form.companyMatricule}
                     onBlur={() => setTouched((t) => ({ ...t, companyMatricule: true }))}
                     onChange={(e) => setForm({ ...form, companyMatricule: e.target.value })}
-                    className={touched.companyMatricule && (!String(form.companyMatricule || "").trim() || !/^\d{7}\/[A-Z]\/[A-Z]\/\d{3}$/.test(form.companyMatricule)) ? "border-destructive" : ""}
+                    className={touched.companyMatricule && (!String(form.companyMatricule || "").trim() || !/^\d{7}\/[A-HJ-NP-TV-Z]\/[A-Z]\/[A-Z]\/\d{3}$/.test(form.companyMatricule)) ? "border-destructive" : ""}
                     required={form.isCompany}
                   />
-                  {touched.companyMatricule && !/^\d{7}\/[A-Z]\/[A-Z]\/\d{3}$/.test(form.companyMatricule) && <p className="text-[11px] text-destructive">Format invalide.</p>}
+                  {touched.companyMatricule && !/^\d{7}\/[A-HJ-NP-TV-Z]\/[A-Z]\/[A-Z]\/\d{3}$/.test(form.companyMatricule) && <p className="text-[11px] text-destructive">Format invalide.</p>}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground">Numéro RNE <span className="text-destructive font-bold">*</span></label>

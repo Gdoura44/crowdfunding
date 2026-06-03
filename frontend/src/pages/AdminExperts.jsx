@@ -248,7 +248,7 @@ export default function AdminExperts() {
                           onClick={() => {
                             setConfirmConfig({
                               title: "Supprimer cet expert ?",
-                              message: `Cette action supprimera définitivement l'accès du cabinet "${displayName || u.email}" à la plateforme de validation.`,
+                              message: `Cette action supprimera définitivement l'accès du cabinet "${u.profile?.cabinetName || u.email}" à la plateforme de validation.`,
                               isDanger: true,
                               confirmLabel: "Supprimer",
                               onConfirm: async () => {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { expertApi } from "../api/expert";
 import { projectsApi } from "../api/projects";
 import { extractApiError } from "../utils/apiError";
@@ -15,7 +15,6 @@ import { Textarea } from "@/components/ui/textarea";
 
 export default function ExpertProjectReview() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

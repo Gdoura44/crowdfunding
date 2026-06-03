@@ -122,28 +122,6 @@ export default function AdminProjects() {
     }
   }, [error]);
 
-  async function doApprove(p, publishAfter = false) {
-    setBusyId(p._id);
-    setError("");
-    setOk("");
-    try {
-      await adminApi.validateProject(p._id, {
-        decision: "APPROVED",
-        feedback: feedbackById[p._id] || "",
-      });
-      if (publishAfter) {
-        await adminApi.publishProject(p._id);
-      }
-      await load();
-      setOk(publishAfter ? "Projet approuvé et publié (en ligne)." : "Projet approuvé (à publier manuellement).");
-    } catch (e) {
-      const out = extractApiError(e, "Action impossible.");
-      setError(out.message);
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   async function publish(p) {
     setBusyId(p._id);
     setError("");

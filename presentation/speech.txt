@@ -1,0 +1,129 @@
+════════════════════════════════════════
+Slide 1 — Page de titre
+════════════════════════════════════════
+Monsieur le Président, Messieurs les membres du jury, bonjour.
+
+Je me présente : je suis Gdoura Karim, étudiant en Licence Informatique de Gestion à la FSEG Sfax.
+
+C'est avec plaisir que je me présente aujourd'hui pour soutenir mon Projet de Fin d'Études, dans le cadre de ma Licence.
+
+Je remercie sincèrement mon encadrant, Monsieur Iskandar Keskes, pour la confiance qu’il m’a accordée et la rigueur de ses remarques. Je remercie également les honorables membres du jury — Monsieur Nabil Baklouti et Monsieur Mahdi Ellouze — pour l'honneur qu'ils me font en évaluant ce projet.
+
+Le sujet que j'ai l'honneur de vous présenter est : « Conception et Réalisation d'une Plateforme de Financement Collaboratif », réalisé au sein d'Aziin Engineering Solution, Sfax.
+
+════════════════════════════════════════
+Slide 2 — Plan de la présentation
+════════════════════════════════════════
+Voici le plan que je vais suivre.
+
+Je commencerai par la présentation de l'organisme d'accueil et la mise en contexte, puis j'aborderai la problématique. Je présenterai ensuite la solution proposée et ses avantages par rapport à l'existant. La partie technique couvrira les cas d'utilisation, le modèle du domaine, l'architecture et les technologies. Je terminerai par la réalisation et la conclusion.
+
+════════════════════════════════════════
+Slide 3 — Organisme d'accueil
+════════════════════════════════════════
+Commençons par l'organisme qui m'a accueilli pour ce projet.
+
+Il s'agit d'Aziin Engineering Solution, une société privée basée à Sfax, spécialisée dans la conception et le développement de solutions informatiques sur mesure. Son organisation en équipe agile m'a permis une communication directe et un accompagnement de terrain tout au long du développement.
+
+════════════════════════════════════════
+Slide 4 — Mise en Contexte & Contexte du projet
+════════════════════════════════════════
+Passons maintenant au contexte général du projet.
+
+Le financement participatif connaît un essor important en Tunisie depuis la promulgation de la loi n°2020-37, qui encadre ces opérations sous la supervision de la Banque Centrale de Tunisie. Notre plateforme s'inscrit dans ce cadre : elle repose sur le don participatif, où les contributeurs soutiennent des projets par conviction et solidarité.
+
+L'objectif est de permettre à tout porteur de projet — personne physique, association ou startup — de mobiliser des fonds auprès du grand public et de concrétiser des projets créateurs d'emplois et moteurs de croissance économique.
+
+Ce qui rend ce projet particulièrement pertinent, c'est le rôle central des entreprises communautaires. Ces structures ont l'obligation légale de réinvestir environ 35% de leurs bénéfices dans leur communauté. Les financer, c'est créer un véritable cercle vertueux : emplois locaux, services de proximité, et développement territorial durable.
+
+════════════════════════════════════════
+Slide 5 — Problématique
+════════════════════════════════════════
+Maintenant que le contexte est posé, abordons la problématique centrale.
+
+Avant d'arriver à la question de recherche, 2 constats s'imposent, visibles en haut de cette slide. Premièrement, le potentiel des entreprises communautaires reste sous-exploité : elles manquent d'accès au financement participatif et de visibilité auprès du grand public. 2ement Il n'existe aujourd'hui aucune plateforme conforme au cadre BCT 2020 couvrant l'ensemble du cycle : collecte, validation, retrait et traçabilité.
+
+Ces constats nous ont conduits à poser la question centrale : Comment concevoir une plateforme de financement participatif qui catalyse l'essor des entreprises communautaires tunisiennes, stimule la création d'emplois locaux et le réinvestissement économique territorial — tout en garantissant la confiance des contributeurs, la transparence des fonds collectés et la conformité au cadre réglementaire BCT ?
+
+Cette question résume l'ambition économique et technique de notre projet.
+
+════════════════════════════════════════
+Slide 6 — Solution Proposée & Avantages
+════════════════════════════════════════
+Pour répondre à cette problématique, nous avons conçu une plateforme web full-stack qui met en relation porteurs de projet, investisseurs, experts financiers et administrateurs.
+
+Ce tableau compare notre solution aux plateformes existantes — internationales comme Kickstarter et Indiegogo, et tunisiennes comme CoFundy et Kaoun.
+
+Le constat est clair : aucune solution existante ne réunit l'ensemble des critères dans le contexte tunisien. Notre plateforme est la seule à combiner une analyse de risque automatisée par IA, des recommandations personnalisées, une assistance via assistant conversationnel et consultation expert pour les engagements importants, un système de paiement et retrait adapté au contexte tunisien, et une gouvernance complète conforme à la loi BCT.
+
+════════════════════════════════════════
+Slide 7 — Acteurs & Diagramme des Cas d'Utilisation
+════════════════════════════════════════
+Passons maintenant à la partie conception. Notre système distingue quatre acteurs principaux.
+
+Le Visiteur peut consulter les projets publics et s'inscrire sur la plateforme. L'Utilisateur regroupe deux profils : le porteur de projet, qui crée et soumet ses campagnes, et l'investisseur, qui contribue aux projets. L'Expert en finance évalue les projets soumis et accompagne les consultations pour les engagements importants. L'Administrateur assure la gouvernance globale : publication, modération et gestion des retraits.
+
+Le diagramme illustre l'ensemble des interactions entre ces acteurs. On remarque que toutes les actions nécessitent une authentification préalable. L'administrateur gère les projets, les utilisateurs et les contenus. L'utilisateur peut interagir avec les projets, gérer ses contributions et ses retraits. L'expert intervient pour évaluer les risques et gérer les consultations.
+
+════════════════════════════════════════
+Slide 8 — Cycle de Vie d'un Projet — 9 États
+════════════════════════════════════════
+Ce diagramme représente le cycle de vie complet d'un projet, à travers neuf états distincts.
+
+Tout commence par l'état DRAFT, où le porteur crée son projet. Une fois soumis, il passe en AWAITING_AI pour l'analyse automatique par intelligence artificielle via Gemini. Après l'analyse, il entre en UNDER_REVIEW pour l'évaluation par l'expert financier. Si l'expert valide, le projet passe en APPROVED, puis l'administrateur le publie en ACTIVE — il est alors ouvert aux contributions.
+
+Deux issues sont possibles en cours de route : si l'expert rejette le dossier, le projet passe en REJECTED. Si l'objectif de financement est atteint, il passe en FUNDED, puis en CLOSED une fois les fonds retirés par le porteur.
+
+Enfin, un projet actif peut être temporairement SUSPENDED par l'administrateur — puis réactivé si nécessaire.
+
+════════════════════════════════════════
+Slide 9 — Modèle du Domaine
+════════════════════════════════════════
+Le modèle du domaine représente la structure complète des données métier de la plateforme.
+
+Il est composé de 15 classes métier et plus de 10 énumérations, ce qui reflète la richesse fonctionnelle du système. Les entités centrales sont Projet et Utilisateur, auxquelles sont liées la quasi-totalité des autres classes. Parmi les classes distinctives, RapportRisque et ConsultationExpert matérialisent les deux aides à la décision propres à notre solution — c'est précisément ce qui nous différencie des plateformes existantes.
+
+Les énumérations définissent les différents statuts possibles pour chaque entité — statuts de projet, d'investissement, de transaction — assurant la cohérence des états tout au long du cycle de vie. Ce modèle garantit une traçabilité complète de toutes les opérations sur la plateforme.
+
+════════════════════════════════════════
+Slide 10 — Architecture Système & Technologies
+════════════════════════════════════════
+La plateforme repose sur une architecture client-serveur à trois couches.
+
+La couche Présentation est développée avec React 19, Vite et Tailwind CSS v4, pour une interface moderne et réactive côté client. La couche Métier utilise Node.js avec Express 5, qui orchestre l'ensemble des services internes — BullMQ et Redis pour les traitements asynchrones, et n8n pour les workflows d'analyse IA. La couche Données s'appuie sur MongoDB avec des transactions multi-documents pour garantir l'intégrité financière de toutes les opérations.
+
+La grille à droite résume l'ensemble des choix techniques par domaine : sécurité et authentification, données, intelligence artificielle, chiffrement, et DevOps.
+
+════════════════════════════════════════
+Slide 11 — Décisions d'Architecture & Sécurité
+════════════════════════════════════════
+La sécurité était une priorité centrale dans la conception de cette plateforme. Six décisions structurantes ont été prises.
+
+Les JWT stockés en cookies HttpOnly protègent contre les attaques XSS et CSRF, sans aucun stockage dans le navigateur. Les webhooks signés en HMAC garantissent qu'un paiement ne peut pas être enregistré deux fois, même en cas de rejeu. Les mises à jour atomiques dans MongoDB empêchent le sur-financement lorsque plusieurs contributions arrivent simultanément.
+
+Le chiffrement AES-256-GCM protège les coordonnées bancaires des porteurs, avec une clé chargée depuis l'environnement — jamais écrite dans le code source. Les quatre files Dead-Letter assurent qu'aucune erreur asynchrone ne passe inaperçue et reste repriseable. Enfin, le contrôle d'accès par rôles RBAC, combiné au rate limiting, protège toutes les routes sensibles de l'API.
+
+════════════════════════════════════════
+Slide 12 — Réalisation — 7 Cas d'Utilisation
+════════════════════════════════════════
+La phase de réalisation couvre sept cas d'utilisation principaux, chacun documenté avec des captures d'écran, des extraits de code et les composants mobilisés.
+
+Le premier permet l'annulation d'une contribution avec vérification d'état et remboursement conditionnel. Le deuxième couvre la création et soumission d'un projet, avec déclenchement automatique de l'analyse IA via le workflow n8n. Le troisième gère l'investissement avec validation HMAC et protection atomique contre le sur-financement. Le quatrième traite la validation ou le rejet du projet par l'expert puis l'administrateur. Le cinquième couvre la saisie des coordonnées bancaires avec chiffrement AES-256-GCM et génération de factures PDF. Le sixième permet à l'administrateur d'approuver un retrait avec déchiffrement du RIB et application d'une commission de 5%. Le septième gère la suspension et la réactivation d'un projet avec journalisation complète dans l'AuditLog.
+
+════════════════════════════════════════
+Slide 13 — Conclusion
+════════════════════════════════════════
+Pour conclure, ce projet nous a permis de concevoir et réaliser une plateforme de financement collaboratif complète, couvrant l'ensemble du cycle de vie d'un projet — de sa création jusqu'au retrait des fonds.
+
+Parmi les travaux réalisés, on trouve le parcours complet du porteur, le parcours complet de l'investisseur avec gestion des remboursements, des outils d'aide à la décision basés sur l'IA, une gouvernance solide avec audit et notifications, et une sécurité conforme aux standards OWASP.
+
+Nous reconnaissons deux limites importantes : Recommandations déterministes — sans historique d'apprentissage​, et les tests d'interface ne sont pas encore automatisés.
+
+En perspectives, nous envisageons l'amélioration du modèle d'IA avec apprentissage progressif, la mesure de l'impact social des projets financés, et l'extension du service à la diaspora tunisienne pour permettre un soutien transfrontalier.
+
+════════════════════════════════════════
+Slide 14 — Merci / Q&A
+════════════════════════════════════════
+Ainsi s'achève ma présentation.
+
+Je vous remercie sincèrement pour votre attention et l'intérêt que vous avez porté à ce travail. Je reste maintenant entièrement à votre disposition pour répondre à vos questions.

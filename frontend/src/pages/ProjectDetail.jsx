@@ -284,8 +284,6 @@ export default function ProjectDetail() {
   const aiLastErrorCode = String(project?.aiLastError || "").trim();
   const hasRetrySignal = Boolean(project?.aiNextRetryAt) || Number(project?.aiAutoRetryCount || 0) > 0 || ["AI_QUOTA_EXCEEDED", "AI_TEMPORARY_FAILURE"].includes(aiLastErrorCode);
   const likelyQuotaWait = analysisInProgress && hasRetrySignal && queuedMinutes != null && queuedMinutes >= 1;
-  const queuedAtLabel = project?.aiQueuedAt ? new Date(project.aiQueuedAt).toLocaleString("fr-FR") : "";
-  const nextRetryLabel = project?.aiNextRetryAt ? new Date(project.aiNextRetryAt).toLocaleString("fr-FR") : "";
   
   const canReport = isAuthenticated && !isOwner && !isExpert && !project.isArchived && ["ACTIVE", "CLOSED", "FUNDED"].includes(project.status);
   const showChat = !isExpert;

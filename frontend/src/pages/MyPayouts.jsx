@@ -145,8 +145,15 @@ export default function MyPayouts() {
                         <span className="text-muted-foreground">{String(p.projectId || "—")}</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 font-bold text-foreground">
-                      {Number(p.amount).toLocaleString("fr-FR")} TND
+                    <td className="px-6 py-4">
+                      {p.projectId && typeof p.projectId === "object" && p.projectId.realBudget && p.projectId.realBudget !== p.amount ? (
+                        <div>
+                          <div className="font-bold text-foreground">{Number(p.projectId.realBudget).toLocaleString("fr-FR")} TND</div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">Brut : {Number(p.amount).toLocaleString("fr-FR")} TND</div>
+                        </div>
+                      ) : (
+                        <div className="font-bold text-foreground">{Number(p.amount).toLocaleString("fr-FR")} TND</div>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <StatusBadge status={p.status} />

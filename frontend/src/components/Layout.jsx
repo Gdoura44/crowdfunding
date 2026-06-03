@@ -18,6 +18,7 @@ function navClass({ isActive }) {
   }`;
 }
 
+// eslint-disable-next-line no-unused-vars
 function NavDropdown({ title, icon: Icon, children }) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef(null);
@@ -92,6 +93,7 @@ export default function Layout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setIsMobileMenuOpen(false); }, [location.pathname]);
 
   return (

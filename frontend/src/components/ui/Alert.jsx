@@ -43,6 +43,7 @@ export default function Alert({
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setVisible(true);
   }, [contentKey, variant]);
 

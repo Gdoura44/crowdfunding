@@ -53,11 +53,12 @@ export default function PayoutDetail() {
   const [bankName, setBankName] = useState("");
   const [ribOrIban, setRibOrIban] = useState("");
   const [swiftCode, setSwiftCode] = useState("");
+  const [errors, setErrors] = useState({});
 
   const canEdit = payout?.status === "PENDING";
 
   const bankDetailsJson = useMemo(() => {
-    const normalized = String(ribOrIban || "").replace(/\s+/g, "").toUpperCase();
+    const normalized = String(ribOrIban || "").replace(/[\s-]+/g, "").toUpperCase();
     const looksLikeIban = /^[A-Z]{2}/.test(normalized);
     return JSON.stringify({
       accountHolderName,
@@ -91,8 +92,54 @@ export default function PayoutDetail() {
 
   async function submit(e) {
     e.preventDefault();
-    setSaving(true);
     setError(""); setOk("");
+    const errs = {};
+
+    const name = String(accountHolderName || "").trim();
+    if (name.length < 3 || name.length > 100) {
+      errs.accountHolderName = "Le nom du titulaire doit contenir entre 3 et 100 caractères.";
+    }
+
+    if (!bankName) {
+      errs.bankName = "Veuillez choisir une banque.";
+    }
+
+    const val = String(ribOrIban || "").replace(/[\s-]+/g, "").toUpperCase();
+    const looksLikeIban = /^[A-Z]{2}/.test(val);
+    if (!val) {
+      errs.ribOrIban = "Veuillez saisir un RIB ou un IBAN.";
+    } else if (looksLikeIban) {
+      if (val.startsWith("TN")) {
+        const body = val.slice(2);
+        if (!/^\d+$/.test(body)) {
+          errs.ribOrIban = "Un IBAN tunisien (TN) doit contenir uniquement des chiffres après le préfixe 'TN'.";
+        } else if (val.length !== 24) {
+          errs.ribOrIban = "Un IBAN tunisien (TN) doit contenir exactement 24 caractères (TN + 22 chiffres).";
+        }
+      } else if (!/^[A-Z]{2}[0-9A-Z]{13,32}$/.test(val)) {
+        errs.ribOrIban = "Format IBAN international incorrect.";
+      }
+    } else {
+      if (!/^\d+$/.test(val)) {
+        errs.ribOrIban = "Un RIB doit contenir uniquement des chiffres (sans lettres ni espaces).";
+      } else if (val.length !== 20) {
+        errs.ribOrIban = "Un RIB doit contenir exactement 20 chiffres.";
+      }
+    }
+
+    const swift = String(swiftCode || "").trim().toUpperCase();
+    if (swift && !/^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(swift)) {
+      errs.swiftCode = "Le code SWIFT doit faire 8 ou 11 caractères (lettres et chiffres uniquement).";
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      setError("Certains champs contiennent des erreurs de saisie.");
+      return;
+    }
+
+    setErrors({});
+    setSaving(true);
     try {
       await payoutsApi.provideBankDetails(id, bankDetailsJson);
       setOk("Coordonnées bancaires enregistrées. Statut passé en READY.");
@@ -166,8 +213,36 @@ export default function PayoutDetail() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Montant à virer</p>
-                  <p className="font-black text-2xl text-primary">{payout.amount} <span className="text-sm font-normal text-muted-foreground">TND</span></p>
+                  <p className="text-xs text-muted-foreground mb-1">Détails financiers</p>
+                  <div className="space-y-2 text-sm mt-1 bg-muted/30 p-3 rounded-lg border border-border/50">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total collecté (Brut) :</span>
+                      <span className="font-semibold text-foreground">{Number(payout.amount).toLocaleString("fr-FR")} TND</span>
+                    </div>
+                    {payout.projectId && typeof payout.projectId === "object" && payout.projectId.realBudget && payout.projectId.realBudget !== payout.amount ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Commission (5% + TVA) :</span>
+                          <span className="font-semibold text-destructive">
+                            -{Math.round(payout.amount - payout.projectId.realBudget).toLocaleString("fr-FR")} TND
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-t border-border/40 pt-2 font-bold text-base mt-1">
+                          <span className="text-foreground">Montant net à virer :</span>
+                          <span className="text-primary font-black">
+                            {Number(payout.projectId.realBudget).toLocaleString("fr-FR")} TND
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between border-t border-border/40 pt-2 font-bold text-base mt-1">
+                        <span className="text-foreground">Montant net à virer :</span>
+                        <span className="text-primary font-black">
+                          {Number(payout.amount).toLocaleString("fr-FR")} TND
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               {invoiceId && (
@@ -201,26 +276,62 @@ export default function PayoutDetail() {
                   <form onSubmit={submit} className="space-y-4">
                     <div className="space-y-1.5">
                       <label className="text-sm font-semibold">Nom complet du titulaire <span className="text-destructive font-bold">*</span></label>
-                      <Input value={accountHolderName} onChange={e => setAccountHolderName(e.target.value)} required minLength={3} placeholder="ex: Ahmed Ben Salah" />
+                      <Input
+                        value={accountHolderName}
+                        onChange={e => {
+                          setAccountHolderName(e.target.value);
+                          if (errors.accountHolderName) setErrors(prev => ({ ...prev, accountHolderName: "" }));
+                        }}
+                        required
+                        minLength={3}
+                        placeholder="ex: Ahmed Ben Salah"
+                        className={errors.accountHolderName ? "border-destructive focus-visible:ring-destructive" : ""}
+                      />
+                      {errors.accountHolderName && <p className="text-xs text-destructive mt-1 font-medium">{errors.accountHolderName}</p>}
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-sm font-semibold">Banque <span className="text-destructive font-bold">*</span></label>
                       <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        value={bankName} onChange={e => setBankName(e.target.value)} required
+                        className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.bankName ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                        value={bankName}
+                        onChange={e => {
+                          setBankName(e.target.value);
+                          if (errors.bankName) setErrors(prev => ({ ...prev, bankName: "" }));
+                        }}
+                        required
                       >
                         <option value="">Choisir une banque…</option>
                         {TUNISIAN_BANKS.map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
+                      {errors.bankName && <p className="text-xs text-destructive mt-1 font-medium">{errors.bankName}</p>}
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-sm font-semibold">RIB / IBAN <span className="text-destructive font-bold">*</span></label>
-                      <Input value={ribOrIban} onChange={e => setRibOrIban(e.target.value)} required placeholder="RIB (20 chiffres) ou IBAN (ex: TN59...)" />
+                      <Input
+                        value={ribOrIban}
+                        onChange={e => {
+                          setRibOrIban(e.target.value);
+                          if (errors.ribOrIban) setErrors(prev => ({ ...prev, ribOrIban: "" }));
+                        }}
+                        required
+                        placeholder="RIB (20 chiffres) ou IBAN (ex: TN59...)"
+                        className={errors.ribOrIban ? "border-destructive focus-visible:ring-destructive" : ""}
+                      />
+                      {errors.ribOrIban && <p className="text-xs text-destructive mt-1 font-medium">{errors.ribOrIban}</p>}
                       <p className="text-xs text-muted-foreground">RIB: 20 chiffres sans espaces. IBAN: commence par <strong>TN</strong>.</p>
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-sm font-semibold">Code SWIFT/BIC <span className="text-muted-foreground font-normal">(optionnel)</span></label>
-                      <Input value={swiftCode} onChange={e => setSwiftCode(e.target.value)} placeholder="ex: ABCDTNTT (8 ou 11 caractères)" />
+                      <Input
+                        value={swiftCode}
+                        onChange={e => {
+                          setSwiftCode(e.target.value);
+                          if (errors.swiftCode) setErrors(prev => ({ ...prev, swiftCode: "" }));
+                        }}
+                        placeholder="ex: ABCDTNTT (8 ou 11 caractères)"
+                        className={errors.swiftCode ? "border-destructive focus-visible:ring-destructive" : ""}
+                      />
+                      {errors.swiftCode && <p className="text-xs text-destructive mt-1 font-medium">{errors.swiftCode}</p>}
                     </div>
                     <Button type="submit" disabled={saving} className="w-full mt-2">
                       {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}

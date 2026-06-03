@@ -1,5 +1,4 @@
-@startuml UC_Annuler_Contribution
-
+@startuml
 ' ============================
 '  Normes FSEG (ECB)
 '  - Acteur : Utilisateur
@@ -19,7 +18,7 @@ skinparam wrapWidth 150
 skinparam dpi 150
 scale 0.85
 
-title UC Annuler une contribution — Annulation / Remboursement (ECB/FSEG)
+title UC Annuler une contribution — Annulation / Remboursement
 
 actor "Utilisateur" as U
 boundary "IHM_Contribution" as IHM
@@ -31,7 +30,6 @@ entity "Notification" as N
 entity "Facture (Invoice)" as Invoice
 participant "Passerelle de paiement" as Pay
 
-== Demande d’annulation ==
 U -> IHM : demanderAnnulation(investmentId)
 IHM -> CI : annulerInvestissement(investorId, investmentId)
 
@@ -71,5 +69,4 @@ else Annulation partenaire OK
     IHM --> U : afficherConfirmation()
   end
 end
-
 @enduml

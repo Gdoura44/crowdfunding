@@ -121,7 +121,7 @@ export default function ProjectNew() {
       if (!String(form.companyName || "").trim()) e.companyName = "Obligatoire.";
       const matricule = String(form.companyMatricule || "").trim();
       if (!matricule) e.companyMatricule = "Obligatoire.";
-      else if (!/^\d{7}\/[A-Z]\/[A-Z]\/\d{3}$/.test(matricule)) e.companyMatricule = "Format (Ex. 1675849/A/M/000).";
+      else if (!/^\d{7}\/[A-HJ-NP-TV-Z]\/[A-Z]\/[A-Z]\/\d{3}$/.test(matricule)) e.companyMatricule = "Format (Ex. 1675849/A/A/M/000).";
       const rne = String(form.companyRNE || "").trim();
       if (!rne) e.companyRNE = "Obligatoire.";
       else if (!/^\d{7}[A-Z]$/.test(rne)) e.companyRNE = "Format (Ex. 1827463X).";
@@ -325,7 +325,7 @@ export default function ProjectNew() {
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-muted-foreground">Matricule Fiscal</label>
                       <Input
-                        placeholder="Ex. 1675849/A/M/000"
+                        placeholder="Ex. 1675849/A/A/M/000"
                         value={form.companyMatricule}
                         onBlur={() => setTouched((t) => ({ ...t, companyMatricule: true }))}
                         onChange={(e) => setForm({ ...form, companyMatricule: e.target.value })}

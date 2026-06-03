@@ -18,6 +18,7 @@
       <packagedElement xmi:type="uml:Enumeration" xmi:id="en_RoleUtilisateur" name="RoleUtilisateur">
         <ownedLiteral xmi:id="lit_role_user" name="USER"/>
         <ownedLiteral xmi:id="lit_role_admin" name="ADMIN"/>
+        <ownedLiteral xmi:id="lit_role_expert" name="EXPERT"/>
       </packagedElement>
 
       <packagedElement xmi:type="uml:Enumeration" xmi:id="en_PreferenceRisque" name="PreferenceRisque">
@@ -46,6 +47,7 @@
 
       <packagedElement xmi:type="uml:Enumeration" xmi:id="en_StatutInvestissement" name="StatutInvestissement">
         <ownedLiteral xmi:id="lit_si_initiated" name="INITIATED"/>
+        <ownedLiteral xmi:id="lit_si_pending_consultation" name="PENDING_CONSULTATION"/>
         <ownedLiteral xmi:id="lit_si_cancelling" name="CANCELLING"/>
         <ownedLiteral xmi:id="lit_si_cancelled" name="CANCELLED"/>
         <ownedLiteral xmi:id="lit_si_success" name="SUCCESS"/>
@@ -81,6 +83,24 @@
         <ownedLiteral xmi:id="lit_ss_pending" name="PENDING"/>
         <ownedLiteral xmi:id="lit_ss_resolved" name="RESOLVED"/>
         <ownedLiteral xmi:id="lit_ss_dismissed" name="DISMISSED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_TypeFacture" name="TypeFacture">
+        <ownedLiteral xmi:id="lit_tf_investment" name="INVESTMENT"/>
+        <ownedLiteral xmi:id="lit_tf_payout" name="PAYOUT"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_StatutFacture" name="StatutFacture">
+        <ownedLiteral xmi:id="lit_sf_pending" name="PENDING"/>
+        <ownedLiteral xmi:id="lit_sf_paid" name="PAID"/>
+        <ownedLiteral xmi:id="lit_sf_refunded" name="REFUNDED"/>
+        <ownedLiteral xmi:id="lit_sf_cancelled" name="CANCELLED"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="en_StatutConsultation" name="StatutConsultation">
+        <ownedLiteral xmi:id="lit_sc_open" name="OPEN"/>
+        <ownedLiteral xmi:id="lit_sc_inprogress" name="IN_PROGRESS"/>
+        <ownedLiteral xmi:id="lit_sc_closed" name="CLOSED"/>
       </packagedElement>
 
       <packagedElement xmi:type="uml:Enumeration" xmi:id="en_TypeNotification" name="TypeNotification">
@@ -120,12 +140,22 @@
         <ownedLiteral xmi:id="lit_nt_user_reactivated" name="USER_REACTIVATED"/>
         <ownedLiteral xmi:id="lit_nt_password_reset_requested" name="PASSWORD_RESET_REQUESTED"/>
         <ownedLiteral xmi:id="lit_nt_project_ai_report_ready" name="PROJECT_AI_REPORT_READY"/>
+        <ownedLiteral xmi:id="lit_nt_payment_held_consultation" name="PAYMENT_HELD_CONSULTATION"/>
+        <ownedLiteral xmi:id="lit_nt_new_assignment" name="NEW_ASSIGNMENT"/>
+        <ownedLiteral xmi:id="lit_nt_expert_report_ready" name="EXPERT_REPORT_READY"/>
+        <ownedLiteral xmi:id="lit_nt_expert_status_changed" name="EXPERT_STATUS_CHANGED"/>
+        <ownedLiteral xmi:id="lit_nt_new_expert_application" name="NEW_EXPERT_APPLICATION"/>
+        <ownedLiteral xmi:id="lit_nt_new_project_submitted" name="NEW_PROJECT_SUBMITTED"/>
+        <ownedLiteral xmi:id="lit_nt_new_report_submitted" name="NEW_REPORT_SUBMITTED"/>
+        <ownedLiteral xmi:id="lit_nt_investment_received" name="INVESTMENT_RECEIVED"/>
+        <ownedLiteral xmi:id="lit_nt_new_message" name="NEW_MESSAGE"/>
       </packagedElement>
 
       <!-- Value objects -->
       <packagedElement xmi:type="uml:Class" xmi:id="cls_ProfilUtilisateur" name="ProfilUtilisateur">
         <ownedAttribute xmi:id="attr_prof_firstName" name="prenom" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_prof_lastName" name="nom" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_prof_cabinetName" name="nomCabinet" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_prof_phone" name="telephone" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_prof_riskPreference" name="preferenceRisque" visibility="private" type="en_PreferenceRisque"/>
         <ownedAttribute xmi:id="attr_prof_preferredCategories" name="categoriesPreferees" visibility="private" type="pt_String" isMultivalued="true"/>
@@ -140,6 +170,14 @@
         <ownedAttribute xmi:id="attr_rr_avantages" name="avantages" visibility="private" type="pt_String" isMultivalued="true"/>
         <ownedAttribute xmi:id="attr_rr_inconv" name="inconvenients" visibility="private" type="pt_String" isMultivalued="true"/>
         <ownedAttribute xmi:id="attr_rr_amel" name="ameliorations" visibility="private" type="pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="attr_rr_removals" name="suppressions" visibility="private" type="pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="attr_rr_questions" name="questionsAClarifier" visibility="private" type="pt_String" isMultivalued="true"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_MessageConsultation" name="MessageConsultation">
+        <ownedAttribute xmi:id="attr_mc_role" name="roleEmetteur" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_mc_content" name="contenu" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_mc_date" name="dateEnvoi" visibility="private" type="pt_Date"/>
       </packagedElement>
 
       <!-- Domain entities -->
@@ -160,6 +198,7 @@
         <ownedAttribute xmi:id="attr_p_titre" name="titre" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_p_desc" name="description" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_p_cat" name="categorie" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_p_budgetReel" name="budgetReel" visibility="private" type="pt_Number"/>
         <ownedAttribute xmi:id="attr_p_obj" name="objectifFinancement" visibility="private" type="pt_Number"/>
         <ownedAttribute xmi:id="attr_p_collecte" name="montantCollecte" visibility="private" type="pt_Number"/>
         <ownedAttribute xmi:id="attr_p_statut" name="statut" visibility="private" type="en_StatutProjet"/>
@@ -170,6 +209,12 @@
         <ownedAttribute xmi:id="attr_p_pub" name="datePublication" visibility="private" type="pt_Date"/>
         <ownedAttribute xmi:id="attr_p_funded" name="dateFinancement" visibility="private" type="pt_Date"/>
         <ownedAttribute xmi:id="attr_p_risque" name="rapportRisque" visibility="private" type="cls_RapportRisque"/>
+        <ownedAttribute xmi:id="attr_p_estSociete" name="estSociete" visibility="private" type="pt_Boolean"/>
+        <ownedAttribute xmi:id="attr_p_nomSociete" name="nomSociete" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_p_matriculeFiscal" name="matriculeFiscal" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_p_rne" name="rne" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_p_images" name="images" visibility="private" type="pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="attr_p_documents" name="documents" visibility="private" type="pt_String" isMultivalued="true"/>
         <ownedOperation xmi:id="op_p_creer" name="creer"/>
         <ownedOperation xmi:id="op_p_modifier" name="modifier"/>
         <ownedOperation xmi:id="op_p_soumettre" name="soumettrePourAnalyse"/>
@@ -182,8 +227,14 @@
         <ownedAttribute xmi:id="attr_i_id" name="id" visibility="private" type="pt_ObjectId"/>
         <ownedAttribute xmi:id="attr_i_montant" name="montant" visibility="private" type="pt_Number"/>
         <ownedAttribute xmi:id="attr_i_statut" name="statut" visibility="private" type="en_StatutInvestissement"/>
+        <ownedAttribute xmi:id="attr_i_tentativesPaiement" name="tentativesPaiement" visibility="private" type="pt_Number"/>
         <ownedAttribute xmi:id="attr_i_motif" name="motifAnnulation" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_i_dateAnn" name="dateAnnulation" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_i_debutAnnulation" name="debutAnnulation" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_i_planifieDesactivation" name="planifieDesactivation" visibility="private" type="pt_Boolean"/>
+        <ownedAttribute xmi:id="attr_i_periodeGraceMinutes" name="periodeGraceMinutes" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_i_souhaiteConsultation" name="souhaiteConsultation" visibility="private" type="pt_Boolean"/>
+        <ownedAttribute xmi:id="attr_i_montantPourboire" name="montantPourboire" visibility="private" type="pt_Number"/>
         <ownedOperation xmi:id="op_i_init" name="initierPaiement"/>
         <ownedOperation xmi:id="op_i_annuler" name="annuler"/>
       </packagedElement>
@@ -194,9 +245,14 @@
         <ownedAttribute xmi:id="attr_t_idp" name="idPaiementPrestataire" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_t_montant" name="montant" visibility="private" type="pt_Number"/>
         <ownedAttribute xmi:id="attr_t_statut" name="statut" visibility="private" type="en_StatutTransaction"/>
+        <ownedAttribute xmi:id="attr_t_dateAnnulation" name="dateAnnulation" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_t_methodePaiement" name="methodePaiement" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_t_tent" name="numeroTentative" visibility="private" type="pt_Number"/>
         <ownedAttribute xmi:id="attr_t_ref" name="statutRemboursement" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_t_tentativesRemboursement" name="tentativesRemboursement" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_t_derniereTentativeRemboursement" name="derniereTentativeRemboursement" visibility="private" type="pt_Date"/>
         <ownedAttribute xmi:id="attr_t_dateR" name="dateRemboursement" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_t_dateSucces" name="dateSucces" visibility="private" type="pt_Date"/>
         <ownedOperation xmi:id="op_t_conf" name="confirmer"/>
         <ownedOperation xmi:id="op_t_fail" name="echouer"/>
         <ownedOperation xmi:id="op_t_ref" name="rembourser"/>
@@ -206,9 +262,16 @@
         <ownedAttribute xmi:id="attr_r_id" name="id" visibility="private" type="pt_ObjectId"/>
         <ownedAttribute xmi:id="attr_r_montant" name="montant" visibility="private" type="pt_Number"/>
         <ownedAttribute xmi:id="attr_r_statut" name="statut" visibility="private" type="en_StatutRetrait"/>
-        <ownedAttribute xmi:id="attr_r_rib" name="coordonneesBancaires" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_r_prestataireVirement" name="prestataireVirement" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_r_idv" name="idVirement" visibility="private" type="pt_String"/>
-        <ownedAttribute xmi:id="attr_r_dateC" name="dateCompletion" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_r_rib" name="coordonneesBancaires" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_r_motifEchec" name="motifEchec" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_r_notes" name="notes" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_r_dateCoordonneesBancaires" name="dateCoordonneesBancaires" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_r_dateDebutVirement" name="dateDebutVirement" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_r_dateCompletion" name="dateCompletion" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_r_dateEchec" name="dateEchec" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_r_dateAnnulation" name="dateAnnulation" visibility="private" type="pt_Date"/>
         <ownedOperation xmi:id="op_r_rib" name="fournirCoordonneesBancaires"/>
         <ownedOperation xmi:id="op_r_app" name="approuver"/>
         <ownedOperation xmi:id="op_r_trait" name="traiterVirement"/>
@@ -220,6 +283,9 @@
         <ownedAttribute xmi:id="attr_n_titre" name="titre" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_n_msg" name="message" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_n_lu" name="lu" visibility="private" type="pt_Boolean"/>
+        <ownedAttribute xmi:id="attr_n_luParAdmin" name="luParAdmin" visibility="private" type="pt_Boolean"/>
+        <ownedAttribute xmi:id="attr_n_idEntiteAssociee" name="idEntiteAssociee" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_n_typeEntiteAssociee" name="typeEntiteAssociee" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_n_date" name="dateCreation" visibility="private" type="pt_Date"/>
         <ownedOperation xmi:id="op_n_lue" name="marquerCommeLue"/>
       </packagedElement>
@@ -230,7 +296,9 @@
         <ownedAttribute xmi:id="attr_c_contenu" name="contenu" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_c_mask" name="masque" visibility="private" type="pt_Boolean"/>
         <ownedAttribute xmi:id="attr_c_motif" name="motifMasquage" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_c_dateMasquage" name="dateMasquage" visibility="private" type="pt_Date"/>
         <ownedAttribute xmi:id="attr_c_supp" name="dateSuppression" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_c_roleSuppresseur" name="roleSuppresseur" visibility="private" type="pt_String"/>
         <ownedOperation xmi:id="op_c_pub" name="publier"/>
         <ownedOperation xmi:id="op_c_sup" name="supprimer"/>
         <ownedOperation xmi:id="op_c_mod" name="moderationMasquer"/>
@@ -253,7 +321,35 @@
         <ownedAttribute xmi:id="attr_j_action" name="action" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_j_typeC" name="typeCible" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_j_idC" name="idCible" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_j_roleActeur" name="roleActeur" visibility="private" type="en_RoleUtilisateur"/>
+        <ownedAttribute xmi:id="attr_j_details" name="details" visibility="private" type="pt_String"/>
         <ownedAttribute xmi:id="attr_j_date" name="dateAction" visibility="private" type="pt_Date"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_Facture" name="Facture">
+        <ownedAttribute xmi:id="attr_f_id" name="id" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_f_num" name="numeroFacture" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_f_type" name="type" visibility="private" type="en_TypeFacture"/>
+        <ownedAttribute xmi:id="attr_f_montant" name="montant" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_f_frais" name="frais" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_f_taxe" name="taxe" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_f_total" name="total" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_f_statut" name="statut" visibility="private" type="en_StatutFacture"/>
+        <ownedAttribute xmi:id="attr_f_date" name="dateEmission" visibility="private" type="pt_Date"/>
+        <ownedOperation xmi:id="op_f_generer" name="genererFacture"/>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_ConsultationExpert" name="ConsultationExpert">
+        <ownedAttribute xmi:id="attr_ce_id" name="id" visibility="private" type="pt_ObjectId"/>
+        <ownedAttribute xmi:id="attr_ce_montant" name="montantInvesti" visibility="private" type="pt_Number"/>
+        <ownedAttribute xmi:id="attr_ce_messages" name="messages" visibility="private" type="cls_MessageConsultation" isMultivalued="true"/>
+        <ownedAttribute xmi:id="attr_ce_statut" name="statut" visibility="private" type="en_StatutConsultation"/>
+        <ownedAttribute xmi:id="attr_ce_sujet" name="sujet" visibility="private" type="pt_String"/>
+        <ownedAttribute xmi:id="attr_ce_dateCreation" name="dateCreation" visibility="private" type="pt_Date"/>
+        <ownedAttribute xmi:id="attr_ce_dateCloture" name="dateCloture" visibility="private" type="pt_Date"/>
+        <ownedOperation xmi:id="op_ce_demander" name="demanderConsultation"/>
+        <ownedOperation xmi:id="op_ce_repondre" name="repondreMessage"/>
+        <ownedOperation xmi:id="op_ce_cloturer" name="cloturer"/>
       </packagedElement>
 
       <!-- Constraints -->

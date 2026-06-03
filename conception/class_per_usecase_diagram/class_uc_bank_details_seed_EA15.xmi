@@ -19,6 +19,7 @@
       <packagedElement xmi:type="uml:Enumeration" xmi:id="ucb_en_RoleUtilisateur" name="RoleUtilisateur">
         <ownedLiteral xmi:id="ucb_lit_role_user" name="USER"/>
         <ownedLiteral xmi:id="ucb_lit_role_admin" name="ADMIN"/>
+        <ownedLiteral xmi:id="ucb_lit_role_expert" name="EXPERT"/>
       </packagedElement>
 
       <packagedElement xmi:type="uml:Enumeration" xmi:id="ucb_en_PreferenceRisque" name="PreferenceRisque">
@@ -80,6 +81,7 @@
       <packagedElement xmi:type="uml:Class" xmi:id="ucb_cls_UserProfile" name="UserProfile">
         <ownedAttribute xmi:id="ucb_attr_up_firstName" name="firstName" visibility="private" type="ucb_pt_String"/>
         <ownedAttribute xmi:id="ucb_attr_up_lastName" name="lastName" visibility="private" type="ucb_pt_String"/>
+        <ownedAttribute xmi:id="ucb_attr_up_cabinetName" name="cabinetName" visibility="private" type="ucb_pt_String"/>
         <ownedAttribute xmi:id="ucb_attr_up_phone" name="phone" visibility="private" type="ucb_pt_String"/>
         <ownedAttribute xmi:id="ucb_attr_up_riskPref" name="riskPreference" visibility="private" type="ucb_en_PreferenceRisque"/>
         <ownedAttribute xmi:id="ucb_attr_up_prefCats" name="preferredCategories" visibility="private" type="ucb_pt_String" isMultivalued="true"/>
@@ -114,6 +116,14 @@
         <ownedAttribute xmi:id="ucb_attr_p_isCreatorDeleted" name="isCreatorDeleted" visibility="private" type="ucb_pt_Boolean"/>
         <ownedAttribute xmi:id="ucb_attr_p_publishedAt" name="publishedAt" visibility="private" type="ucb_pt_Date"/>
         <ownedAttribute xmi:id="ucb_attr_p_fundedAt" name="fundedAt" visibility="private" type="ucb_pt_Date"/>
+        
+        <ownedAttribute xmi:id="ucb_attr_p_realBudget" name="realBudget" visibility="private" type="ucb_pt_Number"/>
+        <ownedAttribute xmi:id="ucb_attr_p_isCompany" name="isCompany" visibility="private" type="ucb_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucb_attr_p_companyName" name="companyName" visibility="private" type="ucb_pt_String"/>
+        <ownedAttribute xmi:id="ucb_attr_p_companyMatricule" name="companyMatricule" visibility="private" type="ucb_pt_String"/>
+        <ownedAttribute xmi:id="ucb_attr_p_companyRNE" name="companyRNE" visibility="private" type="ucb_pt_String"/>
+        <ownedAttribute xmi:id="ucb_attr_p_images" name="images" visibility="private" type="ucb_pt_String" isMultivalued="true"/>
+        <ownedAttribute xmi:id="ucb_attr_p_documents" name="documents" visibility="private" type="ucb_pt_String" isMultivalued="true"/>
         <ownedAttribute xmi:id="ucb_attr_p_aiAnalysis" name="aiAnalysis" visibility="private" type="ucb_cls_AiAnalysis"/>
       </packagedElement>
 
@@ -142,8 +152,10 @@
         <ownedAttribute xmi:id="ucb_attr_n_title" name="title" visibility="private" type="ucb_pt_String"/>
         <ownedAttribute xmi:id="ucb_attr_n_message" name="message" visibility="private" type="ucb_pt_String"/>
         <ownedAttribute xmi:id="ucb_attr_n_read" name="read" visibility="private" type="ucb_pt_Boolean"/>
+        <ownedAttribute xmi:id="ucb_attr_n_readByAdmin" name="readByAdmin" visibility="private" type="ucb_pt_Boolean"/>
         <ownedAttribute xmi:id="ucb_attr_n_relatedEntityId" name="relatedEntityId" visibility="private" type="ucb_pt_ObjectId"/>
         <ownedAttribute xmi:id="ucb_attr_n_relatedEntityType" name="relatedEntityType" visibility="private" type="ucb_en_RelatedEntityType"/>
+        <ownedAttribute xmi:id="ucb_attr_n_createdAt" name="createdAt" visibility="private" type="ucb_pt_Date"/>
       </packagedElement>
     </packagedElement>
   </uml:Model>
