@@ -314,6 +314,11 @@ export default function PayoutDetail() {
                           if (errors.ribOrIban) setErrors(prev => ({ ...prev, ribOrIban: "" }));
                         }}
                         required
+                        maxLength={
+                          /^[A-Za-z]{2}/i.test(ribOrIban)
+                            ? ribOrIban.toUpperCase().startsWith("TN") ? 24 : 34
+                            : 20
+                        }
                         placeholder="RIB (20 chiffres) ou IBAN (ex: TN59...)"
                         className={errors.ribOrIban ? "border-destructive focus-visible:ring-destructive" : ""}
                       />

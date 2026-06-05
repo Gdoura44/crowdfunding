@@ -3,7 +3,7 @@ Slide 1 — Page de titre
 ════════════════════════════════════════
 Monsieur le Président, Messieurs les membres du jury, bonjour.
 
-Je me présente : je suis Gdoura Karim, étudiant en Licence Informatique de Gestion à la FSEG Sfax.
+Je me présente : karim gdoura, étudiant en Licence Informatique de Gestion à la FSEG Sfax.
 
 C'est avec plaisir que je me présente aujourd'hui pour soutenir mon Projet de Fin d'Études, dans le cadre de ma Licence.
 
@@ -22,7 +22,6 @@ Je commencerai par la présentation de l'organisme d'accueil et la mise en conte
 Slide 3 — Organisme d'accueil
 ════════════════════════════════════════
 Commençons par l'organisme qui m'a accueilli pour ce projet.
-
 Il s'agit d'Aziin Engineering Solution, une société privée basée à Sfax, spécialisée dans la conception et le développement de solutions informatiques sur mesure. Son organisation en équipe agile m'a permis une communication directe et un accompagnement de terrain tout au long du développement.
 
 ════════════════════════════════════════

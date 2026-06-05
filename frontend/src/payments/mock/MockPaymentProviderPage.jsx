@@ -72,9 +72,18 @@ export default function MockPaymentProviderPage() {
     setStatus("3DS");
     setLoading(true);
     void investmentsApi
-      .mockSendOtp({ providerPaymentId }, { timeout: 15000 })
+      .mockSendOtp({ providerPaymentId }, { timeout: 30000 })
       .then((res) => { const url = res?.data?.previewUrl; if (url) console.info("[OTP] Aperçu:", url); })
-      .catch((err) => { setOtpErr(extractApiError(err, "Erreur d'envoi du code.").message); })
+      .catch((err) => {
+        const msg = extractApiError(err, "").message;
+        // Show a helpful message: the OTP is always printed in the server console
+        // even if email delivery fails or the request timed out.
+        setOtpErr(
+          msg
+            ? `${msg} — Le code OTP est affiché dans la console du serveur.`
+            : "Code généré. Consultez la console du serveur pour le code OTP."
+        );
+      })
       .finally(() => setLoading(false));
   }
 

@@ -47,12 +47,27 @@ async function createInvestment({ investorId, projectId, amount, wantsConsultati
     throw new HttpError(400, "Identifiant de projet invalide.");
   }
 
-  const amt = requirePositiveAmount(amount);
-  const tip = tipAmount != null ? Math.round(Number(tipAmount) * 100) / 100 : 0;
-  const totalCharged = Math.round((amt + tip) * 100) / 100;
-
   const project = await Project.findById(projectId).lean();
   if (!project) throw new HttpError(404, "Projet introuvable.");
+
+  const goal = Number(project.fundingGoal || 0);
+  const current = Number(project.currentFunding || 0);
+  const remaining = Math.max(goal - current, 0);
+
+  const isFinalComplement = remaining > 0 && remaining < 100;
+
+  let amt;
+  if (isFinalComplement) {
+    if (Math.abs(Number(amount) - remaining) > 0.01) {
+      throw new HttpError(400, `Pour finaliser ce projet, vous devez soutenir avec le montant exact restant de ${remaining} TND.`);
+    }
+    amt = remaining;
+  } else {
+    amt = requirePositiveAmount(amount);
+  }
+
+  const tip = tipAmount != null ? Math.round(Number(tipAmount) * 100) / 100 : 0;
+  const totalCharged = Math.round((amt + tip) * 100) / 100;
 
   const today = nowStartOfDay(new Date());
   const startAt = project.startAt ? nowStartOfDay(project.startAt) : null;
@@ -492,11 +507,21 @@ async function sendMockOtpEmail({ investorId, providerPaymentId }) {
 
   console.info(`\n==================================================\n[3DS SECURE OTP] Transaction: ${providerPaymentId}\nCode OTP : ${code}\n==================================================\n`);
 
+  // Send the email in the background (fire-and-forget) so slow Ethereal
+  // account creation or SMTP delays never cause the frontend request to timeout.
+  // The OTP is already saved above and valid regardless of email delivery.
   const subject = "FinCollab — Code de vérification (démo)";
   const text = `Votre code OTP (démo) est : ${code}\n\nIl expire dans 10 minutes.\n`;
   const html = `<p>Votre code OTP (démo) est : <strong style="font-size:18px;letter-spacing:2px">${code}</strong></p><p>Il expire dans 10 minutes.</p>`;
-  const out = await sendMailDetailed({ to: user.email, subject, text, html });
-  return { ok: true, sent: Boolean(out?.ok), previewUrl: out?.previewUrl || null };
+  void sendMailDetailed({ to: user.email, subject, text, html })
+    .then((out) => {
+      if (out?.previewUrl) console.info("[OTP] URL de prévisualisation:", out.previewUrl);
+    })
+    .catch((err) => {
+      console.warn("[OTP] Email non envoyé (ignoré) :", err?.message);
+    });
+
+  return { ok: true, sent: true, previewUrl: null };
 }
 
 async function cancelInvestment({ investorId, investmentId }) {

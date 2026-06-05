@@ -849,9 +849,9 @@ export default function ProjectDetail() {
                   const remaining = Math.max(goal - current, 0);
                   const max = Math.max(remaining, 0);
                   const step = 100;
-                  const safeValue = Math.min(Math.max(Number(investAmount || 0), min), Math.max(max, min));
+                  const isFinalComplement = Number.isFinite(remaining) && remaining > 0 && remaining < min;
+                  const safeValue = isFinalComplement ? remaining : Math.min(Math.max(Number(investAmount || 0), min), Math.max(max, min));
                   const bump = (delta) => setInvestAmount((v) => Math.min(Math.max((Number.isFinite(Number(v)) ? Number(v) : 0) + delta, min), Math.max(max, min)));
-                  const tooLowRemaining = Number.isFinite(remaining) && remaining > 0 && remaining < min;
 
                   const threshold = goal * 0.30;
                   const isEligible = Number(investAmount) >= threshold;
@@ -861,7 +861,7 @@ export default function ProjectDetail() {
                       <div>
                         <label className="text-sm font-medium text-foreground mb-2 block">Montant (TND)</label>
                         <div className="flex items-center gap-2 mb-3">
-                          <Button variant="outline" size="icon" onClick={() => bump(-step)} disabled={tooLowRemaining} className="flex-shrink-0">-</Button>
+                          <Button variant="outline" size="icon" onClick={() => bump(-step)} disabled={isFinalComplement} className="flex-shrink-0">-</Button>
                           <input
                             type="number"
                             min={min}
@@ -870,9 +870,9 @@ export default function ProjectDetail() {
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-center font-semibold"
                             value={safeValue}
                             onChange={(e) => setInvestAmount(Number(e.target.value))}
-                            disabled={tooLowRemaining}
+                            disabled={isFinalComplement}
                           />
-                          <Button variant="outline" size="icon" onClick={() => bump(step)} disabled={tooLowRemaining} className="flex-shrink-0">+</Button>
+                          <Button variant="outline" size="icon" onClick={() => bump(step)} disabled={isFinalComplement} className="flex-shrink-0">+</Button>
                         </div>
                         <input
                           type="range"
@@ -882,10 +882,10 @@ export default function ProjectDetail() {
                           step={step}
                           value={safeValue}
                           onChange={(e) => setInvestAmount(Number(e.target.value))}
-                          disabled={tooLowRemaining}
+                          disabled={isFinalComplement}
                         />
                         <p className="text-xs text-muted-foreground mt-2">
-                          {tooLowRemaining ? `Reste ${remaining} TND (min ${min} TND).` : `Ajustez par ${step} TND. Max: ${max} TND.`}
+                          {isFinalComplement ? `Montant exact requis pour finaliser le projet : ${remaining} TND.` : `Ajustez par ${step} TND. Max: ${max} TND.`}
                         </p>
                       </div>
 
@@ -984,13 +984,13 @@ export default function ProjectDetail() {
 
                       <Button 
                         className="w-full font-bold text-base py-6 shadow-md"
-                        disabled={investing || tooLowRemaining}
+                        disabled={investing}
                         onClick={async () => {
                           setInvesting(true);
                           setInvestErr("");
                           try {
-                            const amt = Number(investAmount);
-                            if (!Number.isFinite(amt) || amt < 100) throw new Error("Montant invalide.");
+                            const amt = safeValue;
+                            if (!Number.isFinite(amt) || amt <= 0) throw new Error("Montant invalide.");
                             const tipVal = tipAmount === "custom" ? Number(customTip || 0) : Number(tipAmount || 0);
                             if (Number.isNaN(tipVal) || tipVal < 0) throw new Error("Pourboire invalide.");
                             const { data } = await investmentsApi.create({ projectId: project._id, amount: amt, tipAmount: tipVal, wantsConsultation: wantsExpert });
